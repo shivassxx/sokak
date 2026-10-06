@@ -458,54 +458,56 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         </div>
       )}
 
-      {near && !myTable && (
-        <div className="sit-prompt">
-          <b>{near.id + 1}. masa</b> · {[...near.seats].filter(Boolean).length}/4 · {near.status === 'open' ? (near.bet ? `${near.bet} ₺ bahis` : 'bahissiz') : 'oyun sürüyor'}
-          {near.status === 'open' && [...near.seats].some((s) => !s) && (
-            <button className="btn primary" onClick={() => room.send(KMSG.sit, { table: near.id })}>
+      <div className="kahve-bottom">
+        {near && !myTable && (
+          <div className="sit-prompt">
+            <b>{near.id + 1}. masa</b> · {[...near.seats].filter(Boolean).length}/4 · {near.status === 'open' ? (near.bet ? `${near.bet} ₺ bahis` : 'bahissiz') : 'oyun sürüyor'}
+            {near.status === 'open' && [...near.seats].some((s) => !s) && (
+              <button className="btn primary" onClick={() => room.send(KMSG.sit, { table: near.id })}>
+                Otur {!isTouch && <kbd>E</kbd>}
+              </button>
+            )}
+          </div>
+        )}
+        {nearThing?.kind === 'spot' && !myTable && (
+          <div className="sit-prompt">
+            <b>{SIT_SPOTS[nearThing.i]!.h < 0.4 ? 'Tabure' : 'Bank'}</b>
+            <button className="btn primary" onClick={() => room.send(KMSG.sitSpot, { spot: nearThing.i })}>
               Otur {!isTouch && <kbd>E</kbd>}
             </button>
-          )}
-        </div>
-      )}
-      {nearThing?.kind === 'spot' && !myTable && (
-        <div className="sit-prompt">
-          <b>{SIT_SPOTS[nearThing.i]!.h < 0.4 ? 'Tabure' : 'Bank'}</b>
-          <button className="btn primary" onClick={() => room.send(KMSG.sitSpot, { spot: nearThing.i })}>
-            Otur {!isTouch && <kbd>E</kbd>}
-          </button>
-        </div>
-      )}
-      {nearThing?.kind === 'shop' && shopOpen < 0 && (
-        <div className="sit-prompt">
-          <b>{SHOPS[nearThing.i]!.id === 'market' ? '🛒 Market' : '🥯 Simitçi'}</b>
-          <button className="btn primary" onClick={() => setShopOpen(nearThing.i)}>
-            Alışveriş {!isTouch && <kbd>E</kbd>}
-          </button>
-        </div>
-      )}
-      {myP && myP.spot >= 0 && (
-        <div className="sit-prompt">
-          <span>Oturuyorsun · manzaranın tadını çıkar</span>
-          <button className="btn" onClick={() => room.send(KMSG.stand)}>
-            Kalk {!isTouch && <kbd>E</kbd>}
-          </button>
-        </div>
-      )}
-      {myP && myP.holding && !myTable && (
-        <div className="held">
-          <span className="held-emoji">{SHOP_ITEMS.find((i) => i.id === myP.holding)?.emoji}</span>
-          <span>
-            {SHOP_ITEMS.find((i) => i.id === myP.holding)?.name} <small>({myP.uses})</small>
-          </span>
-          <button className="btn small primary" onClick={() => room.send(KMSG.use)}>
-            {{ smoke: 'Yak', eat: 'Ye', drink: 'İç', read: 'Oku' }[SHOP_ITEMS.find((i) => i.id === myP.holding)?.use ?? 'eat']} {!isTouch && <kbd>Q</kbd>}
-          </button>
-          <button className="btn small" onClick={() => room.send(KMSG.drop)}>
-            Bırak
-          </button>
-        </div>
-      )}
+          </div>
+        )}
+        {nearThing?.kind === 'shop' && shopOpen < 0 && (
+          <div className="sit-prompt">
+            <b>{SHOPS[nearThing.i]!.id === 'market' ? '🛒 Market' : '🥯 Simitçi'}</b>
+            <button className="btn primary" onClick={() => setShopOpen(nearThing.i)}>
+              Alışveriş {!isTouch && <kbd>E</kbd>}
+            </button>
+          </div>
+        )}
+        {myP && myP.spot >= 0 && (
+          <div className="sit-prompt">
+            <span>Oturuyorsun · manzaranın tadını çıkar</span>
+            <button className="btn" onClick={() => room.send(KMSG.stand)}>
+              Kalk {!isTouch && <kbd>E</kbd>}
+            </button>
+          </div>
+        )}
+        {myP && myP.holding && !myTable && (
+          <div className="held">
+            <span className="held-emoji">{SHOP_ITEMS.find((i) => i.id === myP.holding)?.emoji}</span>
+            <span>
+              {SHOP_ITEMS.find((i) => i.id === myP.holding)?.name} <small>({myP.uses})</small>
+            </span>
+            <button className="btn small primary" onClick={() => room.send(KMSG.use)}>
+              {{ smoke: 'Yak', eat: 'Ye', drink: 'İç', read: 'Oku' }[SHOP_ITEMS.find((i) => i.id === myP.holding)?.use ?? 'eat']} {!isTouch && <kbd>Q</kbd>}
+            </button>
+            <button className="btn small" onClick={() => room.send(KMSG.drop)}>
+              Bırak
+            </button>
+          </div>
+        )}
+      </div>
       {shopOpen >= 0 && myP && (
         <div className="panel shop-panel">
           <div className="panel-head">

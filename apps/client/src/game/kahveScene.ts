@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { CAYCI_SPOT, HALL, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, TERRACE, type TableView } from '@sokak/shared';
+import { CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, type TableView } from '@sokak/shared';
 import type { OkeyCtx } from '@sokak/okey';
 import { canvasTex, type Mover, type World } from './world';
 import { Character } from './character';
 import { RACK_DIST, TABLE_TOP } from './kahveProps';
 import { buildKahveWorld } from './kahveWorld';
+import { NavGrid } from './navGrid';
 import { TILE_H, TILE_T, TILE_W, TileField, cellOf, setAtlasOkey } from './okeyTiles';
 import { initialQuality } from './postfx';
 
@@ -405,19 +406,19 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
   let returning = false;
   const served: { obj: THREE.Object3D; t: number }[] = [];
 
-  // waypoints from the counter's east end to a target (hall aisles, terrace, street)
+  // the çaycı leaves the counter at its east end and walks a planned path to the customer
   const EXIT = new THREE.Vector3(4.2, 0, -22.6);
-  const AISLES = [-18, -13, -8, -3, 2, 7, 12];
-  const V = (x: number, z: number) => new THREE.Vector3(x, 0, z);
+  const nav = new NavGrid(KAHVE_COLLIDERS, KAHVE_HALF);
   const plan = (to: THREE.Vector3): THREE.Vector3[] => {
-    const start = [V(4.2, -19)];
-    if (to.z < -0.5 && to.x > HALL.x0 && to.x < HALL.x1) {
-      const ax = AISLES.reduce((best, x) => (Math.abs(x - to.x) < Math.abs(best - to.x) ? x : best), AISLES[0]!);
-      return [...start, V(ax, -19), V(ax, to.z), V(to.x + (ax - to.x) * 0.35, to.z)];
-    }
-    const out = [...start, V(-3, -19), V(-3, -0.8), V(-3, 1.3)];
-    if (to.z < TERRACE.z1) return [...out, V(to.x, 1.3), V(to.x, to.z - 0.6)];
-    return [...out, V(-3, 8.6), V(to.x, 8.6), V(to.x, to.z - 0.6)];
+    const pts = nav.path(EXIT, to).map((p) => new THREE.Vector3(p.x, 0, p.z));
+    if (!pts.length) return [EXIT.clone()];
+    // stop just short of the customer instead of walking into them
+    const last = pts[pts.length - 1]!;
+    const before = pts[pts.length - 2] ?? EXIT;
+    const leg = last.distanceTo(to) < 0.3 ? last.distanceTo(before) : 0;
+    if (leg > 0.8) last.lerp(before, 0.7 / leg);
+    else if (leg > 0 && pts.length > 1) pts.pop();
+    return pts;
   };
   const startNext = () => {
     current = queue.shift() ?? null;
