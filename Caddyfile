@@ -1,0 +1,10 @@
+# Automatic HTTPS (Let's Encrypt) for $DOMAIN; WebSockets are proxied transparently.
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy app:2567
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	}
+}

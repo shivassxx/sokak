@@ -8,7 +8,8 @@
     "build": "pnpm --filter @sokak/client --filter @sokak/server build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
-    "start": "node apps/server/dist/index.js"
+    "start": "node apps/server/dist/index.js --prod",
+    "check:size": "node scripts/check-size.mjs"
   },
   "devDependencies": {
     "@types/node": "22.20.5",

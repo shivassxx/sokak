@@ -4,3 +4,4 @@ export * from './physics';
 export * from './visibility';
 export * from './protocol';
 export * from './names';
+export * from './profanity';

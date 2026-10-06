@@ -39,6 +39,8 @@ export function App() {
 
   const attach = useCallback((r: Room) => {
     leavingRef.current = false;
+    // messages that arrive before the 3D scene is wired are simply dropped
+    r.onMessage('*', () => {});
     setUrlRoom(r.roomId);
     setRoom(r);
     r.onLeave(async (code) => {

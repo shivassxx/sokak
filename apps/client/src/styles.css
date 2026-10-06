@@ -11,7 +11,9 @@
 }
 * { box-sizing: border-box; }
 html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #f6c58f; overscroll-behavior: none; }
-body { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: none; }
+body { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.game-root { touch-action: none; }
+.home { touch-action: pan-y; }
 button { font: inherit; cursor: pointer; }
 input { font: inherit; }
 
@@ -119,3 +121,7 @@ input { font: inherit; }
   .round-btn { width: 40px; height: 40px; font-size: 19px; }
   .joy-hint { bottom: 24px; }
 }
+.howto { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: min(760px, 100%); margin-top: 6px; }
+.howto div { background: rgba(255,248,236,.85); border-radius: 14px; padding: 10px 12px; text-align: left; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.howto b { font-size: 15px; }
+@media (max-width: 640px) { .howto { grid-template-columns: 1fr; } .home { justify-content: flex-start; padding-top: 28px; } }

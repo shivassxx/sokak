@@ -19,7 +19,7 @@ import {
 } from '@sokak/shared';
 import type { Game } from '../game/Game';
 import { useRoomView } from '../net/useRoom';
-import { Lobby } from './Lobby';
+import { Lobby, shareRoom } from './Lobby';
 import { Social } from './Social';
 import { countWord, play, say } from '../game/audio';
 import { Hud, Scoreboard, SummaryPanel, eventText, nameOf, useBanner, useToasts } from './Hud';
@@ -239,6 +239,17 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
         {view && view.phase !== 'lobby' && (
           <button className="btn small" onPointerDown={() => setShowScores((v) => !v)}>
             Skor
+          </button>
+        )}
+        {view && view.phase !== 'lobby' && Object.keys(view.players).length < 10 && (
+          <button
+            className="btn small"
+            onClick={async () => {
+              const r = await shareRoom(room.roomId);
+              pushToast({ text: r === 'failed' ? 'Link kopyalanamadı' : 'Davet linki hazır, arkadaşına gönder!', kind: 'info' });
+            }}
+          >
+            Davet et
           </button>
         )}
       </div>

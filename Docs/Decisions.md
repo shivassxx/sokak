@@ -49,3 +49,10 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 - **Sounds are synthesized** (WebAudio). Turkish voice lines use the device's speech synthesizer only if a Turkish voice exists; otherwise text + SFX only.
 - **Quick-chat** stays preset-only (6 phrases from CLAUDE.md + "Hadi ama!"). Chat 1 per 1.2 s, emotes 1 per 0.7 s per player.
 - **Mute preference** is stored in `localStorage` (a device setting, not personal data).
+
+## M6
+- **Nickname filter** is a small built-in list (no dependency). Strong roots are matched anywhere (even "o.r.o.s.p.u"), short words only as whole words to avoid false positives on common names. Offensive → replaced silently with a random "Adjective Animal" nickname.
+- **Analytics** = aggregate counters only, no personal data, no third-party service. `/stats` is public unless `STATS_TOKEN` is set (recommended in production; `.env.example` sets one).
+- **Single container** serves the client and the game socket; Caddy only terminates TLS. Simplest possible VDS setup.
+- **`pnpm start` uses a `--prod` flag** instead of `NODE_ENV=…` so it also works in Windows shells.
+- **Actual deployment is not done** (account-bound: needs a VDS + domain); steps are in `Docs/Deploy.md`.

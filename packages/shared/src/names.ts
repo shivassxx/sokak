@@ -1,7 +1,7 @@
 import { NAME_MAX, NAME_MIN, OUTFIT_COLORS } from './protocol';
 
 const ADJ = ['Sevimli', 'Hızlı', 'Gizli', 'Neşeli', 'Cesur', 'Uykucu', 'Şakacı', 'Minik', 'Afacan', 'Sessiz'];
-const NOUN = ['Kedi', 'Serçe', 'Kirpi', 'Tavşan', 'Sincap', 'Martı', 'Kaplumbağa', 'Kuzu', 'Tilki', 'Baykuş'];
+const NOUN = ['Kedi', 'Serçe', 'Kirpi', 'Tavşan', 'Sincap', 'Martı', 'Kumru', 'Kuzu', 'Tilki', 'Baykuş'];
 
 export function randomNickname(rnd: () => number = Math.random): string {
   const a = ADJ[Math.floor(rnd() * ADJ.length)]!;

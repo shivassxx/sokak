@@ -65,7 +65,21 @@ export function Home({ inviteRoomId, busy, error, onCreate, onJoin, onPractice }
           ya da tek başına mahallede dolaş
         </button>
       </div>
-      <p className="fineprint">Hesap yok, kayıt yok. Sadece bir takma ad. 3–10 oyuncu, telefonda ve bilgisayarda.</p>
+      <div className="howto">
+        <div>
+          <b>1. Oda kur</b>
+          <span>Linki arkadaşlarına gönder. Tıklayan saniyeler içinde mahallede!</span>
+        </div>
+        <div>
+          <b>2. Saklan</b>
+          <span>Ebe duvara dönüp 30’a kadar sayarken en gizli köşeyi bul. Çömel, çalıların arasına gir.</span>
+        </div>
+        <div>
+          <b>3. Sobele ya da kurtul</b>
+          <span>Ebe “Gördüm!” der, herkes Ebe Duvarı’na koşar. Son kalan herkesi kurtarabilir!</span>
+        </div>
+      </div>
+      <p className="fineprint">Hesap yok, kayıt yok. Sadece bir takma ad. 3–10 oyuncu (boş yerlere bot eklenebilir), telefonda ve bilgisayarda.</p>
     </div>
   );
 }

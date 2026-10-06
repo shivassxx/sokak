@@ -15,6 +15,7 @@ import {
   SIM_DT,
   TICK_MS,
   cleanNickname,
+  isOffensive,
   createBody,
   isValidNicknameLength,
   randomNickname,
@@ -69,6 +70,7 @@ export class SaklambacRoom extends Room<SaklambacState> {
   private botCounter = 0;
   /** overridable per server (tests use short timers) */
   static rulesConfig: Partial<RulesConfig> = {};
+  static analyticsSink: { roomCreated(): void; roomDisposed(): void; roundPlayed(size: number, reason: string): void } | null = null;
   protected rules = new SaklambacRules();
   /** per hider: ms spent in each named zone during seeking (best hiding spot) */
   private zoneTime = new Map<string, Map<string, number>>();
@@ -79,7 +81,10 @@ export class SaklambacRoom extends Room<SaklambacState> {
 
   override onCreate(): void {
     this.roomId = generateRoomId();
-    this.rules = new SaklambacRules((this.constructor as typeof SaklambacRoom).rulesConfig);
+    const cls = this.constructor as typeof SaklambacRoom;
+    this.rules = new SaklambacRules(cls.rulesConfig);
+    this.analytics = cls.analyticsSink;
+    this.analytics?.roomCreated();
     void this.setPrivate(true);
     this.autoDispose = true;
 
@@ -122,7 +127,7 @@ export class SaklambacRoom extends Room<SaklambacState> {
 
   override onJoin(client: Client, options: JoinOptions = {}): void {
     let name = cleanNickname(options.name);
-    if (!isValidNicknameLength(name)) name = randomNickname();
+    if (!isValidNicknameLength(name) || isOffensive(name)) name = randomNickname();
     const p = new PlayerState();
     p.id = client.sessionId;
     p.name = this.uniqueName(name);
@@ -327,8 +332,12 @@ export class SaklambacRoom extends Room<SaklambacState> {
   /** hook for M4 (bots react to events) */
   protected onRuleEvent(_e: GameEvent): void {}
 
-  /** optional analytics sink (M6) */
-  analytics: { roundPlayed(size: number, reason: string): void } | null = null;
+  /** optional analytics sink (counts only) */
+  analytics: typeof SaklambacRoom.analyticsSink = null;
+
+  override onDispose(): void {
+    this.analytics?.roomDisposed();
+  }
 
   /** Ebe to the wall facing it, hiders to the spawn ring. */
   private placeForRound(): void {

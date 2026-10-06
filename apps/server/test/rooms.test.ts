@@ -82,3 +82,24 @@ describe('rooms', () => {
     await a.leave();
   });
 });
+
+describe('M6: launch features', () => {
+  it('replaces offensive nicknames with a friendly random one', async () => {
+    const a = await new NetBot(endpoint).create({ name: 's1kt1r' });
+    await until(() => !!(a.room.state as any).players?.get(a.id));
+    const name = (a.room.state as any).players.get(a.id).name as string;
+    expect(name).not.toMatch(/s1kt1r/i);
+    expect(name.length).toBeGreaterThan(2);
+    await a.leave();
+  });
+
+  it('counts rooms and exposes aggregate stats', async () => {
+    const before = server.analytics.summary().roomsCreated;
+    const a = await new NetBot(endpoint).create({ name: 'Sayaç' });
+    expect(server.analytics.summary().roomsCreated).toBe(before + 1);
+    const res = await fetch(`http://127.0.0.1:${server.port}/stats`);
+    const json = (await res.json()) as { roomsCreated: number };
+    expect(json.roomsCreated).toBe(before + 1);
+    await a.leave();
+  });
+});
