@@ -19,9 +19,11 @@ import {
   type MoveInput,
 } from '@sokak/shared';
 import { Character, type Emote, type Pose } from './character';
+export { loadCharacterKit } from './character';
 import { Input } from './input';
 import { buildWorld, type Mover, type World } from './world';
 import { setupLighting, type Lighting } from './lighting';
+import { PostFX, initialQuality } from './postfx';
 import type { KahveScene } from './kahveScene';
 
 export type Level = 'mahalle' | 'kahve';
@@ -103,13 +105,19 @@ export class Game {
   sender: InputSender | null = null;
 
   private lighting: Lighting | null = null;
+  private post: PostFX;
   private world: World;
   /** kahvehane-only scene helpers (waiter, drinks, racks) */
   kahve: KahveScene | null = null;
   private phys: CollisionWorld;
   private solidCam: typeof SOLID_CAM_MAHALLE;
-  /** seated at an okey table: fixed camera looking at the table */
-  seatCam: { x: number; z: number; tx: number; tz: number } | null = null;
+  /** seated at an okey table: camera from the seat looking down at the table */
+  seat: { table: number; seat: number } | null = null;
+  /** NDC y of the top of the on-screen rack (the table is framed above it) */
+  seatBottom = -0.42;
+  private seatLook = new THREE.Vector3();
+  /** dev-only: fixed camera for screenshots */
+  debugCam: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null;
   private dusk = 0.15;
   private duskTarget = 0.15;
   private raf = 0;
@@ -127,6 +135,7 @@ export class Game {
     this.solidCam = level === 'kahve' ? SOLID_CAM_KAHVE : SOLID_CAM_MAHALLE;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
+    const quality = initialQuality();
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -140,6 +149,7 @@ export class Game {
       this.lighting = setupLighting(this.scene, this.renderer);
       this.world = buildWorld(this.scene);
     }
+    this.post = new PostFX(this.renderer, this.scene, this.camera, quality, level === 'kahve' ? { bloomStrength: 0.4, aoRadius: 0.45, vignette: 0.38 } : {});
     this.applyDusk();
     this.input.attach(canvas);
     this.input.onPress((a) => {
@@ -165,6 +175,7 @@ export class Game {
   private applyDusk(): void {
     this.lighting?.setDusk(this.dusk);
     this.world.setDusk(this.dusk);
+    if (this.level === 'mahalle') this.post?.setBloom(0.22 + this.dusk * 0.55);
   }
 
   // ------------------------------------------------------------ local player
@@ -175,7 +186,7 @@ export class Game {
     this.facing = facing;
     this.camYaw = facing;
     if (!this.localChar) {
-      this.localChar = new Character(look);
+      this.localChar = new Character(look, { adult: this.level === 'kahve' });
       this.scene.add(this.localChar.root);
     } else this.localChar.setLook(look);
     this.localChar.root.visible = true;
@@ -305,7 +316,7 @@ export class Game {
     const key = `${look.color}|${look.hat}|${look.hair}|${look.skin}|${label}|${labelColor ?? ''}`;
     if (r?.key === key) return;
     if (!r) {
-      r = { char: new Character(look), key, buf: [], lastSeen: 0, prevX: 0, prevZ: 0, fixed: null };
+      r = { char: new Character(look, { adult: this.level === 'kahve' }), key, buf: [], lastSeen: 0, prevX: 0, prevZ: 0, fixed: null };
       r.char.root.visible = false;
       this.scene.add(r.char.root);
       this.remotes.set(id, r);
@@ -382,6 +393,7 @@ export class Game {
     const w = this.canvas.clientWidth || window.innerWidth;
     const h = this.canvas.clientHeight || window.innerHeight;
     this.renderer.setSize(w, h, false);
+    this.post.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.fov = w < h ? 75 : 62;
     this.camera.updateProjectionMatrix();
@@ -444,7 +456,7 @@ export class Game {
       const z = p.z + (b.z - p.z) * a;
       const ch = this.localChar;
       const speed = Math.hypot(b.x - p.x, b.z - p.z) / SIM_DT;
-      ch.root.visible = this.inside < 0;
+      ch.root.visible = this.inside < 0 && !this.seat;
       ch.root.position.set(x, y, z);
       if (b.onGround) this.events.onStep?.(speed, speed > 6);
       this.fovKick += ((speed > 6 ? 1 : 0) - this.fovKick) * Math.min(1, dt * 4);
@@ -522,18 +534,24 @@ export class Game {
     for (const r of this.remotes.values()) if (r.char.root.visible) movers.push({ x: r.prevX, z: r.prevZ, speed: 4 });
     this.world.update(dt, movers);
     this.onFrame?.(dt);
-    this.renderer.render(this.scene, this.camera);
+    this.post.render(dt);
   }
 
   private updateCamera(focus: THREE.Vector3): void {
-    if (this.seatCam) {
-      const s = this.seatCam;
-      const dx = s.x - s.tx;
-      const dz = s.z - s.tz;
-      const l = Math.hypot(dx, dz) || 1;
-      const desired = new THREE.Vector3(s.x + (dx / l) * 1.7, 3.1, s.z + (dz / l) * 1.7);
-      this.camera.position.lerp(desired, 0.15);
-      this.camera.lookAt(s.tx, 0.6, s.tz);
+    if (this.debugCam) {
+      this.camera.position.copy(this.debugCam.pos);
+      this.camera.lookAt(this.debugCam.target);
+      return;
+    }
+    if (this.seat && this.kahve) {
+      const sv = this.kahve.seatView(this.seat.table, this.seat.seat, this.camera.aspect, this.seatBottom);
+      this.camera.position.lerp(sv.pos, 0.12);
+      this.seatLook.lerp(sv.target, 0.2);
+      this.camera.lookAt(this.seatLook);
+      if (Math.abs(this.camera.fov - sv.fov) > 0.05) {
+        this.camera.fov += (sv.fov - this.camera.fov) * 0.2;
+        this.camera.updateProjectionMatrix();
+      }
       return;
     }
     if (this.frozen && this.body) {
@@ -580,6 +598,7 @@ export class Game {
     this.resizeObs.disconnect();
     this.input.detach();
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
+    this.post.dispose();
     this.renderer.dispose();
   }
 }

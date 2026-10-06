@@ -18,11 +18,14 @@ interface Props {
 function Preview({ prefs }: { prefs: Prefs }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const preview = useRef<CharacterPreview | null>(null);
+  const latest = useRef(prefs);
+  latest.current = prefs;
   useEffect(() => {
     let cancelled = false;
-    void import('../game/preview').then(({ CharacterPreview }) => {
+    void import('../game/preview').then(async ({ CharacterPreview, loadCharacterKit }) => {
+      await loadCharacterKit();
       if (cancelled || !ref.current) return;
-      preview.current = new CharacterPreview(ref.current, prefs);
+      preview.current = new CharacterPreview(ref.current, latest.current);
     });
     return () => {
       cancelled = true;

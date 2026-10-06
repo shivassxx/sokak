@@ -46,10 +46,10 @@ export function setupLighting(scene: THREE.Scene, renderer: THREE.WebGLRenderer)
 
   scene.fog = new THREE.Fog(0xf3c08e, 60, 170);
 
-  const hemi = new THREE.HemisphereLight(0xffe2bd, 0x7a6a6e, 1.15);
+  const hemi = new THREE.HemisphereLight(0xffe2bd, 0x6a5a5e, 0.95);
   scene.add(hemi);
 
-  const sun = new THREE.DirectionalLight(0xffc68a, 2.9);
+  const sun = new THREE.DirectionalLight(0xffc68a, 3.2);
   const offset = new THREE.Vector3(-30, 24, -18);
   sun.castShadow = true;
   const size = mobile ? 24 : 34;
@@ -82,8 +82,8 @@ export function setupLighting(scene: THREE.Scene, renderer: THREE.WebGLRenderer)
     },
     setDusk(d) {
       sun.color.copy(c.sunA).lerp(c.sunB, d);
-      sun.intensity = 2.9 - d * 2.3;
-      hemi.intensity = 1.15 - d * 0.62;
+      sun.intensity = 3.2 - d * 2.55;
+      hemi.intensity = 0.95 - d * 0.5;
       scene.environmentIntensity = 0.45 - d * 0.32;
       skyUniforms.top.value.copy(c.topA).lerp(c.topB, d);
       skyUniforms.horizon.value.copy(c.horA).lerp(c.horB, d);

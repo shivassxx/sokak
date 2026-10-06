@@ -41,10 +41,15 @@ export class Builder {
   bucket: Bucket = 'main';
 
   add(geo: THREE.BufferGeometry, color: number, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0, bucket: Bucket = this.bucket): void {
-    const g = geo.index ? geo.toNonIndexed() : geo.clone();
     this.q.setFromEuler(this.e.set(rx, ry, rz));
     this.m.compose(this.p.set(x, y, z), this.q, this.s);
-    g.applyMatrix4(this.m);
+    this.addMatrix(geo, color, this.m, bucket);
+  }
+
+  /** add with a full transform (nested rotations, scale) */
+  addMatrix(geo: THREE.BufferGeometry, color: number, matrix: THREE.Matrix4, bucket: Bucket = this.bucket): void {
+    const g = geo.index ? geo.toNonIndexed() : geo.clone();
+    g.applyMatrix4(matrix);
     this.color.setHex(color);
     const n = g.getAttribute('position').count;
     const cols = new Float32Array(n * 3);

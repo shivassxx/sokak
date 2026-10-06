@@ -1,7 +1,7 @@
 import { asPair, asSeries, bestArrangement, bestPairs, sortTiles, type OkeyCtx } from '@sokak/okey';
 
 /** The ıstaka: 2 rows of slots; null = empty slot. */
-export const ROW = 14;
+export const ROW = 15;
 export const SLOTS = ROW * 2;
 export type Rack = (number | null)[];
 
@@ -25,6 +25,34 @@ export function syncRack(rack: Rack, hand: number[]): Rack {
     if (i < 0) i = next.indexOf(null);
     if (i >= 0) next[i] = t;
   }
+  return next;
+}
+
+/**
+ * Drop `tile` on slot `to`. An empty slot just takes it; an occupied one makes
+ * room by sliding its neighbours towards the nearest free slot of that row
+ * (like pushing tiles along a real ıstaka). A full row falls back to a swap.
+ */
+export function moveTile(rack: Rack, tile: number, to: number): Rack {
+  const from = rack.indexOf(tile);
+  if (from < 0 || from === to || to < 0 || to >= SLOTS) return rack;
+  const next = [...rack];
+  next[from] = null;
+  if (next[to] === null) {
+    next[to] = tile;
+    return next;
+  }
+  const start = Math.floor(to / ROW) * ROW;
+  let best = -1;
+  for (let i = start; i < start + ROW; i++) if (next[i] === null && (best < 0 || Math.abs(i - to) < Math.abs(best - to))) best = i;
+  if (best < 0) {
+    next[from] = next[to]!;
+    next[to] = tile;
+    return next;
+  }
+  if (best > to) for (let i = best; i > to; i--) next[i] = next[i - 1]!;
+  else for (let i = best; i < to; i++) next[i] = next[i + 1]!;
+  next[to] = tile;
   return next;
 }
 

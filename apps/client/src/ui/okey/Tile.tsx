@@ -9,6 +9,7 @@ export function Tile({
   small,
   selected,
   dim,
+  isNew,
   onClick,
   onPointerDown,
 }: {
@@ -17,10 +18,12 @@ export function Tile({
   small?: boolean;
   selected?: boolean;
   dim?: boolean;
+  /** the tile just taken from the left (it may be put back) */
+  isNew?: boolean;
   onClick?: () => void;
   onPointerDown?: (e: React.PointerEvent) => void;
 }) {
-  const cls = `tile ${small ? 'sm' : ''} ${selected ? 'sel' : ''} ${dim ? 'dim' : ''}`;
+  const cls = `tile ${small ? 'sm' : ''} ${selected ? 'sel' : ''} ${dim ? 'dim' : ''} ${isNew ? 'new' : ''}`;
   if (isFake(id)) {
     return (
       <div className={`${cls} fake`} onClick={onClick} onPointerDown={onPointerDown} data-tile={id}>

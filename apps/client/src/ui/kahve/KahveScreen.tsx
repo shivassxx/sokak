@@ -67,20 +67,23 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const [nearTable, setNearTable] = useState<number>(-1);
   /** recently served drinks per player (shown as badges at the table) */
   const [drinks, setDrinks] = useState<Record<string, { emoji: string; t: number }[]>>({});
+  const [suspicion, setSuspicion] = useState<{ seat: number; until: number } | null>(null);
   const offset = useRef(0);
   const me = room.sessionId;
   const myP = view?.players[me];
   const myTable: KTableView | null = myP && myP.table >= 0 ? view!.tables[myP.table]! : null;
   const tableView: TableView | null = useMemo(() => (myTable?.view ? (JSON.parse(myTable.view) as TableView) : null), [myTable?.view]);
-  const name = (id: string) => view?.players[id]?.name ?? 'biri';
+  const name = (id: string) => viewRef.current?.players[id]?.name ?? view?.players[id]?.name ?? 'biri';
 
   // ------------------------------------------------------------ 3D scene
   useEffect(() => {
     let g: Game | null = null;
     let cancelled = false;
-    void Promise.all([import('../../game/Game'), import('../../game/kahveScene')]).then(([{ Game }, { buildKahve }]) => {
+    void Promise.all([import('../../game/Game'), import('../../game/kahveScene')]).then(async ([{ Game, loadCharacterKit }, { buildKahve }]) => {
+      await loadCharacterKit();
       if (cancelled || !canvasRef.current) return;
       g = new Game(canvasRef.current, 'kahve', buildKahve);
+      if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = g;
       setGame(g);
     });
     return () => {
@@ -153,6 +156,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         break;
       case 'suspicious':
         toastRef.current({ text: `🤨 ${seatName(e.seat)}'in elleri bir garip… Taş mı çaldı? (6 sn)`, kind: 'bad' });
+        setSuspicion({ seat: Number(e.seat), until: Date.now() + 6000 });
         play('spotted');
         break;
       case 'stoleOk':
@@ -232,15 +236,11 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     game.frozen = seated;
     game.setLabelsVisible(!seated);
     game.setPose(null, seated ? 'sit' : 'none');
-    if (seated) {
-      const sp = seatPosition(mine.table, mine.seat);
-      const c = TABLES[mine.table]!;
-      game.seatCam = { x: sp.x, z: sp.z, tx: c.x, tz: c.z };
-    } else game.seatCam = null;
-    // tile backs on every table
+    game.seat = seated ? { table: mine.table, seat: mine.seat } : null;
+    // real tiles on every table
     view.tables.forEach((t) => {
       const tv = t.view ? (JSON.parse(t.view) as TableView) : null;
-      game.kahve?.setRacks(t.id, tv && t.status !== 'open' ? tv.handCounts : null, tv?.deck ?? 0);
+      game.kahve?.setTable(t.id, tv && t.status !== 'open' ? tv : null, seated && mine.table === t.id ? mine.seat : null);
     });
   }, [game, view, me]);
 
@@ -272,13 +272,16 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   nearTableRef.current = nearTable;
 
   const send = (a: OkeyAction) => room.send(KMSG.okey, a);
+  const standUp = () => {
+    if (confirm('Masadan kalkarsan bahsin yanar ve yerine bot oturur. Emin misin?')) room.send(KMSG.stand);
+  };
   const serverNow = () => Date.now() + offset.current;
   const richest = view ? Object.values(view.players).filter((p) => !p.isBot).sort((a, b) => b.money - a.money).slice(0, 5) : [];
   const isHost = myTable?.hostId === me;
   const near = nearTable >= 0 && view ? view.tables[nearTable]! : null;
 
   return (
-    <div className="game-root kahve">
+    <div className={`game-root kahve ${myTable && myTable.status !== 'open' ? 'seated' : ''}`}>
       <canvas ref={canvasRef} className="game-canvas" />
       {!game && <div className="loading">Kahvehane açılıyor…</div>}
       <div className="hud-top">
@@ -384,9 +387,12 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         </div>
       )}
 
-      {myTable && myTable.status !== 'open' && myP && (
+      {myTable && myTable.status !== 'open' && myP && game && (
         <>
           <OkeyBoard
+            game={game!}
+            suspicion={suspicion}
+            onStand={standUp}
             table={myTable}
             view={tableView}
             players={view!.players}
@@ -398,7 +404,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             toast={(text, kind) => pushToast({ text, kind })}
             drinks={drinks}
           />
-          <button className="btn small stand-btn" onClick={() => confirm('Masadan kalkarsan bahsin yanar ve yerine bot oturur. Emin misin?') && room.send(KMSG.stand)}>
+          <button className="btn small stand-btn" onClick={standUp}>
             Kalk
           </button>
         </>

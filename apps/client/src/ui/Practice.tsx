@@ -10,7 +10,8 @@ export function Practice({ onExit }: { onExit: () => void }) {
   useEffect(() => {
     let g: Game | null = null;
     let cancelled = false;
-    void import('../game/Game').then(({ Game }) => {
+    void import('../game/Game').then(async ({ Game, loadCharacterKit }) => {
+      await loadCharacterKit();
       if (cancelled || !canvasRef.current) return;
       g = new Game(canvasRef.current);
       g.spawnLocal(0, 0, 4, { ...loadPrefs() });

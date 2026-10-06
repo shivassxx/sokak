@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Look } from '@sokak/shared';
 import { Character } from './character';
+export { loadCharacterKit } from './character';
 
 /** Small turntable renderer for the character on the home screen. */
 export class CharacterPreview {
