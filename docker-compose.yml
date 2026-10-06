@@ -1,6 +1,11 @@
 services:
   app:
-    build: .
+    build:
+      context: .
+      args:
+        - VITE_TURN_URL=${VITE_TURN_URL:-}
+        - VITE_TURN_USER=${VITE_TURN_USER:-}
+        - VITE_TURN_PASS=${VITE_TURN_PASS:-}
     restart: unless-stopped
     environment:
       - NODE_ENV=production

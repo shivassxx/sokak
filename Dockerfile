@@ -8,8 +8,14 @@ COPY apps/server/package.json apps/server/
 COPY packages/shared/package.json packages/shared/
 COPY packages/rules/package.json packages/rules/
 COPY packages/bots/package.json packages/bots/
+COPY packages/okey/package.json packages/okey/
 RUN pnpm install --frozen-lockfile
 COPY . .
+# optional TURN relay for voice chat (baked into the client at build time, see Docs/Deploy.md)
+ARG VITE_TURN_URL=""
+ARG VITE_TURN_USER=""
+ARG VITE_TURN_PASS=""
+ENV VITE_TURN_URL=$VITE_TURN_URL VITE_TURN_USER=$VITE_TURN_USER VITE_TURN_PASS=$VITE_TURN_PASS
 RUN pnpm build
 # server + production node_modules only
 RUN pnpm --filter @sokak/server deploy --legacy --prod /out
@@ -20,7 +26,8 @@ WORKDIR /app
 ENV NODE_ENV=production \
     PORT=2567 \
     CLIENT_DIR=/app/client \
-    ANALYTICS_FILE=/app/data/analytics.jsonl
+    ANALYTICS_FILE=/app/data/analytics.jsonl \
+    WALLET_FILE=/app/data/wallets.json
 COPY --from=build /out ./server
 COPY --from=build /app/apps/server/dist ./server/dist
 COPY --from=build /app/apps/client/dist ./client
