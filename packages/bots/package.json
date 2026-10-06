@@ -1,0 +1,9 @@
+{
+  "name": "@sokak/bots",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts", "./client": "./src/client.ts" },
+  "scripts": { "typecheck": "tsc -p tsconfig.json" },
+  "dependencies": { "@sokak/shared": "workspace:*", "colyseus.js": "0.16.22" }
+}
