@@ -193,6 +193,23 @@ describe('kahvehane', () => {
     await b.leave();
   });
 
+  it('resync: a rejoined player gets their private hand again', async () => {
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Yenile', quick: true });
+    await until(() => (st(a).players?.get(a.id)?.table ?? -1) >= 0);
+    const ti = me(a).table;
+    a.room.send(KMSG.fillBots);
+    await until(() => table(a, ti).status === 'playing');
+    let hand: number[] | null = null;
+    a.room.onMessage(KMSG.hand, (h: { tiles: number[] }) => (hand = h.tiles));
+    await sleep(100);
+    hand = null;
+    a.room.send(KMSG.resync);
+    await until(() => hand !== null);
+    expect(hand!.length).toBeGreaterThanOrEqual(21);
+    a.room.send(KMSG.stand);
+    await a.leave();
+  });
+
   it('lobby leaderboard: the richest online players of public salons', async () => {
     const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Zengin' });
     await until(() => !!st(a).players?.get(a.id));

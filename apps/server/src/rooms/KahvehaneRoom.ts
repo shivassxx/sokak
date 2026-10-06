@@ -156,6 +156,10 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.onMessage(KMSG.credit, (c) => this.credit(c.sessionId));
     this.onMessage(KMSG.buy, (c, m: { shop?: unknown; item?: unknown }) => this.buy(c.sessionId, m));
     this.onMessage(KMSG.use, (c) => this.useItem(c.sessionId));
+    this.onMessage(KMSG.resync, (c) => {
+      const p = this.state.players.get(c.sessionId);
+      if (p) this.sendHand(p.table, p.seat);
+    });
     this.onMessage(KMSG.drop, (c) => {
       const p = this.state.players.get(c.sessionId);
       if (p) (p.holding = ''), (p.uses = 0);

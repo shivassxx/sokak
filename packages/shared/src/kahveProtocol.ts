@@ -25,6 +25,8 @@ export const KMSG = {
   notice: 'notice',
   voice: 'voice',
   signal: 'signal',
+  /** client is wired up (after a reload / reconnect): resend private state */
+  resync: 'resync',
 } as const;
 
 /** WebRTC signalling relayed by the server between two voice users. */

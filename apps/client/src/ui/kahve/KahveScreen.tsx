@@ -158,6 +158,8 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         game.bubble(c.id === me ? null : c.id, text);
       }),
     ];
+    // anything private sent before these handlers existed (rejoin after a reload) was dropped
+    room.send(KMSG.resync);
     return () => {
       game.sender = null;
       for (const off of offs) off();
