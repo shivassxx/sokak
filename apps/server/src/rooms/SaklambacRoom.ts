@@ -2,7 +2,16 @@ import { Room, type Client } from '@colyseus/core';
 import {
   BASE,
   BASE_RADIUS,
+  CONTAINERS,
+  CONTAINER_REACH,
   EBE_COUNT_SPOT,
+  PEBBLE_COOLDOWN,
+  PEBBLE_RANGE,
+  PLAYER_HEIGHT,
+  PLAYER_RADIUS,
+  STEP_HEIGHT,
+  isSprinting,
+  solidsNear,
   EMOTES,
   MAX_PLAYERS,
   SPOT_RANGE,
@@ -20,6 +29,10 @@ import {
   isValidNicknameLength,
   randomNickname,
   sanitizeColor,
+  sanitizeLook,
+  HATS,
+  HAIRS,
+  SKINS,
   spawnPoint,
   stepBody,
   type Body,
@@ -29,13 +42,14 @@ import {
   type InputMsg,
   type JoinOptions,
   type MoveInput,
+  type PebbleMsg,
   type PlayerSnap,
   type SnapshotMsg,
   type SummaryMsg,
   type TeleportMsg,
   zoneAt,
 } from '@sokak/shared';
-import { SaklambacBot, type BotContext } from '@sokak/bots';
+import { SaklambacBot, nearestWalkable, type BotContext } from '@sokak/bots';
 import { SaklambacRules, type GameEvent, type RulesConfig } from '@sokak/rules';
 import { PlayerState, SaklambacState } from './schema';
 import { generateRoomId } from '../roomId';
@@ -57,7 +71,19 @@ interface Sim {
   client: Client | null;
   lastChatAt: number;
   lastEmoteAt: number;
+  sprinting: boolean;
+  /** horizontal speed last tick (m/s) */
+  speed: number;
+  /** index into CONTAINERS when hiding inside one, else -1 */
+  inside: number;
+  lastPebbleAt: number;
 }
+
+/** Footsteps the Ebe can hear: sprint carries far, walking a little, crouching is silent. */
+const NOISE_RANGE_SPRINT = 18;
+const NOISE_RANGE_WALK = 8;
+/** hiders feel the Ebe coming from this far */
+const EBE_NEAR_RANGE = 14;
 
 function finite(n: unknown, lo: number, hi: number): number {
   return typeof n === 'number' && Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : 0;
@@ -78,6 +104,10 @@ export class SaklambacRoom extends Room<SaklambacState> {
   /** hider id → time (ms) until which the Ebe may see it (small hysteresis) */
   private ebeSees = new Map<string, number>();
   private lastSpotAt = 0;
+  /** per hider: last time the Ebe was told about its footsteps */
+  private lastNoiseAt = new Map<string, number>();
+  /** one-shot noises (pebbles) for the Ebe's next snapshot: [x, z, loudness] */
+  private pendingNoise: [number, number, number][] = [];
 
   override onCreate(): void {
     this.roomId = generateRoomId();
@@ -94,6 +124,8 @@ export class SaklambacRoom extends Room<SaklambacState> {
       this.handleEvents(this.rules.start());
     });
     this.onMessage(MSG.spot, (client) => this.handleSpot(client.sessionId));
+    this.onMessage(MSG.interact, (client) => this.handleInteract(client.sessionId));
+    this.onMessage(MSG.throwPebble, (client) => this.handlePebble(client.sessionId));
     this.onMessage(MSG.addBot, (client) => {
       if (client.sessionId === this.state.hostId) this.addBot();
     });
@@ -132,6 +164,7 @@ export class SaklambacRoom extends Room<SaklambacState> {
     p.id = client.sessionId;
     p.name = this.uniqueName(name);
     p.color = sanitizeColor(options.color);
+    Object.assign(p, sanitizeLook(options));
     this.state.players.set(client.sessionId, p);
     this.createSim(client.sessionId, client);
     if (!this.state.hostId) this.state.hostId = client.sessionId;
@@ -190,6 +223,9 @@ export class SaklambacRoom extends Room<SaklambacState> {
     p.name = this.uniqueName(`🤖 ${randomNickname()}`.slice(0, 16));
     const used = new Set([...this.state.players.values()].map((x) => x.color));
     p.color = OUTFIT_COLORS.find((c) => !used.has(c)) ?? OUTFIT_COLORS[this.botCounter % OUTFIT_COLORS.length]!;
+    p.hat = Math.floor(Math.random() * HATS.length);
+    p.hair = Math.floor(Math.random() * HAIRS.length);
+    p.skin = Math.floor(Math.random() * SKINS.length);
     this.state.players.set(id, p);
     this.createSim(id, null);
     this.handleEvents(this.rules.addPlayer(id));
@@ -220,6 +256,10 @@ export class SaklambacRoom extends Room<SaklambacState> {
       client,
       lastChatAt: 0,
       lastEmoteAt: 0,
+      sprinting: false,
+      speed: 0,
+      inside: -1,
+      lastPebbleAt: 0,
     });
   }
 
@@ -232,6 +272,7 @@ export class SaklambacRoom extends Room<SaklambacState> {
       mz: finite(msg.mz, -1, 1),
       jump: msg.j === 1,
       crouch: msg.c === 1,
+      sprint: msg.r === 1,
     });
     sim.queueSeq.push(msg.s);
     sim.yaw = finite(msg.y, -100, 100);
@@ -245,24 +286,35 @@ export class SaklambacRoom extends Room<SaklambacState> {
     return !this.rules.isFrozen(id);
   }
 
+  protected canMoveSim(sim: Sim): boolean {
+    return sim.inside < 0 && this.canMove(sim.id);
+  }
+
   protected tick(dtMs: number): void {
     for (const sim of this.sims.values()) {
+      const x0 = sim.body.x;
+      const z0 = sim.body.z;
       if (sim.bot) {
         const decision = sim.bot.think(this.botContext(sim), SIM_DT);
         sim.botClaim = decision.claim;
-        const input = this.canMove(sim.id) ? decision.input : { mx: 0, mz: 0, jump: false, crouch: false };
+        const input = this.canMoveSim(sim) ? decision.input : { mx: 0, mz: 0, jump: false, crouch: false };
         if (input.mx || input.mz) sim.yaw = Math.atan2(-input.mx, -input.mz);
         sim.crouch = input.crouch;
-        stepBody(sim.body, input, SIM_DT);
+        sim.sprinting = isSprinting(sim.body, input);
+        if (sim.inside < 0) stepBody(sim.body, input, SIM_DT);
         if (decision.spot) this.handleSpot(sim.id);
-        continue;
+      } else {
+        for (let k = 0; k < MAX_INPUTS_PER_TICK && sim.queue.length; k++) {
+          const raw = sim.queue.shift()!;
+          sim.lastSeq = sim.queueSeq.shift()!;
+          sim.crouch = raw.crouch;
+          if (sim.inside >= 0) continue;
+          const input = this.canMove(sim.id) ? raw : { ...raw, mx: 0, mz: 0, jump: false, sprint: false };
+          sim.sprinting = isSprinting(sim.body, input);
+          stepBody(sim.body, input, SIM_DT);
+        }
       }
-      for (let k = 0; k < MAX_INPUTS_PER_TICK && sim.queue.length; k++) {
-        const input = sim.queue.shift()!;
-        sim.lastSeq = sim.queueSeq.shift()!;
-        sim.crouch = input.crouch;
-        stepBody(sim.body, this.canMove(sim.id) ? input : { ...input, mx: 0, mz: 0, jump: false }, SIM_DT);
-      }
+      sim.speed = Math.hypot(sim.body.x - x0, sim.body.z - z0) / SIM_DT;
     }
     this.checkBaseTouches();
     this.updateEbeVision();
@@ -282,7 +334,7 @@ export class SaklambacRoom extends Room<SaklambacState> {
     let ebe: Sim | null = null;
     for (const sim of this.sims.values()) {
       if (sim.id === this.rules.ebeId) ebe = sim;
-      else if (this.atBase(sim)) this.handleEvents(this.rules.touchBase(sim.id));
+      else if (sim.inside < 0 && this.atBase(sim)) this.handleEvents(this.rules.touchBase(sim.id));
     }
     if (ebe && this.atBase(ebe)) this.handleEvents(this.rules.touchBase(ebe.id));
   }
@@ -355,6 +407,7 @@ export class SaklambacRoom extends Room<SaklambacState> {
 
   private teleport(sim: Sim, x: number, z: number, yaw: number): void {
     sim.body = createBody(x, z);
+    sim.inside = -1;
     sim.yaw = yaw;
     sim.queue = [];
     sim.queueSeq = [];
@@ -386,6 +439,8 @@ export class SaklambacRoom extends Room<SaklambacState> {
   protected isVisibleTo(viewerId: string, targetId: string): boolean {
     const target = this.rules.get(targetId);
     if (target?.role === 'spectator') return false;
+    // hiding inside a çöp konteyneri: nobody sees you
+    if ((this.sims.get(targetId)?.inside ?? -1) >= 0) return false;
     if (viewerId !== this.rules.ebeId || !target || target.role !== 'hider') return true;
     const phase = this.rules.phase;
     if (phase === 'ebeSelection' || phase === 'counting') return false;
@@ -408,7 +463,7 @@ export class SaklambacRoom extends Room<SaklambacState> {
     const now = Date.now();
     for (const h of this.rules.activeHiders()) {
       const sim = this.sims.get(h.id);
-      if (!sim) continue;
+      if (!sim || sim.inside >= 0) continue;
       if (canSee(ebe.body, { ...sim.body, crouch: sim.crouch }, VIEW_RANGE)) this.ebeSees.set(h.id, now + 250);
     }
   }
@@ -428,15 +483,90 @@ export class SaklambacRoom extends Room<SaklambacState> {
     for (const h of this.rules.hiders()) {
       if (h.status !== 'hiding') continue;
       const sim = this.sims.get(h.id);
-      if (!sim) continue;
+      if (!sim || sim.inside >= 0) continue;
       const d = Math.hypot(sim.body.x - ebe.body.x, sim.body.z - ebe.body.z);
       if (d < bestD && canSee(ebe.body, { ...sim.body, crouch: sim.crouch }, SPOT_RANGE)) {
         best = sim;
         bestD = d;
       }
     }
+    if (!best) {
+      // lift the lid of a nearby container: anyone inside is found
+      for (const h of this.rules.hiders()) {
+        const sim = this.sims.get(h.id);
+        if (!sim || sim.inside < 0 || h.status !== 'hiding') continue;
+        if (edgeDistance(CONTAINERS[sim.inside]!, ebe.body.x, ebe.body.z) <= 1.8) {
+          this.exitContainer(sim);
+          best = sim;
+          break;
+        }
+      }
+    }
     if (!best) return reply('none');
     this.handleEvents(this.rules.spot(best.id));
+  }
+
+  /** Hider climbs into / out of the nearest çöp konteyneri. */
+  protected handleInteract(id: string): void {
+    const sim = this.sims.get(id);
+    const p = this.rules.get(id);
+    if (!sim || !p || p.role !== 'hider') return;
+    if (sim.inside >= 0) {
+      this.exitContainer(sim);
+      return;
+    }
+    const phase = this.rules.phase;
+    if ((phase !== 'counting' && phase !== 'seeking') || p.status !== 'hiding') return;
+    const taken = new Set([...this.sims.values()].map((s) => s.inside));
+    let best = -1;
+    let bestD = CONTAINER_REACH;
+    CONTAINERS.forEach((c, i) => {
+      const d = edgeDistance(c, sim.body.x, sim.body.z);
+      if (d <= bestD && !taken.has(i)) [best, bestD] = [i, d];
+    });
+    if (best < 0) return;
+    const c = CONTAINERS[best]!;
+    sim.inside = best;
+    sim.body = createBody(c.x, c.z);
+    sim.crouch = true;
+  }
+
+  private exitContainer(sim: Sim): void {
+    if (sim.inside < 0) return;
+    const c = CONTAINERS[sim.inside]!;
+    const out = nearestWalkable({ x: c.x, z: c.z + c.d / 2 + PLAYER_RADIUS + 0.4 });
+    sim.inside = -1;
+    sim.body = createBody(out.x, out.z);
+    sim.crouch = false;
+  }
+
+  /** Throw a pebble in the facing direction; it lands at the first obstacle or at max range. */
+  protected handlePebble(id: string): void {
+    const sim = this.sims.get(id);
+    const p = this.rules.get(id);
+    if (!sim || !p || p.role !== 'hider' || sim.inside >= 0) return;
+    if (this.rules.phase !== 'seeking' || (p.status !== 'hiding' && p.status !== 'spotted')) return;
+    const now = Date.now();
+    if (now - sim.lastPebbleAt < PEBBLE_COOLDOWN * 1000) return;
+    sim.lastPebbleAt = now;
+    const dx = -Math.sin(sim.yaw);
+    const dz = -Math.cos(sim.yaw);
+    let x = sim.body.x;
+    let z = sim.body.z;
+    for (let d = 0.5; d <= PEBBLE_RANGE; d += 0.5) {
+      const nx = sim.body.x + dx * d;
+      const nz = sim.body.z + dz * d;
+      let hit = false;
+      for (const c of solidsNear(nx - 0.1, nx + 0.1, nz - 0.1, nz + 0.1)) {
+        if (nx > c.minX && nx < c.maxX && nz > c.minZ && nz < c.maxZ && c.maxY > STEP_HEIGHT && c.minY < PLAYER_HEIGHT) hit = true;
+      }
+      if (hit) break;
+      x = nx;
+      z = nz;
+    }
+    const msg: PebbleMsg = { x: round2(x), z: round2(z) };
+    this.broadcast(MSG.pebble, msg);
+    this.pendingNoise.push([x, z, 1]);
   }
 
   private botContext(sim: Sim): BotContext {
@@ -457,8 +587,10 @@ export class SaklambacRoom extends Room<SaklambacState> {
     const ebeVisible = !!ebe && !isEbe && canSee(sim.body, { ...ebe.body, crouch: false }, VIEW_RANGE);
     const claimed = new Set<string>();
     for (const s of this.sims.values()) if (s !== sim && s.botClaim) claimed.add(s.botClaim);
+    const nearContainer = isEbe && CONTAINERS.some((c) => edgeDistance(c, sim.body.x, sim.body.z) <= 1.6);
     return {
       phase: r.phase,
+      nearContainer,
       role: me?.role ?? 'none',
       status: me?.status ?? 'none',
       self: { x: sim.body.x, z: sim.body.z },
@@ -476,25 +608,68 @@ export class SaklambacRoom extends Room<SaklambacState> {
     if (!sim) return;
     sim.body = createBody(x, z);
     sim.crouch = crouch;
+    sim.inside = -1;
     sim.queue = [];
     sim.queueSeq = [];
+  }
+
+  /** test helper */
+  debugSim(id: string): { inside: number; x: number; z: number } | null {
+    const sim = this.sims.get(id);
+    return sim ? { inside: sim.inside, x: sim.body.x, z: sim.body.z } : null;
+  }
+
+  /**
+   * What the Ebe hears (hiders it cannot see, moving loudly, plus pebbles) and
+   * how close each hider feels the Ebe. Directions only — never positions.
+   */
+  private senses(now: number): { noise: [number, number][]; near: Map<string, number> } {
+    const noise: [number, number][] = [];
+    const near = new Map<string, number>();
+    const ebe = this.simOf(this.rules.ebeId);
+    if (this.rules.phase !== 'seeking' || !ebe) {
+      this.pendingNoise = [];
+      return { noise, near };
+    }
+    for (const h of this.rules.activeHiders()) {
+      const sim = this.sims.get(h.id);
+      if (!sim) continue;
+      const d = Math.hypot(sim.body.x - ebe.body.x, sim.body.z - ebe.body.z);
+      near.set(h.id, Math.max(0, 1 - d / EBE_NEAR_RANGE));
+      if (sim.inside >= 0 || sim.crouch || sim.speed < 1 || this.isVisibleTo(ebe.id, h.id)) continue;
+      const range = sim.sprinting ? NOISE_RANGE_SPRINT : NOISE_RANGE_WALK;
+      if (d > range || now - (this.lastNoiseAt.get(h.id) ?? 0) < 450) continue;
+      this.lastNoiseAt.set(h.id, now);
+      const jitter = (Math.random() - 0.5) * 0.5;
+      noise.push([round2(Math.atan2(sim.body.x - ebe.body.x, sim.body.z - ebe.body.z) + jitter), round2(1 - d / range)]);
+    }
+    for (const [x, z, loud] of this.pendingNoise) {
+      const d = Math.hypot(x - ebe.body.x, z - ebe.body.z);
+      if (d < 32) noise.push([round2(Math.atan2(x - ebe.body.x, z - ebe.body.z)), round2(loud * (1 - d / 40))]);
+    }
+    this.pendingNoise = [];
+    return { noise, near };
   }
 
   private sendSnapshots(): void {
     const t = Date.now();
     const all: PlayerSnap[] = [];
     for (const s of this.sims.values()) {
-      all.push([s.id, round2(s.body.x), round2(s.body.y), round2(s.body.z), round2(s.yaw), s.crouch ? 1 : 0]);
+      all.push([s.id, round2(s.body.x), round2(s.body.y), round2(s.body.z), round2(s.yaw), (s.crouch ? 1 : 0) | (s.sprinting ? 2 : 0)]);
     }
+    const { noise, near } = this.senses(t);
     for (const sim of this.sims.values()) {
       if (!sim.client) continue;
       const b = sim.body;
       const msg: SnapshotMsg = {
         t,
         a: sim.lastSeq,
-        me: [b.x, b.y, b.z, b.vy, b.onGround ? 1 : 0],
+        me: [b.x, b.y, b.z, b.vy, b.onGround ? 1 : 0, b.stamina, b.tired ? 1 : 0, sim.inside],
         p: all.filter((p) => p[0] !== sim.id && this.isVisibleTo(sim.id, p[0])),
       };
+      if (sim.id === this.rules.ebeId && noise.length) msg.n = noise;
+      const e = near.get(sim.id);
+      if (e !== undefined && e > 0) msg.e = round2(e);
       sim.client.send(MSG.snapshot, msg);
     }
   }
@@ -502,4 +677,11 @@ export class SaklambacRoom extends Room<SaklambacState> {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+/** Distance from a point to the footprint edge of a map object (0 inside). */
+function edgeDistance(c: { x: number; z: number; w: number; d: number }, x: number, z: number): number {
+  const dx = Math.max(Math.abs(x - c.x) - c.w / 2, 0);
+  const dz = Math.max(Math.abs(z - c.z) - c.d / 2, 0);
+  return Math.hypot(dx, dz);
 }

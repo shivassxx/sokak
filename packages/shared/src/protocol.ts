@@ -13,6 +13,20 @@ export const OUTFIT_COLORS = [
   '#34495e',
 ] as const;
 
+/** Look customisation (indices are sent over the wire). */
+export const HATS = ['yok', 'kasket', 'bere', 'hasir', 'tac', 'kulaklik'] as const;
+export const HAT_NAMES = ['Şapkasız', 'Kasket', 'Bere', 'Hasır şapka', 'Taç', 'Kulaklık'] as const;
+export const HAIRS = ['kisa', 'kivircik', 'atkuyrugu', 'orgu', 'dikdik'] as const;
+export const HAIR_NAMES = ['Kısa', 'Kıvırcık', 'At kuyruğu', 'Örgülü', 'Diken diken'] as const;
+export const SKINS = ['#f3cfa9', '#e2b083', '#c58c5c', '#8d5a3b'] as const;
+
+export interface Look {
+  color: string;
+  hat: number;
+  hair: number;
+  skin: number;
+}
+
 export const NAME_MIN = 2;
 export const NAME_MAX = 14;
 
@@ -28,11 +42,27 @@ export const MSG = {
   event: 'ev',
   summary: 'summary',
   teleport: 'tp',
+  /** hider throws a pebble to make noise somewhere else */
+  throwPebble: 'throw',
+  /** hider gets into / out of a çöp konteyneri */
+  interact: 'interact',
+  /** server → all: a pebble landed here */
+  pebble: 'pebble',
 } as const;
+
+/** Seconds between two pebbles of the same player. */
+export const PEBBLE_COOLDOWN = 12;
+/** Max distance a pebble flies. */
+export const PEBBLE_RANGE = 11;
+/** A hider can climb into a container from this close (to its edge). */
+export const CONTAINER_REACH = 1.4;
 
 export interface JoinOptions {
   name?: string;
   color?: string;
+  hat?: number;
+  hair?: number;
+  skin?: number;
 }
 
 /** client → server, one per simulation step */
@@ -46,9 +76,11 @@ export interface InputMsg {
   c: number;
   /** facing yaw */
   y: number;
+  /** sprint 0|1 */
+  r?: number;
 }
 
-/** [id, x, y, z, yaw, flags] — flags bit0 = crouching */
+/** [id, x, y, z, yaw, flags] — flags bit0 = crouching, bit1 = sprinting */
 export type PlayerSnap = [string, number, number, number, number, number];
 
 /** server → client, every tick */
@@ -57,10 +89,19 @@ export interface SnapshotMsg {
   t: number;
   /** last processed input seq of the receiver */
   a: number;
-  /** receiver's own authoritative body: x, y, z, vy, onGround(0|1) */
-  me?: [number, number, number, number, number];
+  /** receiver's own authoritative body: x, y, z, vy, onGround(0|1), stamina, tired(0|1), container index or -1 */
+  me?: [number, number, number, number, number, number, number, number];
   /** other visible players */
   p: PlayerSnap[];
+  /** Ebe only: footsteps it can hear but not see — [world angle (rad), loudness 0..1] */
+  n?: [number, number][];
+  /** hiders only: how close the Ebe is, 0 (far) .. 1 (right here) */
+  e?: number;
+}
+
+export interface PebbleMsg {
+  x: number;
+  z: number;
 }
 
 export interface TeleportMsg {
@@ -95,6 +136,9 @@ export interface PlayerView {
   id: string;
   name: string;
   color: string;
+  hat: number;
+  hair: number;
+  skin: number;
   isBot: boolean;
   connected: boolean;
   role: Role;

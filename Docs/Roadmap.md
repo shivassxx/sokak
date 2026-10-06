@@ -9,3 +9,4 @@
 | M4 | Spotting & sobe — visibility, Gördüm!, race, filtering, hide/seek bots | ✅ done — **First Playable** |
 | M5 | Mahalle feel — art, lighting, quick-chat, emotes, SFX, summary | ✅ done (procedural art, see ThirdPartyAssets) |
 | M6 | Launch — Docker + Caddy, nickname filter, landing, share, analytics | ✅ done |
+| M7 | Quality pass — professional look & deeper gameplay (user request after M6) | ✅ done |

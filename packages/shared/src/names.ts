@@ -1,4 +1,4 @@
-import { NAME_MAX, NAME_MIN, OUTFIT_COLORS } from './protocol';
+import { HAIRS, HATS, NAME_MAX, NAME_MIN, OUTFIT_COLORS, SKINS } from './protocol';
 
 const ADJ = ['Sevimli', 'Hızlı', 'Gizli', 'Neşeli', 'Cesur', 'Uykucu', 'Şakacı', 'Minik', 'Afacan', 'Sessiz'];
 const NOUN = ['Kedi', 'Serçe', 'Kirpi', 'Tavşan', 'Sincap', 'Martı', 'Kumru', 'Kuzu', 'Tilki', 'Baykuş'];
@@ -27,4 +27,12 @@ export function isValidNicknameLength(name: string): boolean {
 
 export function sanitizeColor(raw: unknown): string {
   return typeof raw === 'string' && (OUTFIT_COLORS as readonly string[]).includes(raw) ? raw : OUTFIT_COLORS[0];
+}
+
+function index(raw: unknown, n: number): number {
+  return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 && raw < n ? raw : 0;
+}
+
+export function sanitizeLook(o: { hat?: unknown; hair?: unknown; skin?: unknown }): { hat: number; hair: number; skin: number } {
+  return { hat: index(o.hat, HATS.length), hair: index(o.hair, HAIRS.length), skin: index(o.skin, SKINS.length) };
 }

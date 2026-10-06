@@ -11,7 +11,7 @@ export class NetBot {
   messages: { type: string | number; msg: unknown }[] = [];
   private seq = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
-  move = { mx: 0, mz: 0, jump: false, crouch: false };
+  move: { mx: number; mz: number; jump: boolean; crouch: boolean; sprint?: boolean } = { mx: 0, mz: 0, jump: false, crouch: false };
 
   constructor(readonly endpoint: string) {}
 
@@ -44,7 +44,8 @@ export class NetBot {
   drive(): void {
     this.stop();
     this.timer = setInterval(() => {
-      const m: InputMsg = { s: ++this.seq, mx: this.move.mx, mz: this.move.mz, j: this.move.jump ? 1 : 0, c: this.move.crouch ? 1 : 0, y: 0 };
+      const yaw = this.move.mx || this.move.mz ? Math.atan2(-this.move.mx, -this.move.mz) : 0;
+      const m: InputMsg = { s: ++this.seq, mx: this.move.mx, mz: this.move.mz, j: this.move.jump ? 1 : 0, c: this.move.crouch ? 1 : 0, y: yaw, r: this.move.sprint ? 1 : 0 };
       this.room.send(MSG.input, m);
     }, 50);
   }

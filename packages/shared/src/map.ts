@@ -371,3 +371,6 @@ export function spawnPoint(index: number): Vec2 {
   const a = (index / 10) * Math.PI * 2;
   return { x: Math.sin(a) * 5.5, z: 6 + Math.cos(a) * 3 };
 }
+
+/** Çöp konteynerleri a hider can climb into (index = container id). */
+export const CONTAINERS: readonly MapObject[] = objects.filter((o) => o.kind === 'container');

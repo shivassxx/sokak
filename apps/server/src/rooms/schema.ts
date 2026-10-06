@@ -4,6 +4,9 @@ export class PlayerState extends Schema {
   @type('string') id = '';
   @type('string') name = '';
   @type('string') color = '';
+  @type('uint8') hat = 0;
+  @type('uint8') hair = 0;
+  @type('uint8') skin = 0;
   @type('boolean') isBot = false;
   @type('boolean') connected = true;
   /** none | ebe | hider | spectator */

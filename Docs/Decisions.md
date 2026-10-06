@@ -56,3 +56,13 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 - **Single container** serves the client and the game socket; Caddy only terminates TLS. Simplest possible VDS setup.
 - **`pnpm start` uses a `--prod` flag** instead of `NODE_ENV=…` so it also works in Windows shells.
 - **Actual deployment is not done** (account-bound: needs a VDS + domain); steps are in `Docs/Deploy.md`.
+
+## M7 — quality pass
+- **Characters stay procedural.** The only animated CC0 character reachable (Kenney "Mini Arena" soldier with a helmet) does not fit a children's neighborhood game, so a new, much more detailed chibi kid was built in code (full control over outfits, hats, hair, skin tones; no download).
+- **Kenney GitHub starter kits are reachable** (kenney.nl is not): their CC0 pickup trucks and sounds are used. Licenses recorded in ThirdPartyAssets.md.
+- **Surface detail via shader, not textures:** a world-space pattern shader keeps the merged-mesh approach (few draw calls) and adds no download.
+- **Sprint:** 7.4 m/s vs 5.0 walk, ~3.6 s of stamina, exhausted until 35 % regained. Deterministic in shared physics so prediction still matches the server.
+- **Information fairness:** the Ebe only ever gets *directions* (with jitter) for unseen footsteps and pebbles, never positions; hiders only get a 0..1 "Ebe nearness". Crouching is silent.
+- **Containers:** one hider per container; invisible to everyone while inside; the Ebe's "Gördüm!" within 1.8 m of the container opens the lid (hider pops out spotted). Hiders can't move inside, and can leave any time.
+- **Pebbles:** 12 s cooldown, land at the first obstacle or 11 m ahead; everyone sees the landing, nobody sees the thrower.
+- **Vertical speed of remotes is not sent**, so their "airborne" pose is inferred from height changes.

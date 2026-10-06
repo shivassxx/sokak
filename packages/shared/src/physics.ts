@@ -7,8 +7,15 @@ import { COLLIDERS, MAP_HALF, type Aabb } from './map';
 export const PLAYER_RADIUS = 0.35;
 export const PLAYER_HEIGHT = 1.8;
 export const STEP_HEIGHT = 0.5;
-export const WALK_SPEED = 5.2;
+export const WALK_SPEED = 5.0;
+export const SPRINT_SPEED = 7.4;
 export const CROUCH_SPEED = 2.4;
+/** stamina drained per second while sprinting (full bar ≈ 3.6 s) */
+export const STAMINA_DRAIN = 0.28;
+/** stamina regained per second when not sprinting */
+export const STAMINA_REGEN = 0.2;
+/** once exhausted, sprint is locked until stamina is back to this */
+export const STAMINA_RECOVER = 0.35;
 export const GRAVITY = 22;
 export const JUMP_SPEED = 7;
 /** Fixed simulation step (seconds); one input = one step. */
@@ -20,6 +27,10 @@ export interface Body {
   z: number;
   vy: number;
   onGround: boolean;
+  /** 0..1 sprint stamina */
+  stamina: number;
+  /** exhausted: cannot sprint until stamina ≥ STAMINA_RECOVER */
+  tired: boolean;
 }
 
 export interface MoveInput {
@@ -28,12 +39,19 @@ export interface MoveInput {
   mz: number;
   jump: boolean;
   crouch: boolean;
+  /** hold to sprint (costs stamina) */
+  sprint?: boolean;
 }
 
 export const NO_INPUT: MoveInput = { mx: 0, mz: 0, jump: false, crouch: false };
 
 export function createBody(x: number, z: number, y = 0): Body {
-  return { x, y, z, vy: 0, onGround: true };
+  return { x, y, z, vy: 0, onGround: true, stamina: 1, tired: false };
+}
+
+/** Is this body currently sprinting with this input? (pure) */
+export function isSprinting(body: Body, input: MoveInput): boolean {
+  return !!input.sprint && !input.crouch && !body.tired && body.stamina > 0 && Math.hypot(input.mx, input.mz) > 0.3;
 }
 
 /** Uniform grid over solid colliders to keep queries cheap. */
@@ -91,7 +109,15 @@ export function stepBody(body: Body, input: MoveInput, dt: number = SIM_DT): voi
     mx /= len;
     mz /= len;
   }
-  const speed = input.crouch ? CROUCH_SPEED : WALK_SPEED;
+  const sprinting = isSprinting(body, input);
+  if (sprinting) {
+    body.stamina = Math.max(0, body.stamina - STAMINA_DRAIN * dt);
+    if (body.stamina === 0) body.tired = true;
+  } else {
+    body.stamina = Math.min(1, body.stamina + STAMINA_REGEN * dt);
+    if (body.tired && body.stamina >= STAMINA_RECOVER) body.tired = false;
+  }
+  const speed = input.crouch ? CROUCH_SPEED : sprinting ? SPRINT_SPEED : WALK_SPEED;
   const r = PLAYER_RADIUS;
   const allowance = body.onGround ? STEP_HEIGHT : 0.05;
 
@@ -151,5 +177,5 @@ export function stepBody(body: Body, input: MoveInput, dt: number = SIM_DT): voi
 }
 
 export function cloneBody(b: Body): Body {
-  return { x: b.x, y: b.y, z: b.z, vy: b.vy, onGround: b.onGround };
+  return { x: b.x, y: b.y, z: b.z, vy: b.vy, onGround: b.onGround, stamina: b.stamina, tired: b.tired };
 }

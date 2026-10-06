@@ -91,3 +91,27 @@ describe('spawn ring', () => {
     }
   });
 });
+
+describe('sprint & stamina', () => {
+  it('sprinting is faster but drains stamina until exhausted', async () => {
+    const { SPRINT_SPEED, STAMINA_RECOVER } = await import('../src/physics');
+    const b = createBody(0, 4);
+    stepBody(b, { mx: 1, mz: 0, jump: false, crouch: false, sprint: true });
+    expect(b.x).toBeCloseTo(SPRINT_SPEED * 0.05, 3);
+    for (let i = 0; i < 100; i++) stepBody(b, { mx: 0, mz: 1, jump: false, crouch: false, sprint: true });
+    expect(b.tired).toBe(true);
+    // tired: back to walking speed even when holding sprint
+    const z0 = b.z;
+    stepBody(b, { mx: 0, mz: -1, jump: false, crouch: false, sprint: true });
+    expect(z0 - b.z).toBeCloseTo(WALK_SPEED * 0.05, 3);
+    for (let i = 0; i < 60; i++) stepBody(b, NO_INPUT);
+    expect(b.stamina).toBeGreaterThanOrEqual(STAMINA_RECOVER);
+    expect(b.tired).toBe(false);
+  });
+
+  it('crouching cannot sprint', () => {
+    const b = createBody(0, 4);
+    stepBody(b, { mx: 1, mz: 0, jump: false, crouch: true, sprint: true });
+    expect(b.stamina).toBe(1);
+  });
+});

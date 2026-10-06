@@ -107,8 +107,8 @@ export function App() {
       inviteRoomId={invite}
       busy={busy}
       error={error}
-      onCreate={(p: Prefs) => run(() => createRoom({ name: p.name, color: p.color }))}
-      onJoin={(p: Prefs) => run(() => joinRoom(invite!, { name: p.name, color: p.color }))}
+      onCreate={(p: Prefs) => run(() => createRoom(p))}
+      onJoin={(p: Prefs) => run(() => joinRoom(invite!, p))}
       onPractice={() => setPractice(true)}
     />
   );

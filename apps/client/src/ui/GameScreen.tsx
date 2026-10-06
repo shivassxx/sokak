@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Room } from 'colyseus.js';
 import {
-  BASE,
-  BASE_RADIUS,
   COUNTING_SECONDS,
   MSG,
-  SPOT_RANGE,
   SOBE_CALL,
+  PEBBLE_COOLDOWN,
+  type PebbleMsg,
   type EmoteMsg,
   type EventMsg,
   type InputMsg,
@@ -21,7 +20,9 @@ import type { Game } from '../game/Game';
 import { useRoomView } from '../net/useRoom';
 import { Lobby, shareRoom } from './Lobby';
 import { Social } from './Social';
-import { countWord, play, say } from '../game/audio';
+import { ambience, countWord, footsteps, play, say } from '../game/audio';
+import { LiveHud, screenAngle, type Senses } from './LiveHud';
+import type { Pose } from '../game/character';
 import { Hud, Scoreboard, SummaryPanel, eventText, nameOf, useBanner, useToasts } from './Hud';
 import { TouchControls, isTouch } from './TouchControls';
 
@@ -43,7 +44,7 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
   const [banner, showBanner] = useBanner();
   const [summary, setSummary] = useState<SummaryMsg | null>(null);
   const [showScores, setShowScores] = useState(false);
-  const [spotReady, setSpotReady] = useState(false);
+  const senses = useRef<Senses>({ noise: [], e: 0, lastThrow: -1e9 });
   const me = room.sessionId;
   // the first timeLeft seen while counting = total count (server decides the length)
   const countTotal = useRef(COUNTING_SECONDS);
@@ -59,34 +60,50 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
     play('tick');
     if (view.ebeId === me) say(countWord(Math.max(1, countTotal.current - view.timeLeft + 1)), 1.2);
   }, [view, me]);
-  const amSeekingEbe = !!view && view.ebeId === me && view.phase === 'seeking';
-
-  // "Gördüm!" input → server (validated there)
+  // E = "Gördüm!" for the Ebe, get in/out of a container for hiders; Q = pebble
   useEffect(() => {
     if (!game) return;
     return game.input.onPress((a) => {
-      if (a === 'spot') room.send(MSG.spot);
-    });
-  }, [game, room]);
-
-  // highlight the button when a hiding player is in view and in range
-  useEffect(() => {
-    if (!game || !amSeekingEbe) {
-      setSpotReady(false);
-      return;
-    }
-    const iv = setInterval(() => {
       const v = viewRef.current;
-      const pos = game.localPosition();
-      if (!v || !pos) return;
-      const atBase = Math.hypot(pos.x - BASE.x, pos.z - BASE.z) <= BASE_RADIUS;
-      const ready =
-        !atBase &&
-        game.visibleRemotes().some((r) => v.players[r.id]?.status === 'hiding' && Math.hypot(r.x - pos.x, r.z - pos.z) <= SPOT_RANGE);
-      setSpotReady(ready);
-    }, 150);
-    return () => clearInterval(iv);
-  }, [game, amSeekingEbe]);
+      if (a === 'spot') room.send(v?.ebeId === me ? MSG.spot : MSG.interact);
+      if (a === 'throw' && v?.phase === 'seeking' && v.ebeId !== me) {
+        const now = performance.now();
+        if (now - senses.current.lastThrow < PEBBLE_COOLDOWN * 1000 || game.inside >= 0) return;
+        senses.current.lastThrow = now;
+        game.playLocalEmote('point');
+        room.send(MSG.throwPebble);
+      }
+    });
+  }, [game, room, me]);
+
+  // movement sounds + street ambience
+  useEffect(() => {
+    if (!game) return;
+    game.events = {
+      onJump: () => play('jump'),
+      onLand: () => play('land'),
+      onStep: (speed, sprinting) => footsteps(game.inside >= 0 ? 0 : speed, sprinting),
+    };
+    const iv = setInterval(() => ambience(true), 1500);
+    return () => {
+      clearInterval(iv);
+      ambience(false);
+      game.events = {};
+    };
+  }, [game]);
+
+  // round poses: Ebe hides its eyes at the wall, "!" over spotted kids, sad caught kids, happy winners
+  useEffect(() => {
+    if (!game || !view) return;
+    for (const p of Object.values(view.players)) {
+      let pose: Pose = 'none';
+      if (p.id === view.ebeId && (view.phase === 'counting' || view.phase === 'ebeSelection')) pose = 'counting';
+      else if (view.phase === 'seeking' && p.status === 'spotted') pose = 'spotted';
+      else if ((view.phase === 'seeking' || view.phase === 'roundEnd') && p.status === 'caught') pose = 'caught';
+      else if (view.phase === 'roundEnd' && p.status === 'safe') pose = 'celebrate';
+      game.setPose(p.id === me ? null : p.id, pose);
+    }
+  }, [game, view, me]);
 
   // Ebe cannot move or look around while counting
   const frozen = !!view && view.ebeId === me && (view.phase === 'ebeSelection' || view.phase === 'counting');
@@ -119,8 +136,14 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
       if (e.type === 'countingDone') {
         play('go');
         say(SOBE_CALL, 1.15);
-      } else if (e.type === 'spotted') play('spotted');
-      else if (e.type === 'caught') play('caught');
+        gameRef.current?.shake(0.15);
+      } else if (e.type === 'spotted') {
+        play('spotted');
+        if (e.id === me) gameRef.current?.shake(0.35);
+      } else if (e.type === 'caught') {
+        play('caught');
+        gameRef.current?.shake(e.id === me ? 0.4 : 0.12);
+      }
       else if (e.type === 'safe' && e.how === 'base') play('safe');
       else if (e.type === 'ebeChosen') play('pop');
       else if (e.type === 'herkesKurtuldu') {
@@ -159,6 +182,9 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
     };
   }, [game]);
 
+  const gameRef = useRef<Game | null>(null);
+  gameRef.current = game;
+
   // create the 3D scene once
   useEffect(() => {
     let g: Game | null = null;
@@ -179,21 +205,31 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
     if (!game) return;
     game.sender = {
       sendInput: (s, input, yaw) => {
-        const m: InputMsg = { s, mx: input.mx, mz: input.mz, j: input.jump ? 1 : 0, c: input.crouch ? 1 : 0, y: yaw };
+        const m: InputMsg = { s, mx: input.mx, mz: input.mz, j: input.jump ? 1 : 0, c: input.crouch ? 1 : 0, y: yaw, r: input.sprint ? 1 : 0 };
         room.send(MSG.input, m);
       },
     };
     const offSnap = room.onMessage(MSG.snapshot, (s: SnapshotMsg) => {
       game.noteServerTime(s.t);
       if (s.me) {
-        const [x, y, z, vy, g] = s.me;
+        const [x, y, z, vy, g, stamina = 1, tired = 0, inside = -1] = s.me;
         const me = viewRef.current?.players[room.sessionId];
-        if (!game.hasLocal()) game.spawnLocal(x, y, z, me?.color ?? '#e74c3c');
-        else game.reconcile(s.a, x, y, z, vy, g === 1);
+        if (!game.hasLocal()) game.spawnLocal(x, y, z, me ?? { color: '#e74c3c', hat: 0, hair: 0, skin: 0 });
+        else game.reconcile(s.a, x, y, z, vy, g === 1, stamina, tired === 1, inside);
       } else if (game.hasLocal()) game.removeLocal();
+      const now = performance.now();
+      if (s.n) for (const [a, loud] of s.n) senses.current.noise.push({ a, loud, t: now });
+      if (senses.current.noise.length > 30) senses.current.noise.splice(0, senses.current.noise.length - 30);
+      senses.current.e = s.e ?? 0;
       for (const p of s.p) game.pushRemote(p[0], s.t, p[1], p[2], p[3], p[4], (p[5] & 1) === 1);
     });
     const offTp = room.onMessage(MSG.teleport, (t: TeleportMsg) => game.teleportLocal(t.x, t.y, t.z, t.yaw));
+    const offPebble = room.onMessage(MSG.pebble, (p: PebbleMsg) => {
+      game.pebble(p.x, p.z);
+      const pos = game.localPosition();
+      const pan = pos ? Math.sin(screenAngle(Math.atan2(p.x - pos.x, p.z - pos.z), game.camYaw)) : 0;
+      play('pebble', pan);
+    });
     const offEmote = room.onMessage(MSG.emote, (e: EmoteMsg) => {
       if (e.id === room.sessionId) game.playLocalEmote(e.e);
       else game.remoteEmote(e.id, e.e);
@@ -210,6 +246,7 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
       game.sender = null;
       offSnap();
       offTp();
+      offPebble();
       offEmote();
       offChat();
     };
@@ -223,7 +260,7 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
     for (const p of Object.values(view.players)) {
       if (p.id === room.sessionId) continue;
       const [label, color] = labelFor(p, view.ebeId, view.phase);
-      game.upsertRemote(p.id, p.color, label, color);
+      game.upsertRemote(p.id, p, label, color);
     }
   }, [game, view, room]);
 
@@ -258,12 +295,8 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
       {view && view.phase === 'roundEnd' && summary && <SummaryPanel view={view} summary={summary} me={me} />}
       {view && showScores && view.phase !== 'roundEnd' && <Scoreboard view={view} me={me} onClose={() => setShowScores(false)} />}
       {game && view && <Social room={room} input={game.input} />}
-      {game && isTouch && <TouchControls input={game.input} showSpot={amSeekingEbe} spotReady={spotReady} />}
-      {game && !isTouch && amSeekingEbe && (
-        <button className={`spot-desktop ${spotReady ? 'ready' : ''}`} onClick={() => game.input.trigger('spot')}>
-          Gördüm! <small>(E)</small>
-        </button>
-      )}
+      {game && view && view.phase !== 'roundEnd' && <LiveHud game={game} view={view} me={me} senses={senses} />}
+      {game && isTouch && <TouchControls input={game.input} />}
     </div>
   );
 }

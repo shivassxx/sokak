@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {
   BASE,
   COLLIDERS,
+  CONTAINERS,
   EBE_COUNT_SPOT,
   SIM_DT,
   cloneBody,
@@ -9,15 +10,24 @@ import {
   segmentEntryT,
   stepBody,
   type Body,
+  type Look,
   type MoveInput,
 } from '@sokak/shared';
-import { Character, type Emote } from './character';
+import { Character, type Emote, type Pose } from './character';
 import { Input } from './input';
-import { buildWorld, type World } from './world';
+import { buildWorld, type Mover, type World } from './world';
 import { setupLighting, type Lighting } from './lighting';
 
 export interface InputSender {
   sendInput(seq: number, input: MoveInput, yaw: number): void;
+}
+
+/** Local movement feedback for sounds / HUD. */
+export interface LocalEvents {
+  onJump?(): void;
+  onLand?(): void;
+  /** called every frame with horizontal speed (m/s) when on the ground */
+  onStep?(speed: number, sprinting: boolean): void;
 }
 
 interface Pending {
@@ -58,6 +68,14 @@ export class Game {
   private localChar: Character | null = null;
   private crouch = false;
   private jumpQueued = false;
+  /** container index when hiding inside one, -1 otherwise (server authoritative) */
+  inside = -1;
+  private wasOnGround = true;
+  private shakeT = 0;
+  private shakeAmp = 0;
+  private fovKick = 0;
+  private effects: { obj: THREE.Object3D; t: number; life: number; update: (k: number) => void }[] = [];
+  events: LocalEvents = {};
   private facing = 0;
   private seq = 0;
   private pending: Pending[] = [];
@@ -84,13 +102,13 @@ export class Game {
   onFrame: ((dt: number) => void) | null = null;
 
   constructor(private canvas: HTMLCanvasElement) {
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: window.devicePixelRatio < 2, powerPreference: 'high-performance' });
+    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.0;
     this.lighting = setupLighting(this.scene, this.renderer);
     this.world = buildWorld(this.scene);
     this.applyDusk();
@@ -107,8 +125,12 @@ export class Game {
   }
 
   /** 0 = golden hour, 1 = night; eased over time */
-  setDusk(d: number): void {
+  setDusk(d: number, instant = false): void {
     this.duskTarget = Math.max(0, Math.min(1, d));
+    if (instant) {
+      this.dusk = this.duskTarget;
+      this.applyDusk();
+    }
   }
 
   private applyDusk(): void {
@@ -117,16 +139,16 @@ export class Game {
   }
 
   // ------------------------------------------------------------ local player
-  spawnLocal(x: number, y: number, z: number, color: string, facing = 0): void {
+  spawnLocal(x: number, y: number, z: number, look: Look, facing = 0): void {
     this.body = createBody(x, z, y);
     this.prevBody = cloneBody(this.body);
     this.pending = [];
     this.facing = facing;
     this.camYaw = facing;
     if (!this.localChar) {
-      this.localChar = new Character(color);
+      this.localChar = new Character(look);
       this.scene.add(this.localChar.root);
-    } else this.localChar.setColor(color);
+    } else this.localChar.setLook(look);
     this.localChar.root.visible = true;
   }
 
@@ -168,13 +190,70 @@ export class Game {
     this.localChar?.playEmote(e);
   }
 
+  stamina(): { value: number; tired: boolean } {
+    return this.body ? { value: this.body.stamina, tired: this.body.tired } : { value: 1, tired: false };
+  }
+
+  /** Short camera shake (e.g. spotted / sobe). */
+  shake(amount: number): void {
+    this.shakeAmp = Math.max(this.shakeAmp, amount);
+    this.shakeT = 0.45;
+  }
+
+  /** Server says where a pebble landed: little stone + "TIK!" + ripple. */
+  pebble(x: number, z: number): void {
+    const g = new THREE.Group();
+    const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.09), new THREE.MeshStandardMaterial({ color: 0x8d8a85 }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.09;
+    const c = document.createElement('canvas');
+    c.width = 128;
+    c.height = 64;
+    const ctx = c.getContext('2d')!;
+    ctx.font = '900 46px "Trebuchet MS", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = '#2b2118';
+    ctx.strokeText('TIK!', 64, 48);
+    ctx.fillStyle = '#ffd27a';
+    ctx.fillText('TIK!', 64, 48);
+    const tex = new THREE.CanvasTexture(c);
+    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+    label.scale.set(1.4, 0.7, 1);
+    g.add(stone, ring, label);
+    g.position.set(x, 0, z);
+    this.scene.add(g);
+    this.effects.push({
+      obj: g,
+      t: 0,
+      life: 1.6,
+      update: (k) => {
+        stone.position.y = Math.max(0.08, 3 * (1 - k * 4)) ;
+        ring.scale.setScalar(1 + k * 5);
+        (ring.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.8 - k);
+        label.position.y = 1 + k * 1.2;
+        (label.material as THREE.SpriteMaterial).opacity = Math.max(0, 1 - k * 1.1);
+      },
+    });
+  }
+
+  /** Round poses for characters (null id = local player). */
+  setPose(id: string | null, pose: Pose): void {
+    const ch = id === null ? this.localChar : this.remotes.get(id)?.char;
+    if (ch) ch.pose = pose;
+  }
+
   /** Server reconciliation: authoritative state after input `ack`. */
-  reconcile(ack: number, x: number, y: number, z: number, vy: number, onGround: boolean): void {
+  reconcile(ack: number, x: number, y: number, z: number, vy: number, onGround: boolean, stamina = 1, tired = false, inside = -1): void {
     if (!this.body) return;
-    const b: Body = { x, y, z, vy, onGround };
+    this.inside = inside;
+    const b: Body = { x, y, z, vy, onGround, stamina, tired };
     this.pending = this.pending.filter((p) => p.seq > ack);
     for (const p of this.pending) stepBody(b, p.input);
     const err = Math.hypot(b.x - this.body.x, b.y - this.body.y, b.z - this.body.z);
+    this.body.stamina = b.stamina;
+    this.body.tired = b.tired;
     if (err > 0.001) {
       // keep render smooth: shift prev by the same correction when small
       if (err < 1.5 && this.prevBody) {
@@ -187,16 +266,21 @@ export class Game {
   }
 
   // ------------------------------------------------------------ remotes
-  upsertRemote(id: string, color: string, label: string, labelColor?: string): void {
+  /** Local look changes (e.g. lobby customisation). */
+  setLocalLook(look: Look): void {
+    this.localChar?.setLook(look);
+  }
+
+  upsertRemote(id: string, look: Look, label: string, labelColor?: string): void {
     let r = this.remotes.get(id);
-    const key = `${color}|${label}|${labelColor ?? ''}`;
+    const key = `${look.color}|${look.hat}|${look.hair}|${look.skin}|${label}|${labelColor ?? ''}`;
     if (r?.key === key) return;
     if (!r) {
-      r = { char: new Character(color), key, buf: [], lastSeen: 0, prevX: 0, prevZ: 0 };
+      r = { char: new Character(look), key, buf: [], lastSeen: 0, prevX: 0, prevZ: 0 };
       r.char.root.visible = false;
       this.scene.add(r.char.root);
       this.remotes.set(id, r);
-    } else r.char.setColor(color);
+    } else r.char.setLook(look);
     r.key = key;
     r.char.setLabel(label, labelColor);
   }
@@ -260,19 +344,25 @@ export class Game {
   private simStep(): void {
     if (!this.body) return;
     let input: MoveInput = { mx: 0, mz: 0, jump: false, crouch: this.crouch };
-    if (!this.frozen) {
+    if (!this.frozen && this.inside < 0) {
       const mv = this.input.moveVector();
       const s = Math.sin(this.camYaw);
       const c = Math.cos(this.camYaw);
       // forward = (-sin, -cos), right = (cos, -sin)
       const mx = -s * mv.y + c * mv.x;
       const mz = -c * mv.y - s * mv.x;
-      input = { mx, mz, jump: this.jumpQueued || this.input.isHeld('jump'), crouch: this.crouch };
+      const sprint = this.input.isHeld('sprint');
+      if (sprint && Math.hypot(mx, mz) > 0.3) this.crouch = false;
+      input = { mx, mz, jump: this.jumpQueued || this.input.isHeld('jump'), crouch: this.crouch, sprint };
       if (Math.hypot(mx, mz) > 0.1) this.facing = Math.atan2(-mx, -mz);
     }
     this.jumpQueued = false;
     this.prevBody = cloneBody(this.body);
+    const wasGround = this.body.onGround;
     stepBody(this.body, input, SIM_DT);
+    if (wasGround && !this.body.onGround && this.body.vy > 0) this.events.onJump?.();
+    if (!this.wasOnGround && this.body.onGround) this.events.onLand?.();
+    this.wasOnGround = this.body.onGround;
     this.seq++;
     this.pending.push({ seq: this.seq, input });
     if (this.pending.length > 120) this.pending.shift();
@@ -308,11 +398,18 @@ export class Game {
       const z = p.z + (b.z - p.z) * a;
       const ch = this.localChar;
       const speed = Math.hypot(b.x - p.x, b.z - p.z) / SIM_DT;
+      ch.root.visible = this.inside < 0;
       ch.root.position.set(x, y, z);
+      if (b.onGround) this.events.onStep?.(speed, speed > 6);
+      this.fovKick += ((speed > 6 ? 1 : 0) - this.fovKick) * Math.min(1, dt * 4);
       ch.facing = lerpAngle(ch.facing, this.facing, Math.min(1, dt * 14));
       ch.root.rotation.y = ch.facing;
       ch.animate(dt, speed, this.crouch, !b.onGround);
       focus = new THREE.Vector3(x, y + (this.crouch ? 1.0 : 1.5), z);
+      if (this.inside >= 0) {
+        const c = CONTAINERS[this.inside];
+        if (c) focus = new THREE.Vector3(c.x, 1.6, c.z);
+      }
     } else if (!this.body) {
       this.camYaw += dt * 0.05;
     }
@@ -347,7 +444,18 @@ export class Game {
       const speed = wasVisible && dt > 0 ? Math.hypot(x - r.prevX, z - r.prevZ) / dt : 0;
       r.prevX = x;
       r.prevZ = z;
-      r.char.animate(dt, Math.min(speed, 8), s1.crouch, false);
+      r.char.animate(dt, Math.min(speed, 8), s1.crouch, s1.y > 0.05 && Math.abs(s1.y - s0.y) > 0.01);
+    }
+
+    // short-lived effects
+    for (let i = this.effects.length - 1; i >= 0; i--) {
+      const e = this.effects[i]!;
+      e.t += dt;
+      const k = e.t / e.life;
+      if (k >= 1) {
+        this.scene.remove(e.obj);
+        this.effects.splice(i, 1);
+      } else e.update(k);
     }
 
     this.updateCamera(focus);
@@ -356,7 +464,10 @@ export class Game {
       this.dusk += (this.duskTarget - this.dusk) * Math.min(1, dt * 0.5);
       this.applyDusk();
     }
-    this.world.update(dt);
+    const movers: Mover[] = [];
+    if (this.body && this.prevBody) movers.push({ x: this.body.x, z: this.body.z, speed: Math.hypot(this.body.x - this.prevBody.x, this.body.z - this.prevBody.z) / SIM_DT });
+    for (const r of this.remotes.values()) if (r.char.root.visible) movers.push({ x: r.prevX, z: r.prevZ, speed: 4 });
+    this.world.update(dt, movers);
     this.onFrame?.(dt);
     this.renderer.render(this.scene, this.camera);
   }
@@ -364,8 +475,8 @@ export class Game {
   private updateCamera(focus: THREE.Vector3): void {
     if (this.frozen && this.body) {
       // counting Ebe: face the wall, close
-      this.camera.position.set(EBE_COUNT_SPOT.x, 1.7, EBE_COUNT_SPOT.z + 1.6);
-      this.camera.lookAt(EBE_COUNT_SPOT.x, 1.4, EBE_COUNT_SPOT.z - 3);
+      this.camera.position.set(EBE_COUNT_SPOT.x + 1.2, 2.3, EBE_COUNT_SPOT.z + 3.4);
+      this.camera.lookAt(EBE_COUNT_SPOT.x, 1.2, EBE_COUNT_SPOT.z - 1);
       return;
     }
     const dist = this.body ? this.camDist : 22;
@@ -386,6 +497,18 @@ export class Game {
     }
     this.camera.position.lerp(desired, 0.5);
     this.camera.lookAt(focus);
+    if (this.shakeT > 0) {
+      this.shakeT -= 1 / 60;
+      const a = this.shakeAmp * Math.max(0, this.shakeT / 0.45);
+      this.camera.position.x += (Math.random() - 0.5) * a;
+      this.camera.position.y += (Math.random() - 0.5) * a;
+    } else this.shakeAmp = 0;
+    const baseFov = this.camera.aspect < 1 ? 75 : 62;
+    const fov = baseFov + this.fovKick * 6;
+    if (Math.abs(this.camera.fov - fov) > 0.05) {
+      this.camera.fov = fov;
+      this.camera.updateProjectionMatrix();
+    }
   }
 
   dispose(): void {

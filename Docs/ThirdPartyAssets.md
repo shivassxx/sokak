@@ -6,17 +6,21 @@ Every third-party asset (models, textures, sounds, fonts) must be listed here.
 
 | Name | Creator | URL | License | Date | Purpose | Changes |
 |---|---|---|---|---|---|---|
-| _(none)_ | | | | | | |
+| vehicle-truck-red/yellow/purple/green.glb + Textures/colormap.png (Starter Kit Racing) | Kenney | https://github.com/KenneyNL/Starter-Kit-Racing | CC0 1.0 (assets; repo code MIT) | 2026-10-06 | Parked cars in the mahalle (`apps/client/public/models/`) | none; scaled at runtime to the car colliders |
+| walking, jump, land, coin, break .ogg (Starter Kit 3D Platformer) | Kenney | https://github.com/KenneyNL/Starter-Kit-3D-Platformer | CC0 1.0 | 2026-10-06 | Footsteps, jump/land, kurtuldu chime, sobe thud (`public/sfx/`) | none |
+| ambience.ogg, toggle.ogg → click.ogg, placement-a.ogg → pop.ogg (Starter Kit City Builder) | Kenney | https://github.com/KenneyNL/Starter-Kit-City-Builder | CC0 1.0 | 2026-10-06 | Street ambience loop, UI click, chat pop | renamed |
+| impact.ogg → thud.ogg (Starter Kit Racing) | Kenney | https://github.com/KenneyNL/Starter-Kit-Racing | CC0 1.0 | 2026-10-06 | Pebble landing | renamed, played pitched up |
+| Baloo 2 (weights 600, 800) via `@fontsource/baloo-2` | Ek Type | https://fonts.google.com/specimen/Baloo+2 | SIL Open Font License 1.1 | 2026-10-06 | UI font (self-hosted, Turkish glyphs) | none |
 
-All visuals and sounds are currently generated in code by this project (no external files):
+Everything else is generated in code by this project:
 
-- **Models:** buildings with windows/balconies/AC units, cars, broken sedan, dolmuş minibus, crates, çöp konteynerleri, trees, bushes, slide, tea-garden tables, lamps, laundry sheets, skyline — built from Three.js primitives in `apps/client/src/game/world.ts`; characters in `character.ts`.
+- **Models:** buildings (plaster, shutters, flower boxes, balconies, doors, roofs), broken sedan, dolmuş, crates, çöp konteynerleri, trees, bushes, slide, tea garden, lamps, pigeons, clouds, skyline — `apps/client/src/game/world.ts`; surface detail (brick, plaster, paving, asphalt, grass, wood) from a world-space shader in `materials.ts`; chibi kid characters with hair styles and hats in `character.ts`.
 - **Signs** ("EBE DUVARI", "BAKKAL", "ÇAY OCAĞI", "DOLMUŞ") are drawn on a canvas at runtime with the system font.
 - **Sounds** are synthesized with WebAudio (`apps/client/src/game/audio.ts`). Counting numbers and "Önüm arkam sağım solum sobe…" use the browser's own Turkish speech voice if the device has one (nothing is downloaded).
 
 ## Recommended assets (could not be downloaded in the dev environment)
 
-The cloud dev environment blocks kenney.nl, quaternius.com and polyhaven.com, so the game ships with procedural art. These CC0 packs would be good upgrades:
+kenney.nl, quaternius.com and polyhaven.com are blocked in the dev container (Kenney's GitHub starter kits are reachable and were used above). These CC0 packs would still be good upgrades:
 
 | ASSET RECOMMENDED | NAME | SOURCE | LICENSE | WHY | WHAT THE USER NEEDS TO DO |
 |---|---|---|---|---|---|

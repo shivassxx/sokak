@@ -5,6 +5,8 @@ import { nearestWalkable } from './navgrid';
 /** What the server tells a bot each tick (only information a player could know). */
 export interface BotContext {
   phase: Phase;
+  /** Ebe only: standing next to a çöp konteyneri (could peek inside) */
+  nearContainer?: boolean;
   role: Role;
   status: HiderStatus;
   self: Vec2;
@@ -46,6 +48,7 @@ export class SaklambacBot {
   private reaction = 0;
   private sneakCheck = 0;
   private patrolQueue: Vec2[] = [];
+  private peek = 0;
   /** Bots are a little lazy so humans can win. */
   readonly skill: number;
 
@@ -114,7 +117,8 @@ export class SaklambacBot {
     if (this.mode === 'hidden') return { input: { ...IDLE, crouch: true }, spot: false, claim };
     const d = this.follower.steer(ctx.self, dt);
     const crouch = this.mode === 'toSpot' && ctx.phase === 'seeking' && this.follower.path.length < 3;
-    return { input: { mx: d.x, mz: d.z, jump: false, crouch }, spot: false, claim };
+    const sprint = this.mode === 'toBase' && (ctx.status === 'spotted' || dist(ctx.self, BASE) < 20);
+    return { input: { mx: d.x, mz: d.z, jump: false, crouch, sprint: sprint || (ctx.phase === 'counting' && this.rng() < 0.5) }, spot: false, claim };
   }
 
   private pickSpot(ctx: BotContext): Vec2 {
@@ -142,9 +146,17 @@ export class SaklambacBot {
       }
       if (this.follower.done) this.follower.setGoal(ctx.self, BASE_TARGET);
       const d = this.follower.steer(ctx.self, dt);
-      return { input: { mx: d.x, mz: d.z, jump: false, crouch: false }, spot: false, claim: null };
+      return { input: { mx: d.x, mz: d.z, jump: false, crouch: false, sprint: true }, spot: false, claim: null };
     }
     if (this.mode === 'return') this.mode = 'idle';
+    // peek into çöp konteynerleri now and then
+    if (ctx.nearContainer && !atBase) {
+      this.peek -= dt;
+      if (this.peek <= 0) {
+        this.peek = 4;
+        if (this.rng() < 0.5 * this.skill) return { input: IDLE, spot: true, claim: null };
+      }
+    }
 
     // spot visible hiders (with a human-like reaction time)
     const target = ctx.visibleHiders.filter((h) => h.dist <= ctx.spotRange).sort((a, b) => a.dist - b.dist)[0];

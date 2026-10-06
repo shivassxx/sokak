@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 export interface Lighting {
   /** keep the shadow frustum centered on what the camera looks at */
@@ -8,8 +9,14 @@ export interface Lighting {
 }
 
 /** Warm summer-evening light: low sun, gradient sky, soft fill, fog. */
-export function setupLighting(scene: THREE.Scene, _renderer: THREE.WebGLRenderer): Lighting {
+export function setupLighting(scene: THREE.Scene, renderer: THREE.WebGLRenderer): Lighting {
   const mobile = matchMedia('(pointer: coarse)').matches;
+
+  // soft image-based fill so standard materials get gentle reflections
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environmentIntensity = 0.45;
+  pmrem.dispose();
 
   // gradient sky dome
   const skyUniforms = {
@@ -39,28 +46,29 @@ export function setupLighting(scene: THREE.Scene, _renderer: THREE.WebGLRenderer
 
   scene.fog = new THREE.Fog(0xf3c08e, 60, 170);
 
-  const hemi = new THREE.HemisphereLight(0xffe2bd, 0x6a5a6e, 1.5);
+  const hemi = new THREE.HemisphereLight(0xffe2bd, 0x7a6a6e, 1.15);
   scene.add(hemi);
 
-  const sun = new THREE.DirectionalLight(0xffc68a, 2.6);
+  const sun = new THREE.DirectionalLight(0xffc68a, 2.9);
   const offset = new THREE.Vector3(-30, 24, -18);
   sun.castShadow = true;
   const size = mobile ? 24 : 34;
   sun.shadow.mapSize.set(mobile ? 1024 : 2048, mobile ? 1024 : 2048);
   Object.assign(sun.shadow.camera, { left: -size, right: size, top: size, bottom: -size, near: 1, far: 120 });
-  sun.shadow.bias = -0.0008;
-  sun.shadow.normalBias = 0.03;
+  sun.shadow.bias = -0.0006;
+  sun.shadow.normalBias = 0.04;
+  sun.shadow.radius = mobile ? 1 : 3;
   scene.add(sun, sun.target);
 
   const c = {
     sunA: new THREE.Color(0xffc68a),
     sunB: new THREE.Color(0xff8a5c),
     topA: new THREE.Color(0x7c9be0),
-    topB: new THREE.Color(0x2c3570),
+    topB: new THREE.Color(0x1b2352),
     horA: new THREE.Color(0xffc48a),
-    horB: new THREE.Color(0xf08a6a),
+    horB: new THREE.Color(0xd9785e),
     fogA: new THREE.Color(0xf3c08e),
-    fogB: new THREE.Color(0x9a6f7a),
+    fogB: new THREE.Color(0x6e5568),
   };
 
   return {
@@ -74,8 +82,9 @@ export function setupLighting(scene: THREE.Scene, _renderer: THREE.WebGLRenderer
     },
     setDusk(d) {
       sun.color.copy(c.sunA).lerp(c.sunB, d);
-      sun.intensity = 2.6 - d * 1.5;
-      hemi.intensity = 1.5 - d * 0.6;
+      sun.intensity = 2.9 - d * 2.3;
+      hemi.intensity = 1.15 - d * 0.62;
+      scene.environmentIntensity = 0.45 - d * 0.32;
       skyUniforms.top.value.copy(c.topA).lerp(c.topB, d);
       skyUniforms.horizon.value.copy(c.horA).lerp(c.horB, d);
       (scene.fog as THREE.Fog).color.copy(c.fogA).lerp(c.fogB, d);

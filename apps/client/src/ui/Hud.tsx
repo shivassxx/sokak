@@ -58,9 +58,13 @@ export function Hud({ view, me, toasts, banner, countingTotal }: HudProps) {
   let roleText: string | null = null;
   let roleClass = '';
   if (phase === 'seeking' || phase === 'counting') {
-    if (isEbe) roleText = phase === 'seeking' ? 'EBE’sin! Birini görünce “Gördüm!” de, sonra duvara koş.' : null;
+    if (isEbe) roleText = phase === 'seeking' ? 'EBE’sin! Gör, “Gördüm!” de, duvara koş. Sarı tıkırtılar koşanı ele verir.' : null;
     else if (p?.role === 'spectator') roleText = 'İzliyorsun — bir sonraki elde oyundasın.';
-    else if (p?.status === 'hiding') roleText = phase === 'counting' ? 'Saklan! Çömelmek (C) seni daha zor görünür yapar.' : 'Saklan ya da fırsatını kollayıp Ebe Duvarı’na dokun!';
+    else if (p?.status === 'hiding')
+      roleText =
+        phase === 'counting'
+          ? 'Saklan! Çömel, çalıya ya da konteynere gir. Koşmak ses yapar!'
+          : 'Fırsatını kolla, Ebe Duvarı’na dokun! Taş atıp Ebe’yi kandır.';
     else if (p?.status === 'spotted') {
       roleText = 'GÖRÜLDÜN! Ebe’den önce duvara koş!';
       roleClass = 'alert';
@@ -142,28 +146,26 @@ export function SummaryPanel({ view, summary, me }: { view: RoomView; summary: S
         : summary.reason === 'timeout'
           ? 'Süre doldu! Kalanlar kurtuldu.'
           : 'Herkes bulundu ya da kurtuldu.';
+  const awards: { ico: string; t: string; v: string; s?: string }[] = [
+    { ico: '🧱', t: 'İlk sobelenen', v: summary.firstCaughtId ? n(summary.firstCaughtId) : 'Kimse!' },
+  ];
+  if (summary.bestHiderId) awards.push({ ico: '🫣', t: 'En iyi saklanan', v: n(summary.bestHiderId), s: `${summary.bestHiderSpot ?? 'gizli bir yer'} · ${sec(summary.bestHiderMs)}` });
+  if (summary.longestSurvivorId) awards.push({ ico: '⏱️', t: 'En uzun dayanan', v: n(summary.longestSurvivorId), s: sec(summary.longestSurvivorMs) });
+  awards.push({ ico: '👁️', t: 'Sıradaki ebe', v: summary.nextEbeId ? n(summary.nextEbeId) : 'Kura' });
   return (
     <div className="panel summary">
       <h2>{summary.round}. el bitti</h2>
       <p className="hint">{reason}</p>
-      <ul className="facts">
-        <li>
-          <b>İlk sobelenen:</b> {summary.firstCaughtId ? n(summary.firstCaughtId) : 'kimse yakalanmadı'}
-        </li>
-        {summary.bestHiderId && (
-          <li>
-            <b>En iyi saklanan:</b> {n(summary.bestHiderId)} — {summary.bestHiderSpot ?? 'gizli bir yer'} ({sec(summary.bestHiderMs)} görünmedi)
-          </li>
-        )}
-        {summary.longestSurvivorId && (
-          <li>
-            <b>En uzun dayanan:</b> {n(summary.longestSurvivorId)} ({sec(summary.longestSurvivorMs)})
-          </li>
-        )}
-        <li>
-          <b>Sıradaki ebe:</b> {summary.nextEbeId ? n(summary.nextEbeId) : 'kura ile seçilecek'}
-        </li>
-      </ul>
+      <div className="awards">
+        {awards.map((a) => (
+          <div key={a.t} className="award">
+            <span className="ico">{a.ico}</span>
+            <span className="t">{a.t}</span>
+            <span className="v">{a.v}</span>
+            {a.s && <span className="s">{a.s}</span>}
+          </div>
+        ))}
+      </div>
       <Scoreboard view={view} me={me} />
     </div>
   );

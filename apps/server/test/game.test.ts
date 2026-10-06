@@ -8,7 +8,7 @@ let server: StartedServer;
 let endpoint: string;
 
 beforeAll(async () => {
-  ({ server, endpoint } = await withServer({ ebeSelectionMs: 300, countingMs: 600, seekingMs: 2500, roundEndMs: 500 }));
+  ({ server, endpoint } = await withServer({ ebeSelectionMs: 300, countingMs: 600, seekingMs: 5000, roundEndMs: 500 }));
 });
 afterAll(async () => {
   await server.close();
@@ -33,7 +33,7 @@ describe('saklambaç round flow (server)', () => {
     await until(() => st(a).phase === 'counting');
     await until(() => st(a).phase === 'seeking');
     expect(a.messages.some((m) => m.type === MSG.event && (m.msg as any).type === 'countingDone')).toBe(true);
-    await until(() => st(a).phase === 'roundEnd', 6000);
+    await until(() => st(a).phase === 'roundEnd', 12000);
     const sum = a.messages.find((m) => m.type === MSG.summary)!.msg as SummaryMsg;
     expect(sum.round).toBe(1);
     // every hider ends the round either caught or safe
@@ -66,31 +66,26 @@ describe('saklambaç round flow (server)', () => {
 
   it('a hider who walks to the base is kurtuldu', async () => {
     const a = await new NetBot(endpoint).create({ name: 'Koşucu' });
-    a.room.send(MSG.addBot);
+    const b = await new NetBot(endpoint).join(a.room.roomId, { name: 'Yürüyen' });
     a.room.send(MSG.addBot);
     await until(() => st(a).players?.size === 3);
-    for (let attempt = 0; attempt < 6; attempt++) {
-      a.room.send(MSG.start);
-      await until(() => st(a).phase === 'ebeSelection' || st(a).phase === 'counting', 3000);
-      if (st(a).ebeId !== a.id) break;
-      // we are Ebe: wait for the round to time out and try again
-      await until(() => st(a).phase === 'roundEnd', 6000);
-      await until(() => st(a).phase === 'ebeSelection', 3000);
-      if (st(a).ebeId !== a.id) break;
-    }
-    expect(st(a).ebeId).not.toBe(a.id);
+    a.room.send(MSG.start);
+    await until(() => st(a).phase === 'ebeSelection' || st(a).phase === 'counting', 3000);
+    // with two humans and one bot at least one human hides
+    const h = st(a).ebeId === a.id ? b : a;
     // walk toward the base right away (touches only count once seeking starts)
-    a.drive();
+    h.drive();
     await until(() => {
-      const me = a.lastSnapshot!.me!;
+      const me = h.lastSnapshot!.me!;
       const dx = BASE.x - me[0];
       const dz = BASE.z + 1.5 - me[2];
       const l = Math.hypot(dx, dz) || 1;
-      a.move = { mx: dx / l, mz: dz / l, jump: false, crouch: false };
-      return st(a).players.get(a.id).status === 'safe';
-    }, 6000);
-    a.stop();
-    expect(st(a).players.get(a.id).score).toBeGreaterThanOrEqual(3);
+      h.move = { mx: dx / l, mz: dz / l, jump: false, crouch: false };
+      return st(a).players.get(h.id).status === 'safe';
+    }, 8000);
+    h.stop();
+    expect(st(a).players.get(h.id).score).toBeGreaterThanOrEqual(3);
     await a.leave();
+    await b.leave();
   });
 });

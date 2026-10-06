@@ -11,6 +11,8 @@ export type Action =
   | 'jump'
   | 'crouch'
   | 'spot'
+  | 'sprint'
+  | 'throw'
   | 'scoreboard'
   | 'emote1'
   | 'emote2'
@@ -30,6 +32,10 @@ const KEYS: Record<string, Action> = {
   KeyC: 'crouch',
   KeyE: 'spot',
   KeyF: 'spot',
+  ShiftLeft: 'sprint',
+  ShiftRight: 'sprint',
+  KeyQ: 'throw',
+  KeyG: 'throw',
   Tab: 'scoreboard',
   Digit1: 'emote1',
   Digit2: 'emote2',
