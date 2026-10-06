@@ -3,7 +3,10 @@ import {
   BASE,
   COLLIDERS,
   CONTAINERS,
+  HALL,
+  HALL_DOOR,
   KAHVE_COLLIDERS,
+  KAHVE_OBJECTS,
   KAHVE_SPAWN,
   KAHVE_WORLD,
   MAHALLE_WORLD,
@@ -66,10 +69,17 @@ interface Remote {
   prevZ: number;
 }
 
-// camera occluders: tall and not thin (lamp posts / trunks would make the camera pump in and out)
-const camBlocker = (minH: number) => (c: (typeof COLLIDERS)[number]) => c.solid && c.maxY - c.minY > minH && Math.min(c.maxX - c.minX, c.maxZ - c.minZ) >= 0.5;
+// camera occluders: tall, and walls or blocks rather than posts (lamp posts / trunks would make the
+// camera pump in and out)
+const camBlocker = (minH: number) => (c: (typeof COLLIDERS)[number]) =>
+  c.solid && c.maxY - c.minY > minH && (Math.min(c.maxX - c.minX, c.maxZ - c.minZ) >= 0.5 || Math.max(c.maxX - c.minX, c.maxZ - c.minZ) >= 2);
 const SOLID_CAM_MAHALLE = COLLIDERS.filter(camBlocker(1));
-const SOLID_CAM_KAHVE = KAHVE_COLLIDERS.filter(camBlocker(1.5));
+const SOLID_CAM_KAHVE = [
+  // the invisible wall over the sea railing must not pull the camera in
+  ...KAHVE_COLLIDERS.filter((c, i) => KAHVE_OBJECTS[i]!.kind !== 'seaWall' && camBlocker(1.5)(c)),
+  // the storefront above the door (not a walking collider)
+  { minX: HALL_DOOR.x - HALL_DOOR.w / 2, maxX: HALL_DOOR.x + HALL_DOOR.w / 2, minY: 3, maxY: HALL.h, minZ: -0.15, maxZ: 0.15, solid: true, opaque: true },
+];
 const INTERP_DELAY = 110;
 /** dev/test only: run the game without drawing (multi-client browser tests) */
 const NO_RENDER = import.meta.env.DEV && new URLSearchParams(location.search).has('norender');

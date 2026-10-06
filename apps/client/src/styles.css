@@ -330,6 +330,8 @@ kbd { font: 800 11px/1 'Baloo 2', system-ui; padding: 3px 6px; border-radius: 6p
   .plate-in { font-size: 11px; padding: 2px 8px; }
   .plate-in .tag { display: none; }
   .hud-top .btn.small { padding: 4px 9px; font-size: 13px; }
+  .kahve .hud-top .lbl, .kahve .salon-name { display: none; }
+  .richest { display: none; }
   .more-menu { bottom: 0; right: calc(100% + 6px); }
 }
 .rotate-hint { display: none; }

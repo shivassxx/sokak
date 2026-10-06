@@ -407,16 +407,16 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         {reconnecting && <span className="pill warn">Bağlantı koptu, yeniden bağlanılıyor…</span>}
         {myP && <span className="wallet">💰 {money(myP.money)}</span>}
         <button className="btn small" onClick={() => setMenuOpen((o) => !o)}>
-          ☕ Çaycı!
+          ☕<span className="lbl"> Çaycı!</span>
         </button>
         {!myTable && (
           <button className="btn small" onClick={() => setTablesOpen((o) => !o)}>
-            🃏 Masalar
+            🃏<span className="lbl"> Masalar</span>
           </button>
         )}
         {view?.name && <span className="pill salon-name">📍 {view.name}</span>}
         <button className={`btn small ${voiceOn ? 'on' : ''}`} onClick={() => void toggleVoice()} title="Sesli sohbet (isteğe bağlı)">
-          {voiceOn ? '🎙️ Sesli: açık' : '🎙️ Sesli sohbet'}
+          🎙️<span className="lbl">{voiceOn ? ' Sesli: açık' : ' Sesli sohbet'}</span>
         </button>
         {voiceOn && (
           <>
@@ -428,7 +428,8 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
                 setMicMuted(m);
               }}
             >
-              {micMuted ? '🔇 Mikrofon kapalı' : '🎤 Mikrofon'}
+              {micMuted ? '🔇' : '🎤'}
+              <span className="lbl">{micMuted ? ' Mikrofon kapalı' : ' Mikrofon'}</span>
             </button>
             <button className="btn small" onClick={() => setVoicePanel((o) => !o)}>
               👥 {voiceRef.current?.connectedPeers().length ?? 0}
