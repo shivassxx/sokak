@@ -482,7 +482,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         )}
         {nearThing?.kind === 'spot' && !myTable && (
           <div className="sit-prompt">
-            <b>{SIT_SPOTS[nearThing.i]!.h < 0.4 ? 'Tabure' : 'Bank'}</b>
+            <b>{SIT_SPOTS[nearThing.i]!.label}</b>
             <button className="btn primary" onClick={() => room.send(KMSG.sitSpot, { spot: nearThing.i })}>
               Otur {!isTouch && <kbd>E</kbd>}
             </button>

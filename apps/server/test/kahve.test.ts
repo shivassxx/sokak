@@ -173,6 +173,26 @@ describe('kahvehane', () => {
     await a.leave();
   });
 
+  it('sahil ledge: sit facing the sea, stand up back on the promenade', async () => {
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Salacak' });
+    await until(() => !!st(a).players?.get(a.id));
+    const room = matchMaker.getLocalRoomById(a.room.roomId) as KahvehaneRoom;
+    const i = SIT_SPOTS.findIndex((s) => s.label === 'Sahil duvarı');
+    const spot = SIT_SPOTS[i]!;
+    expect(i).toBeGreaterThanOrEqual(0);
+    room.debugPlace(a.id, spot.stand!.x, spot.stand!.z);
+    await sleep(80);
+    a.room.send(KMSG.sitSpot, { spot: i });
+    await until(() => me(a).spot === i);
+    a.room.send(KMSG.stand);
+    await until(() => me(a).spot === -1);
+    await sleep(120);
+    const body = (room as any).avatars.get(a.id).body;
+    expect(body.z).toBeCloseTo(spot.stand!.z, 1);
+    expect(room.state.players.get(a.id)!.spot).toBe(-1);
+    await a.leave();
+  });
+
   it('wallet: the same device keeps its play money between visits', async () => {
     const device = 'ab'.repeat(16);
     const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Cuzdan', device });

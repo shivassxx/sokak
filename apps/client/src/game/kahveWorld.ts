@@ -5,6 +5,7 @@ import {
   HALL,
   HALL_DOOR,
   KAHVE_HALF,
+  LEDGE,
   KAHVE_OBJECTS,
   MARKET,
   PROMENADE,
@@ -414,8 +415,18 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   }
   for (let x = -40; x <= 28; x += 10) classicLamp(b, x, SEA_Z - 0.9, 3.8);
   // sea railing: posts and two iron rails
-  for (let x = -KAHVE_HALF; x <= 32; x += 1.6) b.box(x, 0, SEA_Z, 0.06, 1.1, 0.06, 0x2a3036);
-  for (const y of [0.55, 1.05]) b.box((32 - KAHVE_HALF) / 2, y, SEA_Z, 32 + KAHVE_HALF, 0.05, 0.05, 0x2a3036);
+  for (const [x0, x1] of [
+    [-KAHVE_HALF, LEDGE.x0],
+    [LEDGE.x1, 32],
+  ] as const) {
+    for (let x = x0; x <= x1 + 0.01; x += (x1 - x0) / Math.round((x1 - x0) / 1.6)) b.box(x, 0, SEA_Z, 0.06, 1.1, 0.06, 0x2a3036);
+    for (const y of [0.55, 1.05]) b.box((x0 + x1) / 2, y, SEA_Z, x1 - x0, 0.05, 0.05, 0x2a3036);
+  }
+  // the sitting ledge: rough stone with a smooth cap
+  b.pat = PAT.stone;
+  b.box((LEDGE.x0 + LEDGE.x1) / 2, 0, SEA_Z - 0.175, LEDGE.x1 - LEDGE.x0, 0.44, 0.55, 0xb9ad98);
+  b.pat = PAT.none;
+  b.box((LEDGE.x0 + LEDGE.x1) / 2, 0.44, SEA_Z - 0.175, LEDGE.x1 - LEDGE.x0 + 0.06, 0.06, 0.62, 0xd9d0c0);
   // quay wall down to the water
   b.pat = PAT.stone;
   b.box(0, -1.4, SEA_Z + 0.35, 400, 1.4, 0.5, 0xb0a490);

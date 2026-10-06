@@ -777,9 +777,9 @@ export class KahvehaneRoom extends Room<KahveState> {
     const s = SIT_SPOTS[p.spot]!;
     p.spot = -1;
     if (!a) return;
-    // step forward off the seat (seated people face away from the seat)
-    const x = s.x - Math.sin(s.yaw) * 0.8;
-    const z = s.z - Math.cos(s.yaw) * 0.8;
+    // step forward off the seat (seated people face away from the seat), or where the spot says
+    const x = s.stand?.x ?? s.x - Math.sin(s.yaw) * 0.8;
+    const z = s.stand?.z ?? s.z - Math.cos(s.yaw) * 0.8;
     a.body = createBody(x, z);
     a.queue = [];
     a.queueSeq = [];

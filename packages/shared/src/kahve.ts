@@ -16,6 +16,8 @@ export const KAHVE_HALF = 48;
 /** the hall */
 export const HALL = { x0: -20, x1: 14, z0: -24, z1: 0, h: 4.4 } as const;
 export const HALL_DOOR = { x: -3, w: 3 } as const;
+/** stretch of the sea wall that is a low ledge to sit on (no railing) */
+export const LEDGE = { x0: -13.5, x1: 4.5 } as const;
 export const TERRACE = { z1: 7 } as const;
 export const STREET = { z0: 10, z1: 17 } as const;
 export const PROMENADE = { z0: 19, z1: 34 } as const;
@@ -51,6 +53,7 @@ export type KahveKind =
   | 'parasol'
   | 'heater'
   | 'seaWall'
+  | 'ledge'
   | 'tavla';
 
 export interface KahveObject extends Omit<MapObject, 'kind'> {
@@ -192,7 +195,10 @@ for (const t of CAY_BAHCESI) for (const dx of [-0.75, 0.75]) box('stool', t.x + 
 // iskele (ferry pier building)
 span('pier', 32, KAHVE_HALF, PROMENADE.z0 + 3, SEA_Z + 4, 7);
 // sea wall + railing; an invisible high wall stops jumping over the railing
-span('railing', -KAHVE_HALF, 32, SEA_Z - 0.1, SEA_Z + 0.1, 1.1, { opaque: false });
+span('railing', -KAHVE_HALF, LEDGE.x0, SEA_Z - 0.1, SEA_Z + 0.1, 1.1, { opaque: false });
+span('railing', LEDGE.x1, 32, SEA_Z - 0.1, SEA_Z + 0.1, 1.1, { opaque: false });
+// Salacak-style low stone ledge instead of the railing: sit on it, legs over the water
+span('ledge', LEDGE.x0, LEDGE.x1, SEA_Z - 0.45, SEA_Z + 0.1, 0.5);
 span('seaWall', -KAHVE_HALF, 32, SEA_Z + 0.1, SEA_Z + 0.6, 3.5, { opaque: false });
 
 export const SHOPS: readonly Shop[] = [
@@ -206,15 +212,22 @@ export interface SitSpot extends Vec2 {
   yaw: number;
   /** seat height in metres */
   h: number;
+  /** shown in the sit prompt */
+  label: string;
+  /** where you stand up (default: a step forward) */
+  stand?: Vec2;
 }
 const SPOTS: SitSpot[] = [];
 // benches face the sea (+z → yaw π)
-for (const x of BENCHES) for (const dx of [-0.5, 0.5]) SPOTS.push({ x: x + dx, z: PROMENADE.z0 + 8, yaw: Math.PI, h: 0.45 });
+for (const x of BENCHES) for (const dx of [-0.5, 0.5]) SPOTS.push({ x: x + dx, z: PROMENADE.z0 + 8, yaw: Math.PI, h: 0.45, label: 'Bank' });
 // stools around the low tables, facing the table
 for (const t of CAY_BAHCESI) {
-  SPOTS.push({ x: t.x - 0.75, z: t.z, yaw: -Math.PI / 2, h: 0.32 });
-  SPOTS.push({ x: t.x + 0.75, z: t.z, yaw: Math.PI / 2, h: 0.32 });
+  SPOTS.push({ x: t.x - 0.75, z: t.z, yaw: -Math.PI / 2, h: 0.32, label: 'Tabure' });
+  SPOTS.push({ x: t.x + 0.75, z: t.z, yaw: Math.PI / 2, h: 0.32, label: 'Tabure' });
 }
+// the sahil ledge: facing Kız Kulesi; you get up back onto the promenade
+for (let x = LEDGE.x0 + 0.8; x <= LEDGE.x1 - 0.8; x += 1.3)
+  SPOTS.push({ x, z: SEA_Z - 0.2, yaw: Math.PI, h: 0.5, label: 'Sahil duvarı', stand: { x, z: SEA_Z - 1.1 } });
 export const SIT_SPOTS: readonly SitSpot[] = SPOTS;
 export const SPOT_REACH = 1.8;
 

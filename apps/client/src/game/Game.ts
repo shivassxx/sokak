@@ -496,6 +496,9 @@ export class Game {
     }
     this.jumpQueued = false;
     this.prevBody = cloneBody(this.body);
+    // seated in the kahve (table, bench, ledge): the server holds the body still, so must we —
+    // stepping would push it out of the seat's collider (e.g. up onto the sahil ledge)
+    if (this.frozen && this.level === 'kahve') return;
     const wasGround = this.body.onGround;
     stepBody(this.body, input, SIM_DT, this.phys);
     if (wasGround && !this.body.onGround && this.body.vy > 0) this.events.onJump?.();
