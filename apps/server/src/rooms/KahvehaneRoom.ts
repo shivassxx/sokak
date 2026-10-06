@@ -675,8 +675,14 @@ export class KahvehaneRoom extends Room<KahveState> {
       if (t.status !== 'open') playing++;
       else if ([...t.seats].some((s) => s && this.isHuman(s))) waiting++;
     }
-    if (playing === this.meta.playing && waiting === this.meta.waiting && humans === this.meta.humans) return;
-    Object.assign(this.meta, { playing, waiting, humans });
+    const top = [...this.state.players.values()]
+      .filter((p) => !p.isBot)
+      .sort((a, b) => b.money - a.money)
+      .slice(0, 5)
+      .map((p) => ({ name: p.name, money: p.money }));
+    const same = JSON.stringify(top) === JSON.stringify(this.meta.top ?? []);
+    if (same && playing === this.meta.playing && waiting === this.meta.waiting && humans === this.meta.humans) return;
+    Object.assign(this.meta, { playing, waiting, humans, top });
     void this.setMetadata({ ...this.meta });
   }
 

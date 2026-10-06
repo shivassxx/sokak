@@ -193,6 +193,22 @@ describe('kahvehane', () => {
     await b.leave();
   });
 
+  it('lobby leaderboard: the richest online players of public salons', async () => {
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Zengin' });
+    await until(() => !!st(a).players?.get(a.id));
+    const room = matchMaker.getLocalRoomById(a.room.roomId) as KahvehaneRoom;
+    room.state.players.get(a.id)!.money = 98765;
+    const url = `http://127.0.0.1:${server.port}/api/leaders`;
+    let top: { name: string; money: number; salon: string }[] = [];
+    for (let t = 0; t < 40 && top[0]?.money !== 98765; t++) {
+      await sleep(150);
+      top = (await (await fetch(url)).json()) as typeof top;
+    }
+    expect(top[0]!.name).toBe('Zengin');
+    expect(top[0]!.salon).toBe(room.state.name);
+    await a.leave();
+  });
+
   it('lobby: quick join seats you at a table; fill with bots and deal', async () => {
     const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Hizli', quick: true });
     await until(() => (st(a).players?.get(a.id)?.table ?? -1) >= 0);

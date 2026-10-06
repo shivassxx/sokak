@@ -378,6 +378,14 @@ kbd { font: 800 11px/1 'Baloo 2', system-ui; padding: 3px 6px; border-radius: 6p
 .table-list .tno { width: 28px; height: 28px; border-radius: 50%; background: #1d6a43; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; flex: none; }
 .table-list .tinfo { flex: 1; display: flex; flex-direction: column; text-align: left; font-size: 14px; }
 .table-list .tinfo small { color: #7a5a3a; }
+.leaders { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px; }
+.leaders li { display: flex; align-items: center; gap: 8px; background: #fff; border-radius: 12px; padding: 6px 10px; font-size: 14px; }
+.leaders .rank { width: 22px; height: 22px; border-radius: 50%; background: #f4e6cc; display: grid; place-items: center; font-weight: 800; font-size: 12px; flex: none; }
+.leaders li:nth-child(1) .rank { background: #ffd166; }
+.leaders li:nth-child(2) .rank { background: #d9dde3; }
+.leaders li:nth-child(3) .rank { background: #e8b48a; }
+.leaders .muted { font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaders .money { font-weight: 800; color: var(--sun-dark); white-space: nowrap; }
 .lobby-card .fineprint { color: #7a6a5a; text-shadow: none; margin-top: 14px; }
 
 .voice-panel { right: 12px; top: 64px; width: min(340px, calc(100% - 24px)); z-index: 7; }

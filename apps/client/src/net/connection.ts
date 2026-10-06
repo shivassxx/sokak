@@ -1,5 +1,5 @@
 import { Client, type Room } from 'colyseus.js';
-import { KAHVE_ROOM, ROOM_NAME, SERVER_PORT, type JoinOptions, type SalonInfo } from '@sokak/shared';
+import { KAHVE_ROOM, ROOM_NAME, SERVER_PORT, type JoinOptions, type LeaderInfo, type SalonInfo } from '@sokak/shared';
 
 export function serverEndpoint(): string {
   const env = import.meta.env.VITE_SERVER_URL as string | undefined;
@@ -85,6 +85,12 @@ export async function listSalons(): Promise<SalonInfo[]> {
   const r = await fetch(`${httpEndpoint()}/api/salons`, { cache: 'no-store' });
   if (!r.ok) throw new Error('salons');
   return (await r.json()) as SalonInfo[];
+}
+
+export async function listLeaders(): Promise<LeaderInfo[]> {
+  const r = await fetch(`${httpEndpoint()}/api/leaders`, { cache: 'no-store' });
+  if (!r.ok) throw new Error('leaders');
+  return (await r.json()) as LeaderInfo[];
 }
 
 export interface KahveJoin {

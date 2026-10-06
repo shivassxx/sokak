@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { SalonInfo } from '@sokak/shared';
-import { listSalons, type KahveJoin } from '../../net/connection';
+import type { LeaderInfo, SalonInfo } from '@sokak/shared';
+import { listLeaders, listSalons, type KahveJoin } from '../../net/connection';
 import type { Prefs } from '../prefs';
 
 interface Props {
@@ -16,6 +16,7 @@ export function KahveLobby({ prefs, busy, error, onJoin, onBack }: Props) {
   const [salons, setSalons] = useState<SalonInfo[] | null>(null);
   const [offline, setOffline] = useState(false);
   const [priv, setPriv] = useState(false);
+  const [leaders, setLeaders] = useState<LeaderInfo[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -27,11 +28,18 @@ export function KahveLobby({ prefs, busy, error, onJoin, onBack }: Props) {
           setOffline(false);
         })
         .catch(() => alive && setOffline(true));
+    const loadLeaders = () =>
+      listLeaders()
+        .then((l) => alive && setLeaders(l))
+        .catch(() => {});
     void load();
+    void loadLeaders();
+    const iv2 = setInterval(loadLeaders, 10000);
     const iv = setInterval(load, 4000);
     return () => {
       alive = false;
       clearInterval(iv);
+      clearInterval(iv2);
     };
   }, []);
 
@@ -105,6 +113,21 @@ export function KahveLobby({ prefs, busy, error, onJoin, onBack }: Props) {
             </li>
           ))}
         </ul>
+        {leaders.length > 0 && (
+          <>
+            <h2 className="lobby-sub">🏆 Şu an Üsküdar'ın en zenginleri</h2>
+            <ol className="leaders">
+              {leaders.map((l, i) => (
+                <li key={`${l.name}-${i}`}>
+                  <span className="rank">{i + 1}</span>
+                  <b>{l.name}</b>
+                  <span className="muted">{l.salon}</span>
+                  <span className="money">{l.money.toLocaleString('tr-TR')} ₺</span>
+                </li>
+              ))}
+            </ol>
+          </>
+        )}
         {error && <div className="error">{error}</div>}
         <p className="fineprint">Para tamamen sanal, oyun içidir. Hesap yok: bakiyen bu cihazda saklanır, her gün ilk girişte 250 ₺ bonus.</p>
       </div>

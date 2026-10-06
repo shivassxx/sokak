@@ -20,8 +20,8 @@ If a session resumes after a limit/compaction: read this file, continue with the
 
 ## Online-game features
 - [x] Lobby system (salon list with occupancy, quick play, new salon, table list → sit directly)
-- [ ] Voice chat (opt-in WebRTC, table / proximity groups, mute per player)
-- [~] Online okey polish (persistent wallet per device ✓, daily bonus ✓, leaderboard — todo)
+- [x] Voice chat (opt-in WebRTC, table / proximity groups, mute per player)
+- [x] Online okey polish (persistent wallet per device ✓, daily bonus ✓, lobby leaderboard of online players ✓)
 
 ## Wrap-up
 - [ ] Tests, build, size, docs (Decisions, Roadmap, SessionLog, FINAL_REPORT in Turkish), push, Turkish report

@@ -4,7 +4,7 @@ import path from 'node:path';
 import express from 'express';
 import { Server, matchMaker } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
-import { KAHVE_ROOM, ROOM_NAME, type SalonInfo, type SalonMeta } from '@sokak/shared';
+import { KAHVE_ROOM, ROOM_NAME, type LeaderInfo, type SalonInfo, type SalonMeta } from '@sokak/shared';
 import type { RulesConfig } from '@sokak/rules';
 import { SaklambacRoom } from './rooms/SaklambacRoom';
 import { KahvehaneRoom } from './rooms/KahvehaneRoom';
@@ -48,6 +48,23 @@ export async function startServer(port: number, opts: {
           return { roomId: r.roomId, name: m.name ?? 'Salon', players: r.clients, max: r.maxClients, playing: m.playing ?? 0, waiting: m.waiting ?? 0 };
         });
       res.json(list);
+    } catch {
+      res.json([]);
+    }
+  });
+  // lobby leaderboard: the richest players online right now, public salons only
+  app.get('/api/leaders', async (_req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store');
+    try {
+      const rooms = await matchMaker.query({ name: KAHVE_ROOM });
+      const list: LeaderInfo[] = [];
+      for (const r of rooms) {
+        const m = (r.metadata ?? {}) as Partial<SalonMeta>;
+        if (m.private || r.private) continue;
+        for (const t of m.top ?? []) list.push({ name: t.name, money: t.money, salon: m.name ?? 'Salon' });
+      }
+      res.json(list.sort((a, b) => b.money - a.money).slice(0, 10));
     } catch {
       res.json([]);
     }

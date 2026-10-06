@@ -54,6 +54,15 @@ export interface SalonMeta {
   playing: number;
   waiting: number;
   humans: number;
+  /** richest players right now (public salons feed the lobby leaderboard) */
+  top?: { name: string; money: number }[];
+}
+
+/** One row of the lobby leaderboard (online players, all public salons). */
+export interface LeaderInfo {
+  name: string;
+  money: number;
+  salon: string;
 }
 
 /** Someone used their held item (smoke, eat, drink, read). */
