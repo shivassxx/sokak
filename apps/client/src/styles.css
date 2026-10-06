@@ -106,3 +106,16 @@ input { font: inherit; }
 .spot-desktop small { font-size: 13px; opacity: .8; }
 .spot-desktop.ready { background: #d8573c; box-shadow: 0 0 26px #ffcf6b; animation: pulse2 .5s infinite alternate; }
 @keyframes pulse2 { from { transform: scale(1); } to { transform: scale(1.07); } }
+.social { position: absolute; left: 10px; bottom: max(12px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.social-row { display: flex; gap: 6px; }
+.round-btn { width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255,255,255,.75); background: rgba(0,0,0,.35); font-size: 21px; display: flex; align-items: center; justify-content: center; padding: 0; }
+.round-btn.on { background: var(--sun); }
+.chat-menu { display: flex; flex-direction: column; gap: 4px; background: var(--panel); padding: 8px; border-radius: 14px; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+.chat-menu .btn { text-align: left; box-shadow: none; background: #fff; }
+.key { display: inline-block; min-width: 18px; font-size: 11px; color: #8a7a68; }
+@media (pointer: coarse) {
+  .social { left: auto; right: 10px; bottom: auto; top: 60px; align-items: flex-end; }
+  .social-row { flex-direction: column; }
+  .round-btn { width: 40px; height: 40px; font-size: 19px; }
+  .joy-hint { bottom: 24px; }
+}

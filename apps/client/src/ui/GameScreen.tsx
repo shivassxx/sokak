@@ -14,10 +14,14 @@ import {
   type SummaryMsg,
   type TeleportMsg,
   type PlayerView,
+  type ChatMsg,
+  QUICK_CHAT,
 } from '@sokak/shared';
 import type { Game } from '../game/Game';
 import { useRoomView } from '../net/useRoom';
 import { Lobby } from './Lobby';
+import { Social } from './Social';
+import { countWord, play, say } from '../game/audio';
 import { Hud, Scoreboard, SummaryPanel, eventText, nameOf, useBanner, useToasts } from './Hud';
 import { TouchControls, isTouch } from './TouchControls';
 
@@ -34,6 +38,8 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
   const viewRef = useRef(view);
   viewRef.current = view;
   const [toasts, pushToast] = useToasts();
+  const pushToastRef = useRef(pushToast);
+  pushToastRef.current = pushToast;
   const [banner, showBanner] = useBanner();
   const [summary, setSummary] = useState<SummaryMsg | null>(null);
   const [showScores, setShowScores] = useState(false);
@@ -46,6 +52,13 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
     if (view.phase === 'counting') countTotal.current = Math.max(1, view.timeLeft);
     lastPhase.current = view.phase;
   }
+  const lastTick = useRef(-1);
+  useEffect(() => {
+    if (!view || view.phase !== 'counting' || view.timeLeft === lastTick.current) return;
+    lastTick.current = view.timeLeft;
+    play('tick');
+    if (view.ebeId === me) say(countWord(Math.max(1, countTotal.current - view.timeLeft + 1)), 1.2);
+  }, [view, me]);
   const amSeekingEbe = !!view && view.ebeId === me && view.phase === 'seeking';
 
   // "Gördüm!" input → server (validated there)
@@ -81,6 +94,20 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
     if (game) game.frozen = frozen;
   }, [game, frozen]);
 
+  // the evening darkens while the Ebe seeks; streetlights fade in
+  const seekTotal = useRef(180);
+  useEffect(() => {
+    if (!game || !view) return;
+    if (view.phase === 'seeking') {
+      seekTotal.current = Math.max(seekTotal.current === 180 ? view.timeLeft : seekTotal.current, 1);
+      game.setDusk(0.3 + 0.7 * (1 - view.timeLeft / seekTotal.current));
+    } else if (view.phase === 'lobby') game.setDusk(0.1);
+    else if (view.phase !== 'roundEnd') {
+      seekTotal.current = 180;
+      game.setDusk(0.25);
+    }
+  }, [game, view]);
+
   // rule events → toasts / banners
   useEffect(() => {
     const offEv = room.onMessage(MSG.event, (e: EventMsg) => {
@@ -89,13 +116,27 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
         pushToast({ text: e.reason === 'base' ? 'Ebe Duvarı’ndan “Gördüm” diyemezsin, biraz uzaklaş!' : 'Yakında görünen kimse yok…', kind: 'info' });
         return;
       }
+      if (e.type === 'countingDone') {
+        play('go');
+        say(SOBE_CALL, 1.15);
+      } else if (e.type === 'spotted') play('spotted');
+      else if (e.type === 'caught') play('caught');
+      else if (e.type === 'safe' && e.how === 'base') play('safe');
+      else if (e.type === 'ebeChosen') play('pop');
+      else if (e.type === 'herkesKurtuldu') {
+        play('herkes');
+        say('Herkes kurtuldu!');
+      }
       if (e.type === 'countingDone') showBanner(SOBE_CALL, 4000);
       else if (e.type === 'herkesKurtuldu') showBanner(e.by === me ? 'HERKES KURTULDU! Hepsi senin sayende!' : `HERKES KURTULDU! (${nameOf(v, e.by)} sayesinde)`, 4500);
       else if (e.type === 'phase' && e.phase === 'ebeSelection') setSummary(null);
       const t = eventText(v, e, me);
       if (t) pushToast(t);
     });
-    const offSum = room.onMessage(MSG.summary, (s: SummaryMsg) => setSummary(s));
+    const offSum = room.onMessage(MSG.summary, (s: SummaryMsg) => {
+      play('roundEnd');
+      setSummary(s);
+    });
     return () => {
       offEv();
       offSum();
@@ -157,11 +198,20 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
       if (e.id === room.sessionId) game.playLocalEmote(e.e);
       else game.remoteEmote(e.id, e.e);
     });
+    const offChat = room.onMessage(MSG.chat, (c: ChatMsg) => {
+      const text = QUICK_CHAT[c.q];
+      if (!text) return;
+      play('pop');
+      if (c.id === room.sessionId) game.bubble(null, text);
+      else if (game.visibleRemotes().some((r) => r.id === c.id)) game.bubble(c.id, text);
+      else pushToastRef.current({ text: `${nameOf(viewRef.current, c.id)}: “${text}”`, kind: 'info' });
+    });
     return () => {
       game.sender = null;
       offSnap();
       offTp();
       offEmote();
+      offChat();
     };
   }, [game, room]);
 
@@ -196,6 +246,7 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
       {view && view.phase !== 'lobby' && <Hud view={view} me={me} toasts={toasts} banner={banner} countingTotal={countTotal.current} />}
       {view && view.phase === 'roundEnd' && summary && <SummaryPanel view={view} summary={summary} me={me} />}
       {view && showScores && view.phase !== 'roundEnd' && <Scoreboard view={view} me={me} onClose={() => setShowScores(false)} />}
+      {game && view && <Social room={room} input={game.input} />}
       {game && isTouch && <TouchControls input={game.input} showSpot={amSeekingEbe} spotReady={spotReady} />}
       {game && !isTouch && amSeekingEbe && (
         <button className={`spot-desktop ${spotReady ? 'ready' : ''}`} onClick={() => game.input.trigger('spot')}>

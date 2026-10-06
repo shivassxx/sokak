@@ -16,6 +16,10 @@ limbGeo.translate(0, -0.27, 0);
 const legGeo = new THREE.BoxGeometry(0.2, 0.62, 0.22);
 legGeo.translate(0, -0.31, 0);
 const shoeGeo = new THREE.BoxGeometry(0.21, 0.1, 0.3);
+const eyeGeo = new THREE.BoxGeometry(0.05, 0.07, 0.03);
+const mouthGeo = new THREE.BoxGeometry(0.1, 0.025, 0.02);
+const EYE = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
+const MOUTH = new THREE.MeshBasicMaterial({ color: 0x9a3b2b });
 
 const outfitCache = new Map<string, THREE.MeshLambertMaterial>();
 function outfit(color: string): THREE.MeshLambertMaterial {
@@ -37,6 +41,8 @@ export class Character {
   private emote: Emote | null = null;
   private emoteT = 0;
   private label: THREE.Sprite | null = null;
+  private bubble: THREE.Sprite | null = null;
+  private bubbleT = 0;
   facing = 0;
 
   constructor(color: string) {
@@ -49,6 +55,14 @@ export class Character {
     const hair = new THREE.Mesh(hairGeo, HAIR);
     hair.position.y = 0.03;
     this.head.add(headMesh, hair);
+    for (const ex of [-0.08, 0.08]) {
+      const eye = new THREE.Mesh(eyeGeo, EYE);
+      eye.position.set(ex, 0.02, -0.215);
+      this.head.add(eye);
+    }
+    const cheek = new THREE.Mesh(mouthGeo, MOUTH);
+    cheek.position.set(0, -0.09, -0.225);
+    this.head.add(cheek);
     const mkArm = (x: number) => {
       const g = new THREE.Group();
       g.position.set(x, 1.42, 0);
@@ -64,7 +78,7 @@ export class Character {
       g.position.set(x, 0.85, 0);
       g.add(new THREE.Mesh(legGeo, PANTS));
       const shoe = new THREE.Mesh(shoeGeo, SHOE);
-      shoe.position.set(0, -0.62, 0.04);
+      shoe.position.set(0, -0.62, -0.04);
       g.add(shoe);
       return g;
     };
@@ -114,6 +128,50 @@ export class Character {
     this.root.add(s);
   }
 
+  /** Quick-chat speech bubble above the head for a few seconds. */
+  say(text: string): void {
+    this.clearBubble();
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 96;
+    const ctx = c.getContext('2d')!;
+    ctx.font = 'bold 34px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const w = Math.min(500, ctx.measureText(text).width + 36);
+    ctx.fillStyle = '#fffaf0';
+    ctx.strokeStyle = '#2b2118';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.roundRect(256 - w / 2, 6, w, 64, 22);
+    ctx.moveTo(244, 70);
+    ctx.lineTo(256, 90);
+    ctx.lineTo(268, 70);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#fffaf0';
+    ctx.fillRect(246, 64, 20, 8);
+    ctx.fillStyle = '#2b2118';
+    ctx.fillText(text, 256, 39);
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
+    s.scale.set(3.2, 0.6, 1);
+    s.position.y = 2.75;
+    s.renderOrder = 10;
+    this.bubble = s;
+    this.bubbleT = 3.2;
+    this.root.add(s);
+  }
+
+  private clearBubble(): void {
+    if (!this.bubble) return;
+    this.root.remove(this.bubble);
+    (this.bubble.material as THREE.SpriteMaterial).map?.dispose();
+    this.bubble.material.dispose();
+    this.bubble = null;
+  }
+
   playEmote(e: Emote): void {
     this.emote = e;
     this.emoteT = 0;
@@ -121,6 +179,7 @@ export class Character {
 
   /** speed: horizontal m/s; crouch: pose; dt seconds */
   animate(dt: number, speed: number, crouch: boolean, airborne: boolean): void {
+    if (this.bubble && (this.bubbleT -= dt) <= 0) this.clearBubble();
     const moving = speed > 0.3;
     if (moving) this.walkPhase += dt * speed * 2.2;
     const swing = moving ? Math.sin(this.walkPhase) * Math.min(1, speed / 4) * 0.8 : 0;
@@ -158,13 +217,14 @@ export class Character {
         this.armL.rotation.set(0, 0, -2.4 - Math.sin(t * 8) * 0.4);
         this.armR.rotation.set(0, 0, 2.4 + Math.sin(t * 8) * 0.4);
       } else if (this.emote === 'point') {
-        this.armR.rotation.set(-1.6, 0, 0);
+        this.armR.rotation.set(1.6, 0, 0);
         this.head.rotation.x = -0.1;
       }
     }
   }
 
   dispose(): void {
+    this.clearBubble();
     if (this.label) {
       (this.label.material as THREE.SpriteMaterial).map?.dispose();
       this.label.material.dispose();

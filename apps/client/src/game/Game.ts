@@ -13,7 +13,7 @@ import {
 } from '@sokak/shared';
 import { Character, type Emote } from './character';
 import { Input } from './input';
-import { buildWorld } from './world';
+import { buildWorld, type World } from './world';
 import { setupLighting, type Lighting } from './lighting';
 
 export interface InputSender {
@@ -74,6 +74,9 @@ export class Game {
   sender: InputSender | null = null;
 
   private lighting: Lighting;
+  private world: World;
+  private dusk = 0.15;
+  private duskTarget = 0.15;
   private raf = 0;
   private last = performance.now();
   private resizeObs: ResizeObserver;
@@ -89,7 +92,8 @@ export class Game {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.05;
     this.lighting = setupLighting(this.scene, this.renderer);
-    buildWorld(this.scene);
+    this.world = buildWorld(this.scene);
+    this.applyDusk();
     this.input.attach(canvas);
     this.input.onPress((a) => {
       if (a === 'jump') this.jumpQueued = true;
@@ -100,6 +104,16 @@ export class Game {
     this.resize();
     this.loop = this.loop.bind(this);
     this.raf = requestAnimationFrame(this.loop);
+  }
+
+  /** 0 = golden hour, 1 = night; eased over time */
+  setDusk(d: number): void {
+    this.duskTarget = Math.max(0, Math.min(1, d));
+  }
+
+  private applyDusk(): void {
+    this.lighting.setDusk(this.dusk);
+    this.world.setDusk(this.dusk);
   }
 
   // ------------------------------------------------------------ local player
@@ -212,6 +226,12 @@ export class Game {
     r.buf.push({ t, x, y, z, yaw, crouch });
     if (r.buf.length > 30) r.buf.splice(0, r.buf.length - 30);
     r.lastSeen = t;
+  }
+
+  /** Speech bubble over a remote player (or the local one with id = null). */
+  bubble(id: string | null, text: string): void {
+    if (id === null) this.localChar?.say(text);
+    else this.remotes.get(id)?.char.say(text);
   }
 
   remoteEmote(id: string, e: Emote): void {
@@ -332,6 +352,11 @@ export class Game {
 
     this.updateCamera(focus);
     this.lighting.follow(focus.x, focus.z);
+    if (Math.abs(this.dusk - this.duskTarget) > 0.002) {
+      this.dusk += (this.duskTarget - this.dusk) * Math.min(1, dt * 0.5);
+      this.applyDusk();
+    }
+    this.world.update(dt);
     this.onFrame?.(dt);
     this.renderer.render(this.scene, this.camera);
   }

@@ -190,7 +190,7 @@ apartment(28, -56, 56, -36, 15, 40, 2);
 rect('building', 8, -56, 24, -34, 10, { tint: 3 });
 // bakkal (corner shop) with crates
 rect('shop', 12, -26, 25, -15, 4.5);
-rect('slab', 12, -15, 25, -13.6, 0.15, { y: 2.8, solid: false, opaque: false });
+rect('slab', 12, -15, 25, -13.6, 0.15, { y: 2.8, solid: false, opaque: false, tint: 9 });
 for (const [cx, cz, cy] of [
   [13.5, -13, 0],
   [14.4, -13, 0],

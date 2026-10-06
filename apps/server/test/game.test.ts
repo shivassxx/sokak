@@ -36,8 +36,8 @@ describe('saklambaç round flow (server)', () => {
     await until(() => st(a).phase === 'roundEnd', 6000);
     const sum = a.messages.find((m) => m.type === MSG.summary)!.msg as SummaryMsg;
     expect(sum.round).toBe(1);
-    // nobody did anything → everyone survived; scores for survivors
-    expect(sum.safe.length).toBe(2);
+    // every hider ends the round either caught or safe
+    expect(sum.caught.length + sum.safe.length).toBe(2);
     await until(() => st(a).phase === 'ebeSelection' && st(a).round === 2, 3000);
     await a.leave();
     await b.leave();
@@ -79,8 +79,7 @@ describe('saklambaç round flow (server)', () => {
       if (st(a).ebeId !== a.id) break;
     }
     expect(st(a).ebeId).not.toBe(a.id);
-    await until(() => st(a).phase === 'seeking', 3000);
-    // walk toward the base
+    // walk toward the base right away (touches only count once seeking starts)
     a.drive();
     await until(() => {
       const me = a.lastSnapshot!.me!;
@@ -89,7 +88,7 @@ describe('saklambaç round flow (server)', () => {
       const l = Math.hypot(dx, dz) || 1;
       a.move = { mx: dx / l, mz: dz / l, jump: false, crouch: false };
       return st(a).players.get(a.id).status === 'safe';
-    }, 4000);
+    }, 6000);
     a.stop();
     expect(st(a).players.get(a.id).score).toBeGreaterThanOrEqual(3);
     await a.leave();

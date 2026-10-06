@@ -7,5 +7,5 @@
 | M2 | Rooms — create/share/join, synced movement, reconnect, wandering bots | ✅ done |
 | M3 | Saklambaç rules — state machine + tests, lobby, counting, seeking, HUD | ✅ done |
 | M4 | Spotting & sobe — visibility, Gördüm!, race, filtering, hide/seek bots | ✅ done — **First Playable** |
-| M5 | Mahalle feel — art, lighting, quick-chat, emotes, SFX, summary | ⏳ |
+| M5 | Mahalle feel — art, lighting, quick-chat, emotes, SFX, summary | ✅ done (procedural art, see ThirdPartyAssets) |
 | M6 | Launch — Docker + Caddy, nickname filter, landing, share, analytics | ⏳ |

@@ -55,6 +55,7 @@ interface Sim {
   botClaim: string | null;
   client: Client | null;
   lastChatAt: number;
+  lastEmoteAt: number;
 }
 
 function finite(n: unknown, lo: number, hi: number): number {
@@ -97,7 +98,11 @@ export class SaklambacRoom extends Room<SaklambacState> {
       if (bot) this.removePlayer(bot.id);
     });
     this.onMessage(MSG.emote, (client, e: unknown) => {
-      if (typeof e !== 'string' || !(EMOTES as readonly string[]).includes(e)) return;
+      const sim = this.sims.get(client.sessionId);
+      if (!sim || typeof e !== 'string' || !(EMOTES as readonly string[]).includes(e)) return;
+      const now = Date.now();
+      if (now - sim.lastEmoteAt < 700) return;
+      sim.lastEmoteAt = now;
       const msg: EmoteMsg = { id: client.sessionId, e: e as EmoteMsg['e'] };
       this.broadcast(MSG.emote, msg);
     });
@@ -209,6 +214,7 @@ export class SaklambacRoom extends Room<SaklambacState> {
       botClaim: null,
       client,
       lastChatAt: 0,
+      lastEmoteAt: 0,
     });
   }
 

@@ -42,3 +42,10 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 - **Crouching** shrinks the visibility profile (rays to 0.85 m and 0.45 m instead of 1.55/1.0/0.4 m) and halves speed — low walls, cars and bushes become real cover.
 - **Hysteresis:** once seen, a hider stays visible to the Ebe for 250 ms to avoid flicker at corners.
 - **Bots only use information a player could have:** the Ebe bot sees exactly what the Ebe filter allows; hider bots know where the Ebe is only when they can see it. Bot skill varies (0.6–1.0) so humans can win.
+
+## M5
+- **Procedural art instead of downloaded models.** kenney.nl / quaternius.com / polyhaven.com are unreachable from the dev container. Rather than block, every prop is generated from primitives that exactly fill its collider (so visuals can never disagree with collision/visibility), merged by material into a few meshes. This also keeps the download tiny. Recommended CC0 packs are listed in `Docs/ThirdPartyAssets.md`.
+- **Streetlights "turning on"** are faked with emissive bulbs, lit windows and additive light pools on the ground (no real point lights → cheap on phones). The dusk value follows round progress: lobby = golden hour, end of seeking = blue hour.
+- **Sounds are synthesized** (WebAudio). Turkish voice lines use the device's speech synthesizer only if a Turkish voice exists; otherwise text + SFX only.
+- **Quick-chat** stays preset-only (6 phrases from CLAUDE.md + "Hadi ama!"). Chat 1 per 1.2 s, emotes 1 per 0.7 s per player.
+- **Mute preference** is stored in `localStorage` (a device setting, not personal data).

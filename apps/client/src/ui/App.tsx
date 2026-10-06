@@ -5,6 +5,10 @@ import { Home } from './Home';
 import { Practice } from './Practice';
 import { GameScreen } from './GameScreen';
 import type { Prefs } from './prefs';
+import { unlockAudio } from '../game/audio';
+
+// browsers only allow audio after a user gesture
+for (const ev of ['pointerdown', 'keydown'] as const) window.addEventListener(ev, unlockAudio, { passive: true });
 
 function inviteFromUrl(): string | null {
   const id = new URLSearchParams(location.search).get('oda');
