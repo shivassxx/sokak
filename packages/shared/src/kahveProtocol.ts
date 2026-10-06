@@ -71,6 +71,8 @@ export interface LeaderInfo {
 export interface UsedMsg {
   id: string;
   item: string;
+  /** fishing: what came out of the water (FISH id) */
+  fish?: string;
 }
 
 /** Client → server okey actions. */
@@ -155,6 +157,8 @@ export interface KPlayerView {
   spot: number;
   /** opted into voice chat */
   voice: boolean;
+  /** fishing: 0 none, 1 line in the water, 2 a bite */
+  fish: number;
 }
 
 export interface KTableView {

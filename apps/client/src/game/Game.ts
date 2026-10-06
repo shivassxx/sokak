@@ -9,6 +9,7 @@ import {
   KAHVE_OBJECTS,
   KAHVE_SPAWN,
   KAHVE_WORLD,
+  SEA_Z,
   MAHALLE_WORLD,
   type CollisionWorld,
   EBE_COUNT_SPOT,
@@ -81,6 +82,10 @@ const SOLID_CAM_KAHVE = [
   { minX: HALL_DOOR.x - HALL_DOOR.w / 2, maxX: HALL_DOOR.x + HALL_DOOR.w / 2, minY: 3, maxY: HALL.h, minZ: -0.15, maxZ: 0.15, solid: true, opaque: true },
 ];
 const INTERP_DELAY = 110;
+const FLOAT_RED = new THREE.MeshStandardMaterial({ color: 0xe0362c, roughness: 0.4 });
+const FLOAT_WHITE = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.4 });
+const FLOAT_LINE = new THREE.LineBasicMaterial({ color: 0xf0f0f0, transparent: true, opacity: 0.75 });
+const _tipW = new THREE.Vector3();
 /** dev/test only: run the game without drawing (multi-client browser tests) */
 const NO_RENDER = import.meta.env.DEV && new URLSearchParams(location.search).has('norender');
 const SMOKE_TEX = (() => {
@@ -114,6 +119,7 @@ export class Game {
   private shakeAmp = 0;
   private fovKick = 0;
   private effects: { obj: THREE.Object3D; t: number; life: number; update: (k: number) => void }[] = [];
+  private floats = new Map<string, { state: number; bob: THREE.Group; line: THREE.Line; tip: THREE.Object3D | null; t: number }>();
   events: LocalEvents = {};
   private facing = 0;
   private seq = 0;
@@ -370,6 +376,7 @@ export class Game {
     this.scene.remove(r.char.root);
     r.char.dispose();
     this.remotes.delete(id);
+    this.setFishing(id, 0);
   }
 
   /** Voice chat speaking indicator (null id = local player). */
@@ -384,6 +391,67 @@ export class Game {
     if (!ch || ch.userHeld === item) return;
     ch.userHeld = item;
     ch.hold(item ? itemModel(item) : null);
+  }
+
+  /**
+   * Fishing state of a player (0 off, 1 float in the water, 2 a bite): a float bobbing in
+   * the sea in front of them, a line from the rod tip that sags (taut and twitching on a bite).
+   */
+  setFishing(id: string | null, state: number): void {
+    const key = id ?? '';
+    const f = this.floats.get(key);
+    if (!state) {
+      if (f) {
+        this.scene.remove(f.bob, f.line);
+        f.line.geometry.dispose();
+        this.floats.delete(key);
+      }
+      return;
+    }
+    if (f) {
+      f.state = state;
+      return;
+    }
+    const bob = new THREE.Group();
+    const red = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), FLOAT_RED);
+    const white = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), FLOAT_WHITE);
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.16, 4), FLOAT_RED);
+    stick.position.y = 0.1;
+    bob.add(red, white, stick);
+    const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 8 }, () => new THREE.Vector3())), FLOAT_LINE);
+    line.frustumCulled = false;
+    this.scene.add(bob, line);
+    this.floats.set(key, { state, bob, line, tip: null, t: 0 });
+    // face the water
+    if (id === null) this.facing = Math.PI;
+  }
+
+  private updateFloats(dt: number): void {
+    for (const [key, f] of this.floats) {
+      const ch = key ? this.remotes.get(key)?.char : this.localChar;
+      if (!ch) continue;
+      f.t += dt;
+      const p = ch.root.position;
+      const bite = f.state === 2;
+      f.bob.position.set(p.x - Math.sin(ch.facing) * 1.5, -1.1 + (bite ? -0.07 + Math.sin(f.t * 30) * 0.05 : Math.sin(f.t * 2.3) * 0.025), Math.max(p.z + 4, SEA_Z + 5));
+      f.bob.rotation.z = bite ? Math.sin(f.t * 23) * 0.4 : Math.sin(f.t * 1.7) * 0.08;
+      f.tip ??= ch.root.getObjectByName('tip') ?? null;
+      if (!f.tip?.parent) {
+        f.line.visible = false;
+        f.tip = null;
+        continue;
+      }
+      f.line.visible = true;
+      const a = f.tip.getWorldPosition(_tipW);
+      const b = f.bob.position;
+      const pos = f.line.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const sag = bite ? 0.08 : 0.7;
+      for (let i = 0; i < pos.count; i++) {
+        const s = i / (pos.count - 1);
+        pos.setXYZ(i, a.x + (b.x - a.x) * s, a.y + (b.y + 0.18 - a.y) * s - Math.sin(Math.PI * s) * sag, a.z + (b.z - a.z) * s);
+      }
+      pos.needsUpdate = true;
+    }
   }
 
   /** Someone used their item: arm to mouth, and a few smoke puffs for a cigarette. */
@@ -595,6 +663,7 @@ export class Game {
       r.char.animate(dt, Math.min(speed, 8), s1.crouch, s1.y > 0.05 && Math.abs(s1.y - s0.y) > 0.01);
     }
 
+    if (this.floats.size) this.updateFloats(dt);
     // short-lived effects
     for (let i = this.effects.length - 1; i >= 0; i--) {
       const e = this.effects[i]!;

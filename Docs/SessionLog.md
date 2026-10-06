@@ -39,4 +39,5 @@
 - **Online:** lobby (`/api/salons`, quick seat, private salons, invite button, table list, fill bots), device wallets (`wallets.ts`, daily bonus), online leaderboard (`/api/leaders`), opt-in WebRTC voice chat (`net/voice.ts`, server relays signalling).
 - **Perf:** shared prop geometries, lighter chair seats (main kahve mesh 122k → 103k triangles).
 - Verified with Playwright: lobby → quick play → bots → 5 draw/discard turns; reload mid-match keeps the hand; walk to market, buy, smoke; simitçi → bench → eat (seen from a second client); ledge sitting; invite link to a private salon; voice between two browser contexts; phone-landscape lobby/hall.
-- 112 tests; build OK; 2.18 MB gzip total, 136 KB before the lobby.
+- Later in the night: rack arrangement kept across a reload, gull feeding, fishing (server-timed bites, float + line rendering, catch announcements; NPC rods were pointing backwards — rod rotation solved numerically for the 'fish' pose).
+- 113 tests; build OK; 2.18 MB gzip total, 136 KB before the lobby.

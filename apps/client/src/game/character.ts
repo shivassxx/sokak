@@ -217,7 +217,7 @@ export class Character {
   private t = Math.random() * 10;
   private emote: Emote | null = null;
   private emoteT = 0;
-  private useKind: 'smoke' | 'eat' | 'drink' | 'read' | null = null;
+  private useKind: 'smoke' | 'eat' | 'drink' | 'read' | 'fish' | null = null;
   private useT = 0;
   private holding = false;
   private label: THREE.Sprite | null = null;
@@ -580,7 +580,7 @@ export class Character {
   }
 
   /** Bring the held item to the mouth (smoke / eat / drink) or hold it up to read. */
-  playUse(kind: 'smoke' | 'eat' | 'drink' | 'read'): void {
+  playUse(kind: 'smoke' | 'eat' | 'drink' | 'read' | 'fish'): void {
     this.useKind = kind;
     this.useT = 0;
   }
@@ -781,7 +781,7 @@ export class Character {
     }
     if (!this.useKind) return;
     this.useT += dt;
-    const dur = this.useKind === 'read' ? 3.2 : 2.4;
+    const dur = this.useKind === 'read' ? 3.2 : this.useKind === 'fish' ? 1.1 : 2.4;
     if (this.useT > dur) {
       this.useKind = null;
       return;
@@ -793,6 +793,15 @@ export class Character {
       this.armR.upper.rotation.set(1.05 * k, 0, 0.35 * k);
       this.armL.lower.rotation.set(0.9 * k, 0, 0.5 * k);
       this.armR.lower.rotation.set(0.9 * k, 0, -0.5 * k);
+      return;
+    }
+    if (this.useKind === 'fish') {
+      // cast: rod back over the shoulder, then whip it forward
+      const u = this.useT / dur;
+      const up = u < 0.4 ? u / 0.4 : 1 - (u - 0.4) / 0.6;
+      this.armR.upper.rotation.set(0.8 + 1.9 * up, 0, -0.1);
+      this.armR.lower.rotation.set(0.5 + 0.6 * up, 0, 0);
+      this.chest.rotation.x = -0.12 + 0.15 * up;
       return;
     }
     // hand to mouth

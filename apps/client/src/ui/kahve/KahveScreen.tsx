@@ -8,6 +8,7 @@ import {
   MENU,
   MSG,
   QUICK_CHAT_OKEY,
+  FISH,
   SHOPS,
   SHOP_ITEMS,
   SHOP_REACH,
@@ -81,6 +82,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   /** the closest thing to interact with: a table, a shop or a seat (bench / stool) */
   const [nearThing, setNearThing] = useState<{ kind: 'table' | 'shop' | 'spot'; i: number } | null>(null);
   const [nearSea, setNearSea] = useState(false);
+  const myFish = useRef(0);
   const [shopOpen, setShopOpen] = useState<number>(-1);
   const [tablesOpen, setTablesOpen] = useState(false);
   // voice chat (opt-in)
@@ -156,6 +158,24 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         if (!item) return;
         const who = u.id === me ? null : u.id;
         const at = game.characterPosition(who);
+        if (item.id === 'olta') {
+          const fish = FISH.find((f) => f.id === u.fish);
+          if (!fish) return game.useItem(who, 'fish');
+          const shoe = fish.id === 'ayakkabi';
+          const text =
+            u.id === me
+              ? shoe
+                ? '🥾 Denizden eski bir ayakkabı çıkardın! 😂'
+                : `🎣 Bir ${fish.name} tuttun!`
+              : shoe
+                ? `🥾 ${name(u.id)} denizden eski bir ayakkabı çıkardı! 😂`
+                : `🎣 ${name(u.id)} bir ${fish.name} tuttu!`;
+          toastRef.current({ text, kind: 'good' });
+          game.bubble(who, `${fish.emoji} ${fish.name[0]!.toLocaleUpperCase('tr')}${fish.name.slice(1)}!`);
+          if (who) game.remoteEmote(who, fish.id === 'ayakkabi' ? 'laugh' : 'wave');
+          else play(fish.id === 'ayakkabi' ? 'pop' : 'safe');
+          return;
+        }
         if (item.id === 'simit' && bySea(at)) {
           // by the water a simit goes to the gulls
           if (who) game.remoteEmote(who, 'point');
@@ -275,8 +295,9 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         game.setFixed(p.id, { x: sp.x, y: 0, z: sp.z, yaw: sp.yaw });
       } else if (spot) game.setFixed(p.id, { x: spot.x, y: spot.h - 0.48, z: spot.z, yaw: spot.yaw });
       else game.setFixed(p.id, null);
-      game.setPose(p.id, p.table >= 0 || spot ? 'sit' : 'none');
+      game.setPose(p.id, p.table >= 0 || spot ? 'sit' : p.fish || p.holding === 'olta' ? 'fish' : 'none');
       game.setHeld(p.id, p.holding);
+      game.setFishing(p.id, p.fish);
     }
     const mine = view.players[me];
     const seated = !!mine && mine.table >= 0;
@@ -284,8 +305,14 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     game.frozen = seated || !!mySpot;
     game.localSeatY = mySpot ? mySpot.h - 0.48 : 0;
     game.setLabelsVisible(!seated);
-    game.setPose(null, seated || mySpot ? 'sit' : 'none');
+    game.setPose(null, seated || mySpot ? 'sit' : mine?.fish || mine?.holding === 'olta' ? 'fish' : 'none');
     game.setHeld(null, mine?.holding ?? '');
+    game.setFishing(null, mine?.fish ?? 0);
+    if (mine?.fish === 2 && myFish.current !== 2) {
+      play('spotted');
+      game.bubble(null, 'Vurdu! Çek!');
+    }
+    myFish.current = mine?.fish ?? 0;
     game.seat = seated ? { table: mine.table, seat: mine.seat } : null;
     // real tiles on every table
     view.tables.forEach((t) => {
@@ -524,9 +551,13 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             <span>
               {SHOP_ITEMS.find((i) => i.id === myP.holding)?.name} <small>({myP.uses})</small>
             </span>
-            <button className="btn small primary" onClick={() => room.send(KMSG.use)}>
-              {myP.holding === 'simit' && nearSea ? 'Martılara at 🕊️' : { smoke: 'Yak', eat: 'Ye', drink: 'İç', read: 'Oku' }[SHOP_ITEMS.find((i) => i.id === myP.holding)?.use ?? 'eat']}{' '}
-            {!isTouch && <kbd>Q</kbd>}
+            <button className={`btn small primary ${myP.fish === 2 ? 'glow' : ''}`} onClick={() => room.send(KMSG.use)}>
+              {myP.holding === 'olta'
+                ? ['Oltayı at', 'Bekle…', 'ÇEK! 🐟'][myP.fish]
+                : myP.holding === 'simit' && nearSea
+                  ? 'Martılara at 🕊️'
+                  : { smoke: 'Yak', eat: 'Ye', drink: 'İç', read: 'Oku', fish: 'At' }[SHOP_ITEMS.find((i) => i.id === myP.holding)?.use ?? 'eat']}{' '}
+              {!isTouch && <kbd>Q</kbd>}
             </button>
             <button className="btn small" onClick={() => room.send(KMSG.drop)}>
               Bırak

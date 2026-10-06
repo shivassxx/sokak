@@ -19,6 +19,8 @@ export class KPlayer extends Schema {
   @type('int8') spot = -1;
   /** opted into voice chat (peers only connect when both have it on) */
   @type('boolean') voice = false;
+  /** fishing: 0 no line in the water, 1 waiting, 2 a bite — pull now! */
+  @type('uint8') fish = 0;
 }
 
 export class KTable extends Schema {

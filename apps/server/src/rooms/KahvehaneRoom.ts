@@ -4,6 +4,7 @@ import {
   CREDIT_AMOUNT,
   CREDIT_COOLDOWN_MS,
   EMOTES,
+  FISH,
   FALSE_ACCUSE_FINE,
   HAIRS,
   HAND_OPTIONS,
@@ -21,6 +22,7 @@ import {
   SHOPS,
   SHOP_ITEMS,
   SHOP_REACH,
+  bySea,
   SIT_REACH,
   SIT_SPOTS,
   SKINS,
@@ -80,6 +82,10 @@ interface Avatar {
   lastCreditAt: number;
   lastShopAt: number;
   lastUseAt: number;
+  /** fishing: id of the current cast (stale timers compare it) and where it was cast from */
+  cast: number;
+  castX: number;
+  castZ: number;
   /** anonymous wallet token, '' = no persistence */
   device: string;
 }
@@ -116,7 +122,7 @@ export class KahvehaneRoom extends Room<KahveState> {
   private botCounter = 0;
   static rng: () => number = Math.random;
   /** override for tests (ms) */
-  static timing = { botMin: 700, botMax: 1600, between: 6000, result: 9000, turn: TURN_SECONDS * 1000 };
+  static timing = { botMin: 700, botMax: 1600, between: 6000, result: 9000, turn: TURN_SECONDS * 1000, biteMin: 3000, biteMax: 9000, biteWindow: 1700 };
   static wallets: WalletStore | null = null;
   static analyticsSink: { tableStarted?(players: number, bet: number): void; handPlayed?(): void } | null = null;
 
@@ -162,7 +168,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     });
     this.onMessage(KMSG.drop, (c) => {
       const p = this.state.players.get(c.sessionId);
-      if (p) (p.holding = ''), (p.uses = 0);
+      if (p) (p.holding = ''), (p.uses = 0), (p.fish = 0);
     });
     this.onMessage(KMSG.sitSpot, (c, m: { spot?: unknown }) => this.sitSpot(c.sessionId, m?.spot));
     this.onMessage(KMSG.quickSeat, (c, m: { table?: unknown }) => this.quickSeat(c.sessionId, m?.table));
@@ -239,6 +245,9 @@ export class KahvehaneRoom extends Room<KahveState> {
       lastCreditAt: -1e12,
       lastShopAt: 0,
       lastUseAt: 0,
+      cast: 0,
+      castX: 0,
+      castZ: 0,
       device,
     });
     if (bonus) this.clock.setTimeout(() => this.avatars.get(p.id)?.client?.send(KMSG.notice, `🎁 Günlük bonus: +${bonus} ₺. Hoş geldin!`), 1500);
@@ -739,12 +748,14 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.money -= item.price;
     p.holding = item.id;
     p.uses = item.uses;
+    p.fish = 0;
   }
 
   private useItem(id: string): void {
     const p = this.state.players.get(id);
     const a = this.avatars.get(id);
     if (!p || !a || !p.holding || p.uses <= 0) return;
+    if (p.holding === 'olta') return this.fishAction(id, p, a);
     const now = Date.now();
     if (now - a.lastUseAt < 1500) return;
     a.lastUseAt = now;
@@ -752,6 +763,48 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.uses--;
     if (p.uses <= 0) p.holding = '';
     this.broadcast(KMSG.used, { id, item } satisfies UsedMsg);
+  }
+
+  /** Q with a rod: cast → (a bite after a few seconds) → pull in time to land something. */
+  private fishAction(id: string, p: KPlayer, a: Avatar): void {
+    const now = Date.now();
+    if (now - a.lastUseAt < 400) return;
+    a.lastUseAt = now;
+    const T = this.cls.timing;
+    const spend = () => {
+      p.fish = 0;
+      a.cast++;
+      p.uses--;
+      if (p.uses <= 0) p.holding = '';
+    };
+    if (p.fish === 0) {
+      if (!bySea(a.body.x, a.body.z)) return this.error(id, 'Olta atmak için sahile in, denize karşı dur.');
+      const cast = ++a.cast;
+      p.fish = 1;
+      a.castX = a.body.x;
+      a.castZ = a.body.z;
+      this.broadcast(KMSG.used, { id, item: 'olta' } satisfies UsedMsg);
+      const bite = T.biteMin + this.cls.rng() * (T.biteMax - T.biteMin);
+      this.clock.setTimeout(() => {
+        if (a.cast !== cast || p.fish !== 1) return;
+        p.fish = 2;
+        this.clock.setTimeout(() => {
+          if (a.cast !== cast || p.fish !== 2) return;
+          spend();
+          this.error(id, 'Balık yemi kaptı, kaçtı! Vurunca hemen çekmelisin.');
+        }, T.biteWindow);
+      }, bite);
+      return;
+    }
+    if (p.fish === 1) {
+      spend();
+      return this.error(id, 'Erken çektin, balık kaçtı!');
+    }
+    // a bite: land it
+    let r = this.cls.rng() * FISH.reduce((s, f) => s + f.w, 0);
+    const fish = FISH.find((f) => (r -= f.w) < 0) ?? FISH[0]!;
+    spend();
+    this.broadcast(KMSG.used, { id, item: 'olta', fish: fish.id } satisfies UsedMsg);
   }
 
   private sitSpot(id: string, raw: unknown): void {
@@ -806,6 +859,11 @@ export class KahvehaneRoom extends Room<KahveState> {
         const input = a.queue.shift()!;
         a.lastSeq = a.queueSeq.shift()!;
         if (p && p.table < 0 && p.spot < 0) stepBody(a.body, input, SIM_DT, KAHVE_WORLD);
+      }
+      // walking off reels the line in
+      if (p && p.fish > 0 && Math.hypot(a.body.x - a.castX, a.body.z - a.castZ) > 1.2) {
+        p.fish = 0;
+        a.cast++;
       }
     }
     for (let ti = 0; ti < TABLE_COUNT; ti++) this.tickTable(ti, now);

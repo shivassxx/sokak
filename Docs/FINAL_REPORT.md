@@ -276,6 +276,11 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - Aldığın şey elinde duruyor ve **Q** ile kullanıyorsun: sigara yakıp duman üflüyorsun, simit yiyorsun, gazoz içiyorsun, gazete okuyorsun. Diğer oyuncular da bunu görüyor.
 - Sigara tamamen sanal ve oyun parasıyla alınıyor. Oyunda hiçbir avantaj sağlamıyor ve üstünde "Sigara içmek sağlığa zararlıdır" uyarısı var.
 - Sahil korkuluğunda ya da duvarında elinde simit varken **Q** "Martılara at" oluyor: simitten bir parça atıyorsun, en yakın martı dalıp havada kapıyor. Herkes görüyor.
+- **Balık tutma:** Bakkal Hasan'dan 30 ₺'ye olta alabilirsin. Sahilde denize karşı durup **Q** ile oltayı atıyorsun; şamandıra suda sallanıyor.
+  - Birkaç saniye sonra "Vurdu!" diye bağırıyorsun, şamandıra çırpınıyor ve düğme "ÇEK!" oluyor.
+  - Hemen çekersen istavrit, çinekop, lüfer, palamut ya da bazen eski bir ayakkabı çıkıyor. Tuttuğun şey salondaki herkese duyuruluyor.
+  - Erken çekersen ya da geç kalırsan balık kaçıyor. Yürüyüp uzaklaşırsan oltayı topluyorsun.
+  - Balıkçı amcaların oltaları ters duruyordu, o da düzeltildi.
 - Banklara, taburelere ve sahil duvarına **E** ile oturabilirsin. Emote, hazır sohbet cümleleri ("Sahile inelim mi?", "Manzaraya bak!") ve çay ısmarlama dışarıda da çalışıyor. Çaycı siparişi nerede olursan ol getiriyor.
 
 **Online oyun özellikleri**
@@ -299,10 +304,11 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - Liderlik tablosu sadece o an çevrimiçi olanları gösteriyor. Geçmişe dönük sıralama için takma adları saklamak gerekirdi; bunu yapmadım.
 
 **Nasıl test edildi**
-- 112 otomatik test geçiyor. Gece eklenen testler:
+- 113 otomatik test geçiyor. Gece eklenen testler:
   - Market alışverişi ve kullanma, bank ve sahil duvarı oturma.
   - Cüzdanın aynı cihazda korunması, hızlı oturma ve botla başlatma.
   - Liderlik tablosu, sayfa yenilemeden sonra elin geri gelmesi.
+  - Balık tutma: denizden uzakta olta atılamaması, erken çekince kaçması, vurunca çekince balık çıkması, uzaklaşınca oltanın toplanması.
   - Çaycının yol bulması (markete, sahile, çay bahçesine giden rotalar duvar içinden geçmiyor).
 - Playwright ile tarayıcıda denenenler:
   - Lobi → hızlı oyna → botlar → 5 tur taş çekip atma.
@@ -323,6 +329,6 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 **Önerilen sonraki adımlar**
 - İlk iş olarak VDS'e kurulum yap ve TURN sunucusunu ayarla.
 - Kalıcı haftalık liderlik tablosu eklenebilir; bunun için takma ad saklamak gerekir.
-- Sahilde vapura binip karşıya geçme, amcalarla balık tutma gibi yeni mini etkinlikler eklenebilir.
+- Sahilde vapura binip karşıya geçme gibi yeni mini etkinlikler eklenebilir. Tutulan balıklar için bir "günün balıkçısı" listesi de eklenebilir.
 - Saklambaç için de Üsküdar temalı ikinci bir mahalle yapılabilir.
 

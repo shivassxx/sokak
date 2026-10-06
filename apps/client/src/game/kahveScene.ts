@@ -3,6 +3,7 @@ import { CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, SEA_Z, SHOPS, TABLES, TAVLA_TA
 import type { OkeyCtx } from '@sokak/okey';
 import { canvasTex, type Mover, type World } from './world';
 import { Character } from './character';
+import { fishingRod } from './items';
 import { RACK_DIST, TABLE_TOP } from './kahveProps';
 import { buildKahveWorld } from './kahveWorld';
 import { NavGrid } from './navGrid';
@@ -111,17 +112,6 @@ function drinkModel(item: string): THREE.Group {
       g.add(half);
     }
   }
-  return g;
-}
-
-function fishingRod(): THREE.Group {
-  const g = new THREE.Group();
-  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.014, 2.6, 5), new THREE.MeshStandardMaterial({ color: 0x3b2a1c, roughness: 0.5 }));
-  rod.position.set(0, 1.1, 0.5);
-  rod.rotation.x = 1.1;
-  const line = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 2.2, 3), new THREE.MeshBasicMaterial({ color: 0xdddddd }));
-  line.position.set(0, 1.25, 2.0);
-  g.add(rod, line);
   return g;
 }
 

@@ -54,6 +54,8 @@ export function itemModel(id: string): THREE.Group | null {
     case 'simit':
       add(new THREE.TorusGeometry(0.075, 0.024, 8, 18), mat(0xb8752f, 0.7), 0, 0.06, 0);
       break;
+    case 'olta':
+      return fishingRod(false);
     case 'cay': {
       add(new THREE.CylinderGeometry(0.05, 0.045, 0.008, 14), mat(0xffffff, 0.25), 0, -0.02, 0);
       add(
@@ -73,4 +75,35 @@ export function itemModel(id: string): THREE.Group | null {
 }
 
 /** How an item is used (the arm motion), matches SHOP_ITEMS[].use. */
-export type UseKind = 'smoke' | 'eat' | 'drink' | 'read';
+export type UseKind = 'smoke' | 'eat' | 'drink' | 'read' | 'fish';
+
+/**
+ * A fishing rod as held in a hand (the regulars' and the players'). The `tip` child marks
+ * the end of the rod; players get a live line to their float instead of the hanging one.
+ */
+export function fishingRod(hangingLine = true): THREE.Group {
+  const outer = new THREE.Group();
+  // built with forward = +z, up = +y; this turns it into the hand frame of the 'fish' pose
+  // (solved numerically: the rod then points out over the water, ~40° up)
+  const g = new THREE.Group();
+  g.rotation.set(1.7627, 0.344, -1.327);
+  outer.add(g);
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.014, 2.6, 5), new THREE.MeshStandardMaterial({ color: 0x3b2a1c, roughness: 0.5 }));
+  rod.position.set(0, 1.1, 0.5);
+  rod.rotation.x = 1.1;
+  rod.castShadow = true;
+  const reel = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.03, 10), new THREE.MeshStandardMaterial({ color: 0x8a8f96, metalness: 0.6, roughness: 0.4 }));
+  reel.position.set(0.03, 0.62, -0.42);
+  reel.rotation.z = Math.PI / 2;
+  const tip = new THREE.Object3D();
+  tip.name = 'tip';
+  // the cylinder's +y end after the tilt: centre + axis * half length
+  tip.position.set(0, 1.1 + Math.cos(1.1) * 1.3, 0.5 + Math.sin(1.1) * 1.3);
+  g.add(rod, reel, tip);
+  if (hangingLine) {
+    const line = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 2.2, 3), new THREE.MeshBasicMaterial({ color: 0xdddddd }));
+    line.position.set(0, 1.25, 2.0);
+    g.add(line);
+  }
+  return outer;
+}

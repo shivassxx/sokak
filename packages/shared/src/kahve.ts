@@ -202,7 +202,7 @@ span('ledge', LEDGE.x0, LEDGE.x1, SEA_Z - 0.45, SEA_Z + 0.1, 0.5);
 span('seaWall', -KAHVE_HALF, 32, SEA_Z + 0.1, SEA_Z + 0.6, 3.5, { opaque: false });
 
 export const SHOPS: readonly Shop[] = [
-  { id: 'market', name: 'Market', x: 19.4, z: -2.3, seller: { x: 19.4, z: -5.0, yaw: Math.PI }, items: ['sigara', 'su', 'gazoz', 'cekirdek', 'cikolata', 'dondurma', 'gazete'] },
+  { id: 'market', name: 'Market', x: 19.4, z: -2.3, seller: { x: 19.4, z: -5.0, yaw: Math.PI }, items: ['sigara', 'su', 'gazoz', 'cekirdek', 'cikolata', 'dondurma', 'gazete', 'olta'] },
   { id: 'simitci', name: 'Simitçi', x: 6, z: PROMENADE.z0 + 6, seller: { x: 6, z: PROMENADE.z0 + 3.6, yaw: Math.PI }, items: ['simit', 'cay', 'su'] },
 ];
 export const SHOP_REACH = 2.4;
@@ -279,7 +279,7 @@ export interface ShopItem {
   /** how many times it can be used (smoked, eaten, sipped) */
   uses: number;
   /** what using it looks like */
-  use: 'smoke' | 'eat' | 'drink' | 'read';
+  use: 'smoke' | 'eat' | 'drink' | 'read' | 'fish';
   note?: string;
 }
 
@@ -293,6 +293,21 @@ export const SHOP_ITEMS: readonly ShopItem[] = [
   { id: 'gazete', name: 'Gazete', price: 8, emoji: '📰', uses: 6, use: 'read' },
   { id: 'simit', name: 'Simit', price: 7, emoji: '🥯', uses: 4, use: 'eat' },
   { id: 'cay', name: 'Çay', price: 5, emoji: '🍵', uses: 4, use: 'drink' },
+  { id: 'olta', name: 'Olta', price: 30, emoji: '🎣', uses: 8, use: 'fish', note: 'Sahilde denize karşı Q ile at; "Vurdu!" deyince hemen çek.' },
+];
+
+/** At the sea railing or the ledge (not on the pier): where you can fish or feed the gulls. */
+export function bySea(x: number, z: number): boolean {
+  return z > SEA_Z - 3.2 && x < 32;
+}
+
+/** What bites on the line, with relative chances (a shoe now and then for the laughs). */
+export const FISH: readonly { id: string; name: string; emoji: string; w: number }[] = [
+  { id: 'istavrit', name: 'istavrit', emoji: '🐟', w: 45 },
+  { id: 'cinekop', name: 'çinekop', emoji: '🐟', w: 25 },
+  { id: 'lufer', name: 'lüfer', emoji: '🐠', w: 15 },
+  { id: 'palamut', name: 'palamut', emoji: '🐠', w: 10 },
+  { id: 'ayakkabi', name: 'eski bir ayakkabı', emoji: '🥾', w: 5 },
 ];
 
 export const START_MONEY = 1000;

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { matchMaker } from '@colyseus/core';
 import { NetBot } from '@sokak/bots/client';
-import { KAHVE_ROOM, KMSG, MENU, SHOPS, SHOP_ITEMS, SIT_SPOTS, START_MONEY, TABLES, TABLE_COUNT, type TableView } from '@sokak/shared';
+import { FISH, KAHVE_ROOM, KMSG, MENU, SEA_Z, SHOPS, SHOP_ITEMS, SIT_SPOTS, START_MONEY, TABLES, TABLE_COUNT, type TableView } from '@sokak/shared';
 import { startServer, type StartedServer } from '../src/app';
 import { until, sleep } from './helpers';
 import type { KahvehaneRoom } from '../src/rooms/KahvehaneRoom';
@@ -10,7 +10,7 @@ let server: StartedServer;
 let endpoint: string;
 
 beforeAll(async () => {
-  server = await startServer(0, { host: '127.0.0.1', kahve: { timing: { botMin: 5, botMax: 15, between: 200, result: 300, turn: 400 } } });
+  server = await startServer(0, { host: '127.0.0.1', kahve: { timing: { botMin: 5, botMax: 15, between: 200, result: 300, turn: 400, biteMin: 1000, biteMax: 1200, biteWindow: 900 } } });
   endpoint = `ws://127.0.0.1:${server.port}`;
 });
 afterAll(async () => {
@@ -190,6 +190,47 @@ describe('kahvehane', () => {
     const body = (room as any).avatars.get(a.id).body;
     expect(body.z).toBeCloseTo(spot.stand!.z, 1);
     expect(room.state.players.get(a.id)!.spot).toBe(-1);
+    await a.leave();
+  });
+
+  it('fishing: cast at the sea, pulling early loses it, pulling on a bite lands a fish', async () => {
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Balikci' });
+    await until(() => !!st(a).players?.get(a.id));
+    const room = matchMaker.getLocalRoomById(a.room.roomId) as KahvehaneRoom;
+    const market = SHOPS.find((s) => s.id === 'market')!;
+    room.debugPlace(a.id, market.x, market.z);
+    await sleep(80);
+    a.room.send(KMSG.buy, { shop: 'market', item: 'olta' });
+    await until(() => me(a).holding === 'olta');
+    const uses = me(a).uses;
+    // not at the sea: nothing happens
+    a.room.send(KMSG.use);
+    await sleep(450);
+    expect(me(a).fish).toBe(0);
+    room.debugPlace(a.id, 0, SEA_Z - 1);
+    await sleep(80);
+    a.room.send(KMSG.use);
+    await until(() => me(a).fish === 1);
+    await sleep(450);
+    a.room.send(KMSG.use); // too early
+    await until(() => me(a).fish === 0);
+    expect(me(a).uses).toBe(uses - 1);
+    const caught: string[] = [];
+    a.room.onMessage(KMSG.used, (u: { id: string; fish?: string }) => u.id === a.id && u.fish && caught.push(u.fish));
+    await sleep(450);
+    a.room.send(KMSG.use);
+    await until(() => me(a).fish === 1);
+    await until(() => me(a).fish === 2, 3000);
+    a.room.send(KMSG.use);
+    await until(() => caught.length === 1);
+    expect(FISH.map((f) => f.id)).toContain(caught[0]);
+    expect(me(a).uses).toBe(uses - 2);
+    // walking away reels the line in
+    await sleep(450);
+    a.room.send(KMSG.use);
+    await until(() => me(a).fish === 1);
+    room.debugPlace(a.id, 0, SEA_Z - 6);
+    await until(() => me(a).fish === 0);
     await a.leave();
   });
 
