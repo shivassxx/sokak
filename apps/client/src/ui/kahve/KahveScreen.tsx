@@ -36,6 +36,7 @@ import { useToasts } from '../Hud';
 import { Social } from '../Social';
 import { TouchControls, isTouch } from '../TouchControls';
 import { OkeyBoard } from '../okey/OkeyBoard';
+import { shareRoom } from '../Lobby';
 import { VoiceChat } from '../../net/voice';
 
 interface Props {
@@ -392,6 +393,11 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     if (confirm('Masadan kalkarsan bahsin yanar ve yerine bot oturur. Emin misin?')) room.send(KMSG.stand);
   };
   const serverNow = () => Date.now() + offset.current;
+  const invite = async () => {
+    const r = await shareRoom(room.roomId, 'kahve', { title: '101 Okey oynayalım mı?', text: `Üsküdar'da kahvedeyiz (${view?.name ?? 'salon'}), gel bir el okey atalım!` });
+    if (r === 'copied') toastRef.current({ text: 'Davet linki kopyalandı! Arkadaşına gönder.', kind: 'good' });
+    else if (r === 'failed') toastRef.current({ text: 'Link kopyalanamadı. Adres çubuğundaki linki paylaşabilirsin.', kind: 'info' });
+  };
   const richest = view ? Object.values(view.players).filter((p) => !p.isBot).sort((a, b) => b.money - a.money).slice(0, 5) : [];
   const isHost = myTable?.hostId === me;
   const near = nearTable >= 0 && view ? view.tables[nearTable]! : null;
@@ -415,6 +421,9 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
           </button>
         )}
         {view?.name && <span className="pill salon-name">📍 {view.name}</span>}
+        <button className="btn small" title="Arkadaşını davet et" onClick={() => void invite()}>
+          🔗<span className="lbl"> Davet et</span>
+        </button>
         <button className={`btn small ${voiceOn ? 'on' : ''}`} onClick={() => void toggleVoice()} title="Sesli sohbet (isteğe bağlı)">
           🎙️<span className="lbl">{voiceOn ? ' Sesli: açık' : ' Sesli sohbet'}</span>
         </button>

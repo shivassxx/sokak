@@ -23,12 +23,16 @@ export function PlayerList({ view, me }: { view: RoomView; me: string }) {
   );
 }
 
-export async function shareRoom(roomId: string): Promise<'shared' | 'copied' | 'failed'> {
-  const url = roomLink(roomId);
+export async function shareRoom(
+  roomId: string,
+  kind: 'oda' | 'kahve' = 'oda',
+  msg = { title: 'Saklambaç oynayalım mı?', text: 'Mahalleye gel, Saklambaç oynuyoruz!' },
+): Promise<'shared' | 'copied' | 'failed'> {
+  const url = roomLink(roomId, kind);
   const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> };
   if (nav.share && matchMedia('(pointer: coarse)').matches) {
     try {
-      await nav.share({ title: 'Saklambaç oynayalım mı?', text: 'Mahalleye gel, Saklambaç oynuyoruz!', url });
+      await nav.share({ ...msg, url });
       return 'shared';
     } catch {
       /* fall through to copy */
