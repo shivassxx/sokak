@@ -224,7 +224,7 @@ describe('kahvehane', () => {
     a.room.send(KMSG.use);
     await until(() => caught.length === 1);
     expect(FISH.map((f) => f.id)).toContain(caught[0]);
-    expect(me(a).uses).toBe(uses - 2);
+    await until(() => me(a).uses === uses - 2); // the state patch can trail the broadcast
     // walking away reels the line in
     await sleep(450);
     a.room.send(KMSG.use);
