@@ -3,7 +3,7 @@
 | # | Milestone | Status |
 |---|---|---|
 | M0 | Foundation — monorepo, strict TS, Vitest, `pnpm dev`, Docs | ✅ done |
-| M1 | Movement — greybox mahalle, colliders, third-person, keyboard + touch | ⏳ |
+| M1 | Movement — greybox mahalle, colliders, third-person, keyboard + touch | ✅ done |
 | M2 | Rooms — create/share/join, synced movement, reconnect, wandering bots | ⏳ |
 | M3 | Saklambaç rules — state machine + tests, lobby, counting, seeking, HUD | ⏳ |
 | M4 | Spotting & sobe — visibility, Gördüm!, race, filtering, hide/seek bots | ⏳ |

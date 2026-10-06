@@ -1,0 +1,46 @@
+:root {
+  --sun: #f29e4c;
+  --sun-dark: #d9772b;
+  --sky: #fbe3c2;
+  --ink: #2b2118;
+  --panel: rgba(255, 248, 236, 0.94);
+  --green: #3fa66b;
+  --red: #d8573c;
+  font-family: 'Trebuchet MS', system-ui, -apple-system, sans-serif;
+  color: var(--ink);
+}
+* { box-sizing: border-box; }
+html, body, #root { margin: 0; height: 100%; overflow: hidden; background: #f6c58f; overscroll-behavior: none; }
+body { -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; touch-action: none; }
+button { font: inherit; cursor: pointer; }
+input { font: inherit; }
+
+.home { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 16px;
+  background: linear-gradient(180deg, #ffd59e 0%, #f6a46b 60%, #c9705a 100%); text-align: center; overflow-y: auto; }
+.logo { margin: 0; font-size: clamp(40px, 11vw, 84px); line-height: 0.95; color: #fff; text-shadow: 0 4px 0 var(--sun-dark), 0 8px 18px rgba(0,0,0,.25); letter-spacing: 2px; }
+.logo span { display: block; font-size: 0.55em; color: #fff7d6; letter-spacing: 6px; }
+.tagline { margin: 0 0 8px; font-size: 20px; color: #fff; font-style: italic; }
+
+.btn { border: none; border-radius: 14px; padding: 12px 20px; background: #fff; color: var(--ink); font-weight: 700; box-shadow: 0 4px 0 rgba(0,0,0,.18); }
+.btn:active { transform: translateY(2px); box-shadow: 0 2px 0 rgba(0,0,0,.18); }
+.btn.big { font-size: 22px; padding: 16px 30px; background: var(--green); color: #fff; }
+.btn.primary { background: var(--sun); color: #fff; }
+.btn.small { padding: 7px 12px; font-size: 14px; }
+.btn:disabled { opacity: .5; cursor: default; }
+
+.game-root { position: fixed; inset: 0; }
+.game-canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+.loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 22px; color: #fff; text-shadow: 0 2px 6px rgba(0,0,0,.4); pointer-events: none; }
+.hud-top { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 10px; right: 10px; display: flex; gap: 8px; align-items: center; pointer-events: none; }
+.hud-top > * { pointer-events: auto; }
+.pill { background: rgba(0,0,0,.45); color: #fff; border-radius: 999px; padding: 6px 12px; font-size: 14px; }
+.help { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.4); color: #fff; padding: 6px 12px; border-radius: 10px; font-size: 13px; pointer-events: none; white-space: nowrap; }
+
+.joy-base, .joy-knob { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+.joy-base { width: 120px; height: 120px; background: rgba(255,255,255,.18); border: 2px solid rgba(255,255,255,.5); }
+.joy-knob { width: 54px; height: 54px; background: rgba(255,255,255,.75); }
+.joy-hint { position: absolute; left: 24px; bottom: 40px; color: rgba(255,255,255,.8); font-size: 13px; pointer-events: none; text-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.touch-buttons { position: absolute; right: max(14px, env(safe-area-inset-right)); bottom: max(18px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+.touch-btn { width: 72px; height: 72px; border-radius: 50%; border: 3px solid rgba(255,255,255,.7); background: rgba(0,0,0,.35); color: #fff; font-weight: 700; font-size: 14px; touch-action: none; }
+.touch-btn.spot { width: 96px; height: 96px; background: rgba(216,87,60,.55); font-size: 17px; }
+.touch-btn.spot.ready { background: rgba(216,87,60,.95); box-shadow: 0 0 22px #ffcf6b; }
