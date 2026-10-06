@@ -13,6 +13,17 @@ export class Analytics {
   /** players per finished round → count */
   roomSizes: Record<number, number> = {};
   activeRooms = 0;
+  okeyTablesStarted = 0;
+  okeyHandsPlayed = 0;
+
+  tableStarted(): void {
+    this.okeyTablesStarted++;
+    this.write({ type: 'okeyTable' });
+  }
+
+  okeyHandPlayed(): void {
+    this.okeyHandsPlayed++;
+  }
   peakActiveRooms = 0;
 
   constructor(private file: string | null = null) {}
@@ -48,6 +59,8 @@ export class Analytics {
       roundsByReason: this.roundsByReason,
       roomSizes: this.roomSizes,
       averageRoomSize: Math.round(avg * 10) / 10,
+      okeyTablesStarted: this.okeyTablesStarted,
+      okeyHandsPlayed: this.okeyHandsPlayed,
     };
   }
 

@@ -4,9 +4,10 @@ import path from 'node:path';
 import express from 'express';
 import { Server } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
-import { ROOM_NAME } from '@sokak/shared';
+import { KAHVE_ROOM, ROOM_NAME } from '@sokak/shared';
 import type { RulesConfig } from '@sokak/rules';
 import { SaklambacRoom } from './rooms/SaklambacRoom';
+import { KahvehaneRoom } from './rooms/KahvehaneRoom';
 import { Analytics } from './analytics';
 
 export interface StartedServer {
@@ -16,7 +17,14 @@ export interface StartedServer {
   close(): Promise<void>;
 }
 
-export async function startServer(port: number, opts: { staticDir?: string; host?: string; rules?: Partial<RulesConfig>; analyticsFile?: string | null; statsToken?: string } = {}): Promise<StartedServer> {
+export async function startServer(port: number, opts: {
+    staticDir?: string;
+    host?: string;
+    rules?: Partial<RulesConfig>;
+    analyticsFile?: string | null;
+    statsToken?: string;
+    kahve?: { timing?: Partial<typeof KahvehaneRoom.timing>; rng?: () => number };
+  } = {}): Promise<StartedServer> {
   const app = express();
   app.disable('x-powered-by');
   const analytics = new Analytics(opts.analyticsFile ?? null);
@@ -61,6 +69,22 @@ export async function startServer(port: number, opts: { staticDir?: string; host
       static override analyticsSink = analytics;
     },
   );
+  const kahveTiming = { ...KahvehaneRoom.timing, ...(opts.kahve?.timing ?? {}) };
+  const kahveRng = opts.kahve?.rng ?? Math.random;
+  gameServer
+    .define(
+      KAHVE_ROOM,
+      class extends KahvehaneRoom {
+        static override timing = kahveTiming;
+        static override rng = kahveRng;
+        static override analyticsSink = {
+          tableStarted: () => analytics.tableStarted(),
+          handPlayed: () => analytics.okeyHandPlayed(),
+        };
+      },
+    )
+    // public: anyone can drop in; friends share the room link
+    .enableRealtimeListing();
   await gameServer.listen(port, opts.host ?? '0.0.0.0');
   const addr = httpServer.address();
   const actualPort = typeof addr === 'object' && addr ? addr.port : port;

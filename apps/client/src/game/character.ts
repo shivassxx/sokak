@@ -9,7 +9,7 @@ import { SKINS, type Look } from '@sokak/shared';
  * emotes and round poses (counting at the wall, caught, celebrating).
  */
 export type Emote = 'wave' | 'laugh' | 'dance' | 'point';
-export type Pose = 'none' | 'counting' | 'caught' | 'celebrate' | 'spotted';
+export type Pose = 'none' | 'counting' | 'caught' | 'celebrate' | 'spotted' | 'sit' | 'sitThink' | 'drink';
 
 const std = (color: number | string, roughness = 0.75) => new THREE.MeshStandardMaterial({ color, roughness, metalness: 0 });
 
@@ -385,6 +385,10 @@ export class Character {
     }
   }
 
+  setLabelVisible(v: boolean): void {
+    if (this.label) this.label.visible = v;
+  }
+
   setLabel(text: string, color = '#ffffff'): void {
     if (this.label) {
       this.root.remove(this.label);
@@ -538,6 +542,29 @@ export class Character {
       this.marker.rotation.y = t * 3;
     }
     if (moving && this.pose !== 'spotted') return;
+    if (this.pose === 'sit' || this.pose === 'sitThink' || this.pose === 'drink') {
+      // on a chair (seat height ≈ 0.48): thighs forward, shins down
+      this.body.position.y = -0.3;
+      this.legL.upper.rotation.set(1.45, 0, 0.06);
+      this.legR.upper.rotation.set(1.45, 0, -0.06);
+      this.legL.lower.rotation.set(-1.45, 0, 0);
+      this.legR.lower.rotation.set(-1.45, 0, 0);
+      this.chest.rotation.x = -0.12;
+      // hands on the table (or chin in hand when thinking)
+      this.armL.upper.rotation.set(0.9, 0, -0.05);
+      this.armR.upper.rotation.set(0.9, 0, 0.05);
+      this.armL.lower.rotation.set(0.5, 0, 0);
+      this.armR.lower.rotation.set(0.5, 0, 0);
+      if (this.pose === 'sitThink') {
+        this.armR.upper.rotation.set(1.2, 0, -0.2);
+        this.armR.lower.rotation.set(1.9, 0, 0);
+        this.neck.rotation.z = -0.15 + Math.sin(t * 0.8) * 0.05;
+      } else if (this.pose === 'drink') {
+        this.armR.upper.rotation.set(1.3, 0, -0.25);
+        this.armR.lower.rotation.set(1.7 + Math.max(0, Math.sin(t * 1.3)) * 0.4, 0, 0);
+      }
+      return;
+    }
     if (this.pose === 'counting') {
       // face in the crook of the arm against the wall
       this.chest.rotation.x = -0.3;

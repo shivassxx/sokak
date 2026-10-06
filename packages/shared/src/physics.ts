@@ -54,30 +54,50 @@ export function isSprinting(body: Body, input: MoveInput): boolean {
   return !!input.sprint && !input.crouch && !body.tired && body.stamina > 0 && Math.hypot(input.mx, input.mz) > 0.3;
 }
 
-/** Uniform grid over solid colliders to keep queries cheap. */
-const CELL = 8;
-const GRID_N = Math.ceil((MAP_HALF * 2 + 4) / CELL);
-const grid: Aabb[][] = Array.from({ length: GRID_N * GRID_N }, () => []);
-const cellOf = (v: number) => Math.min(GRID_N - 1, Math.max(0, Math.floor((v + MAP_HALF + 2) / CELL)));
+/** A walkable level: solid colliders in a uniform grid + square bounds. */
+export class CollisionWorld {
+  private readonly cell = 8;
+  private readonly n: number;
+  private readonly grid: Aabb[][];
+  private readonly scratch = new Set<Aabb>();
 
-for (const c of COLLIDERS) {
-  if (!c.solid) continue;
-  for (let gx = cellOf(c.minX); gx <= cellOf(c.maxX); gx++) {
-    for (let gz = cellOf(c.minZ); gz <= cellOf(c.maxZ); gz++) grid[gz * GRID_N + gx]!.push(c);
+  constructor(
+    readonly colliders: readonly Aabb[],
+    /** level spans [-half, half] on x and z */
+    readonly half: number,
+  ) {
+    this.n = Math.ceil((half * 2 + 4) / this.cell);
+    this.grid = Array.from({ length: this.n * this.n }, () => []);
+    for (const c of colliders) {
+      if (!c.solid) continue;
+      for (let gx = this.cellOf(c.minX); gx <= this.cellOf(c.maxX); gx++) {
+        for (let gz = this.cellOf(c.minZ); gz <= this.cellOf(c.maxZ); gz++) this.grid[gz * this.n + gx]!.push(c);
+      }
+    }
+  }
+
+  private cellOf(v: number): number {
+    return Math.min(this.n - 1, Math.max(0, Math.floor((v + this.half + 2) / this.cell)));
+  }
+
+  /** Solid colliders whose footprint may overlap the given rect. */
+  solidsNear(minX: number, maxX: number, minZ: number, maxZ: number): Set<Aabb> {
+    this.scratch.clear();
+    for (let gx = this.cellOf(minX); gx <= this.cellOf(maxX); gx++) {
+      for (let gz = this.cellOf(minZ); gz <= this.cellOf(maxZ); gz++) {
+        for (const c of this.grid[gz * this.n + gx]!) this.scratch.add(c);
+      }
+    }
+    return this.scratch;
   }
 }
 
-const scratch = new Set<Aabb>();
+/** The Saklambaç mahalle. */
+export const MAHALLE_WORLD = new CollisionWorld(COLLIDERS, MAP_HALF);
 
 /** Solid colliders whose footprint may overlap the given rect. */
-export function solidsNear(minX: number, maxX: number, minZ: number, maxZ: number): Set<Aabb> {
-  scratch.clear();
-  for (let gx = cellOf(minX); gx <= cellOf(maxX); gx++) {
-    for (let gz = cellOf(minZ); gz <= cellOf(maxZ); gz++) {
-      for (const c of grid[gz * GRID_N + gx]!) scratch.add(c);
-    }
-  }
-  return scratch;
+export function solidsNear(minX: number, maxX: number, minZ: number, maxZ: number, world: CollisionWorld = MAHALLE_WORLD): Set<Aabb> {
+  return world.solidsNear(minX, maxX, minZ, maxZ);
 }
 
 function overlapsXZ(c: Aabb, x: number, z: number, r: number): boolean {
@@ -89,10 +109,10 @@ function blocksAt(c: Aabb, y: number, stepAllowance: number): boolean {
 }
 
 /** Highest walkable surface under the footprint that is at most `maxTop`. */
-export function groundHeight(x: number, z: number, maxTop: number): number {
+export function groundHeight(x: number, z: number, maxTop: number, world: CollisionWorld = MAHALLE_WORLD): number {
   let g = 0;
   const r = PLAYER_RADIUS;
-  for (const c of solidsNear(x - r, x + r, z - r, z + r)) {
+  for (const c of world.solidsNear(x - r, x + r, z - r, z + r)) {
     if (c.maxY <= maxTop + 1e-6 && c.maxY > g && overlapsXZ(c, x, z, r)) g = c.maxY;
   }
   return g;
@@ -101,7 +121,7 @@ export function groundHeight(x: number, z: number, maxTop: number): number {
 const EPS = 1e-4;
 
 /** Advance a body by one fixed step. Mutates `body`. */
-export function stepBody(body: Body, input: MoveInput, dt: number = SIM_DT): void {
+export function stepBody(body: Body, input: MoveInput, dt: number = SIM_DT, world: CollisionWorld = MAHALLE_WORLD): void {
   let mx = input.mx;
   let mz = input.mz;
   const len = Math.hypot(mx, mz);
@@ -124,7 +144,7 @@ export function stepBody(body: Body, input: MoveInput, dt: number = SIM_DT): voi
   // --- horizontal, axis separated
   const dx = mx * speed * dt;
   const dz = mz * speed * dt;
-  const near = [...solidsNear(body.x - r - 1, body.x + r + 1, body.z - r - 1, body.z + r + 1)];
+  const near = [...world.solidsNear(body.x - r - 1, body.x + r + 1, body.z - r - 1, body.z + r + 1)];
 
   if (dx !== 0) {
     body.x += dx;
@@ -140,7 +160,7 @@ export function stepBody(body: Body, input: MoveInput, dt: number = SIM_DT): voi
       body.z = dz > 0 ? c.minZ - r - EPS : c.maxZ + r + EPS;
     }
   }
-  const lim = MAP_HALF - r;
+  const lim = world.half - r;
   body.x = Math.max(-lim, Math.min(lim, body.x));
   body.z = Math.max(-lim, Math.min(lim, body.z));
 
@@ -161,7 +181,7 @@ export function stepBody(body: Body, input: MoveInput, dt: number = SIM_DT): voi
     }
   }
 
-  const ground = groundHeight(body.x, body.z, body.y + allowance);
+  const ground = groundHeight(body.x, body.z, body.y + allowance, world);
   if (ny <= ground) {
     ny = ground;
     body.vy = 0;

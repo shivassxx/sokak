@@ -7,7 +7,13 @@ packages/shared constants, protocol types, map + colliders + zones, movement phy
                 visibility (raycast), nickname cleaning + profanity filter
 packages/rules  pure Saklambaç state machine (no I/O), fully unit tested
 packages/bots   nav grid + A*, bot brains (wander / hide / seek), headless NetBot client
+packages/okey   101 Okey rules (pure) + meld search + okey bot
 ```
+
+## Mode 2: kahvehane / 101 Okey
+- `KahvehaneRoom` (public, `joinOrCreate('kahvehane')`): avatar movement uses the same input/snapshot protocol with `KAHVE_WORLD` collisions. Schema: players (look, money, table, seat) and 6 tables (status, bet, hands, seats, totals, pot, turn deadline, JSON public view, last hand/match results).
+- One `OkeyGame` per playing table. Hands are private (`hand` message to the owner only); everything else is in the table's JSON view. Bots act on a delay; humans auto-play when the 30 s timer runs out.
+- Client: `KahveScreen` (lazy chunk) drives `Game('kahve', buildKahve)`; the okey board is HTML/CSS over the 3D scene (seat camera).
 
 ## Data flow
 1. **Client → server:** one `i` (input) message per 50 ms simulation step: `{seq, mx, mz, jump, crouch, yaw}` in world space. Plus `spot`, `emote`, `chat` (preset index), `start`, `addBot`, `removeBot`.

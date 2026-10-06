@@ -19,15 +19,16 @@ export interface Mover {
 }
 
 export interface World {
+  /** level-specific extras are optional */
   /** 0 = late afternoon, 1 = night: lamps and lit windows fade in */
   setDusk(d: number): void;
   /** animate ambient life; `movers` are characters that can scare pigeons */
   update(dt: number, movers: Mover[]): void;
 }
 
-type Bucket = 'main' | 'glow' | 'ground' | 'foliage' | 'cars';
+export type Bucket = 'main' | 'glow' | 'ground' | 'foliage' | 'cars';
 
-class Builder {
+export class Builder {
   private parts: Record<Bucket, THREE.BufferGeometry[]> = { main: [], glow: [], ground: [], foliage: [], cars: [] };
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
@@ -86,7 +87,7 @@ class Builder {
 }
 
 /** deterministic pseudo random from a seed */
-function hash(n: number): number {
+export function hash(n: number): number {
   const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return x - Math.floor(x);
 }
@@ -445,7 +446,7 @@ function skyline(b: Builder): void {
   }
 }
 
-function canvasTex(w: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
+export function canvasTex(w: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void): THREE.CanvasTexture {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -456,7 +457,7 @@ function canvasTex(w: number, h: number, draw: (ctx: CanvasRenderingContext2D) =
   return t;
 }
 
-function sign(text: string, bg: string, fg: string, w = 512, h = 128): THREE.CanvasTexture {
+export function sign(text: string, bg: string, fg: string, w = 512, h = 128): THREE.CanvasTexture {
   return canvasTex(w, h, (ctx) => {
     ctx.fillStyle = bg;
     ctx.fillRect(0, 0, w, h);
@@ -471,7 +472,7 @@ function sign(text: string, bg: string, fg: string, w = 512, h = 128): THREE.Can
   });
 }
 
-function decal(scene: THREE.Scene, tex: THREE.Texture, x: number, y: number, z: number, w: number, h: number, ry = 0, flat = false, opacity = 1): THREE.Mesh {
+export function decal(scene: THREE.Scene, tex: THREE.Texture, x: number, y: number, z: number, w: number, h: number, ry = 0, flat = false, opacity = 1): THREE.Mesh {
   const m = new THREE.Mesh(
     new THREE.PlaneGeometry(w, h),
     new THREE.MeshStandardMaterial({ map: tex, transparent: opacity < 1 || flat, opacity, roughness: 0.8, depthWrite: !flat, polygonOffset: flat, polygonOffsetFactor: -2 }),

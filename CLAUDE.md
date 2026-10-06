@@ -147,6 +147,8 @@ assets/
 
 **First Playable = M0–M4.** Ugly is fine; a fun round with friends is what matters.
 
+**Mode 2 (added at the user's request):** 101 Okey in a public kahvehane — see `Docs/Decisions.md` ("Mode 2") for the chosen house rules, play-money economy and taş çalma mechanic.
+
 **Future modes (Backlog, do not build yet):** Yakar Top, Kör Ebe, İstop, Mendil Kapmaca, Elim Sende.
 
 ---

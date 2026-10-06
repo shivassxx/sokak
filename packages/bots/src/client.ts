@@ -30,6 +30,11 @@ export class NetBot {
     return this;
   }
 
+  async joinOrCreate(roomName: string, opts: JoinOptions = {}): Promise<this> {
+    this.wire(await new Client(this.endpoint).joinOrCreate(roomName, opts));
+    return this;
+  }
+
   async join(roomId: string, opts: JoinOptions = {}): Promise<this> {
     this.wire(await new Client(this.endpoint).joinById(roomId, opts));
     return this;

@@ -8,7 +8,7 @@ const EMOTE_ICON: Record<EmoteId, string> = { wave: '👋', laugh: '😂', dance
 const EMOTE_NAME: Record<EmoteId, string> = { wave: 'El salla', laugh: 'Gül', dance: 'Dans et', point: 'Göster' };
 
 /** Emote buttons + preset quick-chat (no free text, child-safe). */
-export function Social({ room, input }: { room: Room; input: Input }) {
+export function Social({ room, input, phrases = QUICK_CHAT }: { room: Room; input: Input; phrases?: readonly string[] }) {
   const [open, setOpen] = useState(false);
   const [muted, setM] = useState(isMuted());
 
@@ -24,7 +24,7 @@ export function Social({ room, input }: { room: Room; input: Input }) {
       if (e.code === 'KeyT') setOpen((o) => !o);
       if (open && /^Digit[5-9]$|^Digit0$/.test(e.code)) {
         const idx = e.code === 'Digit0' ? 5 : Number(e.code.slice(5)) - 5;
-        if (idx < QUICK_CHAT.length) {
+        if (idx < phrases.length) {
           room.send(MSG.chat, idx);
           setOpen(false);
         }
@@ -32,13 +32,13 @@ export function Social({ room, input }: { room: Room; input: Input }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, room]);
+  }, [open, room, phrases]);
 
   return (
     <div className="social" onPointerDown={(e) => e.stopPropagation()}>
       {open && (
         <div className="chat-menu">
-          {QUICK_CHAT.map((q, i) => (
+          {phrases.map((q, i) => (
             <button
               key={q}
               className="btn small"

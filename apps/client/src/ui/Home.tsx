@@ -4,12 +4,13 @@ import { loadPrefs, savePrefs, type Prefs } from './prefs';
 import type { CharacterPreview } from '../game/preview';
 import { play } from '../game/audio';
 
+export type Mode = 'saklambac' | 'okey';
+
 interface Props {
-  inviteRoomId: string | null;
+  invite: { kind: 'oda' | 'kahve'; id: string } | null;
   busy: boolean;
   error: string | null;
-  onCreate: (p: Prefs) => void;
-  onJoin: (p: Prefs) => void;
+  onStart: (mode: Mode, p: Prefs) => void;
   onPractice: () => void;
 }
 
@@ -39,7 +40,7 @@ function Preview({ prefs }: { prefs: Prefs }) {
   );
 }
 
-export function Home({ inviteRoomId, busy, error, onCreate, onJoin, onPractice }: Props) {
+export function Home({ invite, busy, error, onStart, onPractice }: Props) {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const update = (p: Partial<Prefs>) => {
     const next = { ...prefs, ...p };
@@ -47,13 +48,29 @@ export function Home({ inviteRoomId, busy, error, onCreate, onJoin, onPractice }
     savePrefs(next);
     play('click');
   };
-  const go = () => (inviteRoomId ? onJoin : onCreate)(prefs);
+  const [mode, setMode] = useState<Mode>(invite?.kind === 'kahve' ? 'okey' : 'saklambac');
+  const go = () => onStart(mode, prefs);
+  const joining = (mode === 'saklambac' && invite?.kind === 'oda') || (mode === 'okey' && invite?.kind === 'kahve');
   return (
     <div className="home">
       <h1 className="logo">
         SOKAK<span>OYUNLARI</span>
       </h1>
-      <p className="tagline">{inviteRoomId ? 'Arkadaşların seni Saklambaç’a çağırıyor!' : 'Saklambaç oynayalım mı?'}</p>
+      <p className="tagline">
+        {invite?.kind === 'oda' ? 'Arkadaşların seni Saklambaç’a çağırıyor!' : invite?.kind === 'kahve' ? 'Arkadaşların kahvehanede, okey masası seni bekliyor!' : 'Bugün ne oynuyoruz?'}
+      </p>
+      <div className="modes">
+        <button className={`mode ${mode === 'saklambac' ? 'on' : ''}`} onClick={() => setMode('saklambac')}>
+          <span className="mode-ico">🙈</span>
+          <b>Saklambaç</b>
+          <small>Mahallede saklan, Ebe’den kaç</small>
+        </button>
+        <button className={`mode ${mode === 'okey' ? 'on' : ''}`} onClick={() => setMode('okey')}>
+          <span className="mode-ico">🀄</span>
+          <b>101 Okey</b>
+          <small>Kahvehanede masaya otur, çayları ısmarla</small>
+        </button>
+      </div>
       <div className="home-main">
         <Preview prefs={prefs} />
         <div className="card">
@@ -110,7 +127,7 @@ export function Home({ inviteRoomId, busy, error, onCreate, onJoin, onPractice }
             </div>
           </div>
           <button className="btn big" disabled={busy} onClick={go}>
-            {busy ? (inviteRoomId ? 'Bağlanıyor…' : 'Oda kuruluyor…') : inviteRoomId ? 'Oyuna katıl' : 'Oda kur'}
+            {busy ? 'Bağlanıyor…' : mode === 'okey' ? (joining ? 'Arkadaşlarının kahvesine gir' : 'Kahvehaneye gir') : joining ? 'Oyuna katıl' : 'Oda kur'}
           </button>
           {error && <div className="error">{error}</div>}
           <button className="link" onClick={onPractice}>

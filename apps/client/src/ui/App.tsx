@@ -1,24 +1,34 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import type { Room } from 'colyseus.js';
-import { createRoom, forgetRoom, joinRoom, tryReconnect } from '../net/connection';
-import { Home } from './Home';
+import { createRoom, forgetRoom, joinKahve, joinRoom, tryReconnect } from '../net/connection';
+import { Home, type Mode } from './Home';
 import { Practice } from './Practice';
 import { GameScreen } from './GameScreen';
 import type { Prefs } from './prefs';
 import { unlockAudio } from '../game/audio';
 
+// the kahvehane (3D + okey UI) is only downloaded when someone goes there
+const KahveScreen = lazy(() => import('./kahve/KahveScreen').then((m) => ({ default: m.KahveScreen })));
+
 // browsers only allow audio after a user gesture
 for (const ev of ['pointerdown', 'keydown'] as const) window.addEventListener(ev, unlockAudio, { passive: true });
 
-function inviteFromUrl(): string | null {
-  const id = new URLSearchParams(location.search).get('oda');
-  return id && /^[A-Za-z0-9]{6,20}$/.test(id) ? id : null;
+type Kind = 'oda' | 'kahve';
+const valid = (id: string | null) => (id && /^[A-Za-z0-9]{6,20}$/.test(id) ? id : null);
+
+function inviteFromUrl(): { kind: Kind; id: string } | null {
+  const q = new URLSearchParams(location.search);
+  const kahve = valid(q.get('kahve'));
+  if (kahve) return { kind: 'kahve', id: kahve };
+  const oda = valid(q.get('oda'));
+  return oda ? { kind: 'oda', id: oda } : null;
 }
 
-function setUrlRoom(id: string | null): void {
+function setUrlRoom(kind: Kind, id: string | null): void {
   const url = new URL(location.href);
-  if (id) url.searchParams.set('oda', id);
-  else url.searchParams.delete('oda');
+  url.searchParams.delete('oda');
+  url.searchParams.delete('kahve');
+  if (id) url.searchParams.set(kind, id);
   history.replaceState(null, '', url);
 }
 
@@ -29,20 +39,20 @@ function errorText(e: unknown): string {
 }
 
 export function App() {
-  const [invite, setInvite] = useState<string | null>(inviteFromUrl);
-  const [room, setRoom] = useState<Room | null>(null);
+  const [invite, setInvite] = useState(inviteFromUrl);
+  const [room, setRoom] = useState<{ room: Room; kind: Kind } | null>(null);
   const [practice, setPractice] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
   const leavingRef = useRef(false);
 
-  const attach = useCallback((r: Room) => {
+  const attach = useCallback((r: Room, kind: Kind) => {
     leavingRef.current = false;
     // messages that arrive before the 3D scene is wired are simply dropped
     r.onMessage('*', () => {});
-    setUrlRoom(r.roomId);
-    setRoom(r);
+    setUrlRoom(kind, r.roomId);
+    setRoom({ room: r, kind });
     r.onLeave(async (code) => {
       if (leavingRef.current || code === 4000 || code === 1000) return;
       // unexpected drop: retry within the reconnect window
@@ -52,14 +62,14 @@ export function App() {
         const again = await tryReconnect(r.roomId);
         if (again) {
           setReconnecting(false);
-          attach(again);
+          attach(again, kind);
           return;
         }
         await new Promise((res) => setTimeout(res, 1500));
       }
       setReconnecting(false);
       setRoom(null);
-      setError('Bağlantı koptu. Odaya tekrar katılmayı deneyebilirsin.');
+      setError('Bağlantı koptu. Tekrar katılmayı deneyebilirsin.');
     });
   }, []);
 
@@ -67,17 +77,17 @@ export function App() {
   useEffect(() => {
     if (!invite) return;
     setBusy(true);
-    void tryReconnect(invite).then((r) => {
+    void tryReconnect(invite.id).then((r) => {
       setBusy(false);
-      if (r) attach(r);
+      if (r) attach(r, invite.kind);
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const run = async (fn: () => Promise<Room>) => {
+  const run = async (fn: () => Promise<Room>, kind: Kind) => {
     setBusy(true);
     setError(null);
     try {
-      attach(await fn());
+      attach(await fn(), kind);
     } catch (e) {
       setError(errorText(e));
     } finally {
@@ -85,30 +95,36 @@ export function App() {
     }
   };
 
+  const leave = () => {
+    if (!room) return;
+    leavingRef.current = true;
+    forgetRoom();
+    void room.room.leave(true);
+    setRoom(null);
+    setUrlRoom('oda', null);
+    setInvite(null);
+  };
+
   if (practice) return <Practice onExit={() => setPractice(false)} />;
-  if (room) {
+  if (room?.kind === 'oda') return <GameScreen room={room.room} reconnecting={reconnecting} onLeave={leave} />;
+  if (room?.kind === 'kahve') {
     return (
-      <GameScreen
-        room={room}
-        reconnecting={reconnecting}
-        onLeave={() => {
-          leavingRef.current = true;
-          forgetRoom();
-          void room.leave(true);
-          setRoom(null);
-          setUrlRoom(null);
-          setInvite(null);
-        }}
-      />
+      <Suspense fallback={<div className="loading">Kahvehane açılıyor…</div>}>
+        <KahveScreen room={room.room} reconnecting={reconnecting} onLeave={leave} />
+      </Suspense>
     );
   }
   return (
     <Home
-      inviteRoomId={invite}
+      invite={invite}
       busy={busy}
       error={error}
-      onCreate={(p: Prefs) => run(() => createRoom(p))}
-      onJoin={(p: Prefs) => run(() => joinRoom(invite!, p))}
+      onStart={(mode: Mode, p: Prefs) => {
+        if (mode === 'saklambac') {
+          if (invite?.kind === 'oda') void run(() => joinRoom(invite.id, p), 'oda');
+          else void run(() => createRoom(p), 'oda');
+        } else void run(() => joinKahve(p, invite?.kind === 'kahve' ? invite.id : undefined), 'kahve');
+      }}
       onPractice={() => setPractice(true)}
     />
   );

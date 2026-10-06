@@ -1,5 +1,5 @@
 import { Client, type Room } from 'colyseus.js';
-import { ROOM_NAME, SERVER_PORT, type JoinOptions } from '@sokak/shared';
+import { KAHVE_ROOM, ROOM_NAME, SERVER_PORT, type JoinOptions } from '@sokak/shared';
 
 export function serverEndpoint(): string {
   const env = import.meta.env.VITE_SERVER_URL as string | undefined;
@@ -59,6 +59,13 @@ export async function tryReconnect(roomId?: string): Promise<Room | null> {
   }
 }
 
-export function roomLink(roomId: string): string {
-  return `${location.origin}${location.pathname}?oda=${encodeURIComponent(roomId)}`;
+/** Public kahvehane: join a friend's (by id) or any kahvehane with free chairs. */
+export async function joinKahve(opts: JoinOptions, roomId?: string): Promise<Room> {
+  const room = roomId ? await client.joinById(roomId, opts) : await client.joinOrCreate(KAHVE_ROOM, opts);
+  remember(room);
+  return room;
+}
+
+export function roomLink(roomId: string, kind: 'oda' | 'kahve' = 'oda'): string {
+  return `${location.origin}${location.pathname}?${kind}=${encodeURIComponent(roomId)}`;
 }

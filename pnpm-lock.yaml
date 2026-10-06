@@ -23,6 +23,9 @@ importers:
       '@fontsource/baloo-2':
         specifier: ^5.3.0
         version: 5.3.0
+      '@sokak/okey':
+        specifier: workspace:*
+        version: link:../../packages/okey
       '@sokak/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -69,6 +72,9 @@ importers:
       '@sokak/bots':
         specifier: workspace:*
         version: link:../../packages/bots
+      '@sokak/okey':
+        specifier: workspace:*
+        version: link:../../packages/okey
       '@sokak/rules':
         specifier: workspace:*
         version: link:../../packages/rules
@@ -100,6 +106,8 @@ importers:
       colyseus.js:
         specifier: 0.16.22
         version: 0.16.22
+
+  packages/okey: {}
 
   packages/rules:
     dependencies:

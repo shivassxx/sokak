@@ -3,6 +3,11 @@ import {
   BASE,
   COLLIDERS,
   CONTAINERS,
+  KAHVE_COLLIDERS,
+  KAHVE_SPAWN,
+  KAHVE_WORLD,
+  MAHALLE_WORLD,
+  type CollisionWorld,
   EBE_COUNT_SPOT,
   SIM_DT,
   cloneBody,
@@ -17,6 +22,9 @@ import { Character, type Emote, type Pose } from './character';
 import { Input } from './input';
 import { buildWorld, type Mover, type World } from './world';
 import { setupLighting, type Lighting } from './lighting';
+import type { KahveScene } from './kahveScene';
+
+export type Level = 'mahalle' | 'kahve';
 
 export interface InputSender {
   sendInput(seq: number, input: MoveInput, yaw: number): void;
@@ -49,11 +57,14 @@ interface Remote {
   key: string;
   buf: Sample[];
   lastSeen: number;
+  /** placed directly (seated bots), not interpolated */
+  fixed: { x: number; y: number; z: number; yaw: number } | null;
   prevX: number;
   prevZ: number;
 }
 
-const SOLID_CAM = COLLIDERS.filter((c) => c.solid && c.maxY - c.minY > 1);
+const SOLID_CAM_MAHALLE = COLLIDERS.filter((c) => c.solid && c.maxY - c.minY > 1);
+const SOLID_CAM_KAHVE = KAHVE_COLLIDERS.filter((c) => c.solid && c.maxY - c.minY > 1.5);
 const INTERP_DELAY = 110;
 
 export class Game {
@@ -91,8 +102,14 @@ export class Game {
   private serverOffset: number | null = null;
   sender: InputSender | null = null;
 
-  private lighting: Lighting;
+  private lighting: Lighting | null = null;
   private world: World;
+  /** kahvehane-only scene helpers (waiter, drinks, racks) */
+  kahve: KahveScene | null = null;
+  private phys: CollisionWorld;
+  private solidCam: typeof SOLID_CAM_MAHALLE;
+  /** seated at an okey table: fixed camera looking at the table */
+  seatCam: { x: number; z: number; tx: number; tz: number } | null = null;
   private dusk = 0.15;
   private duskTarget = 0.15;
   private raf = 0;
@@ -101,7 +118,13 @@ export class Game {
   private disposed = false;
   onFrame: ((dt: number) => void) | null = null;
 
-  constructor(private canvas: HTMLCanvasElement) {
+  constructor(
+    private canvas: HTMLCanvasElement,
+    readonly level: Level = 'mahalle',
+    kahveBuilder?: (scene: THREE.Scene, renderer: THREE.WebGLRenderer) => KahveScene,
+  ) {
+    this.phys = level === 'kahve' ? KAHVE_WORLD : MAHALLE_WORLD;
+    this.solidCam = level === 'kahve' ? SOLID_CAM_KAHVE : SOLID_CAM_MAHALLE;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     this.renderer.shadowMap.enabled = true;
@@ -109,8 +132,14 @@ export class Game {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
-    this.lighting = setupLighting(this.scene, this.renderer);
-    this.world = buildWorld(this.scene);
+    if (level === 'kahve' && kahveBuilder) {
+      this.kahve = kahveBuilder(this.scene, this.renderer);
+      this.world = this.kahve;
+      this.camDist = 4.2;
+    } else {
+      this.lighting = setupLighting(this.scene, this.renderer);
+      this.world = buildWorld(this.scene);
+    }
     this.applyDusk();
     this.input.attach(canvas);
     this.input.onPress((a) => {
@@ -134,7 +163,7 @@ export class Game {
   }
 
   private applyDusk(): void {
-    this.lighting.setDusk(this.dusk);
+    this.lighting?.setDusk(this.dusk);
     this.world.setDusk(this.dusk);
   }
 
@@ -250,7 +279,7 @@ export class Game {
     this.inside = inside;
     const b: Body = { x, y, z, vy, onGround, stamina, tired };
     this.pending = this.pending.filter((p) => p.seq > ack);
-    for (const p of this.pending) stepBody(b, p.input);
+    for (const p of this.pending) stepBody(b, p.input, SIM_DT, this.phys);
     const err = Math.hypot(b.x - this.body.x, b.y - this.body.y, b.z - this.body.z);
     this.body.stamina = b.stamina;
     this.body.tired = b.tired;
@@ -276,7 +305,7 @@ export class Game {
     const key = `${look.color}|${look.hat}|${look.hair}|${look.skin}|${label}|${labelColor ?? ''}`;
     if (r?.key === key) return;
     if (!r) {
-      r = { char: new Character(look), key, buf: [], lastSeen: 0, prevX: 0, prevZ: 0 };
+      r = { char: new Character(look), key, buf: [], lastSeen: 0, prevX: 0, prevZ: 0, fixed: null };
       r.char.root.visible = false;
       this.scene.add(r.char.root);
       this.remotes.set(id, r);
@@ -291,6 +320,23 @@ export class Game {
     this.scene.remove(r.char.root);
     r.char.dispose();
     this.remotes.delete(id);
+  }
+
+  /** Hide name tags (e.g. while seated at a table, they would cover the board). */
+  setLabelsVisible(v: boolean): void {
+    for (const r of this.remotes.values()) r.char.setLabelVisible(v);
+  }
+
+  /** Place a remote without interpolation (seated bots); null = back to snapshots. */
+  setFixed(id: string, pos: { x: number; y: number; z: number; yaw: number } | null): void {
+    const r = this.remotes.get(id);
+    if (r) r.fixed = pos;
+  }
+
+  /** Position of a character as rendered (local = null). */
+  characterPosition(id: string | null): THREE.Vector3 | null {
+    const ch = id === null ? this.localChar : this.remotes.get(id)?.char;
+    return ch && ch.root.visible ? ch.root.position.clone() : null;
   }
 
   remoteIds(): string[] {
@@ -359,7 +405,7 @@ export class Game {
     this.jumpQueued = false;
     this.prevBody = cloneBody(this.body);
     const wasGround = this.body.onGround;
-    stepBody(this.body, input, SIM_DT);
+    stepBody(this.body, input, SIM_DT, this.phys);
     if (wasGround && !this.body.onGround && this.body.vy > 0) this.events.onJump?.();
     if (!this.wasOnGround && this.body.onGround) this.events.onLand?.();
     this.wasOnGround = this.body.onGround;
@@ -388,7 +434,7 @@ export class Game {
     }
 
     // local render
-    let focus = new THREE.Vector3(BASE.x, 1.4, BASE.z + 6);
+    let focus = this.level === 'kahve' ? new THREE.Vector3(KAHVE_SPAWN.x, 1.4, KAHVE_SPAWN.z - 4) : new THREE.Vector3(BASE.x, 1.4, BASE.z + 6);
     if (this.body && this.prevBody && this.localChar) {
       const a = this.acc / SIM_DT;
       const p = this.prevBody;
@@ -417,6 +463,13 @@ export class Game {
     // remotes (interpolated)
     const renderT = performance.now() + (this.serverOffset ?? 0) - INTERP_DELAY;
     for (const r of this.remotes.values()) {
+      if (r.fixed) {
+        r.char.root.visible = true;
+        r.char.root.position.set(r.fixed.x, r.fixed.y, r.fixed.z);
+        r.char.root.rotation.y = r.char.facing = r.fixed.yaw;
+        r.char.animate(dt, 0, false, false);
+        continue;
+      }
       const buf = r.buf;
       if (buf.length === 0 || renderT - r.lastSeen > 260) {
         r.char.root.visible = false;
@@ -459,7 +512,7 @@ export class Game {
     }
 
     this.updateCamera(focus);
-    this.lighting.follow(focus.x, focus.z);
+    this.lighting?.follow(focus.x, focus.z);
     if (Math.abs(this.dusk - this.duskTarget) > 0.002) {
       this.dusk += (this.duskTarget - this.dusk) * Math.min(1, dt * 0.5);
       this.applyDusk();
@@ -473,6 +526,16 @@ export class Game {
   }
 
   private updateCamera(focus: THREE.Vector3): void {
+    if (this.seatCam) {
+      const s = this.seatCam;
+      const dx = s.x - s.tx;
+      const dz = s.z - s.tz;
+      const l = Math.hypot(dx, dz) || 1;
+      const desired = new THREE.Vector3(s.x + (dx / l) * 1.7, 3.1, s.z + (dz / l) * 1.7);
+      this.camera.position.lerp(desired, 0.15);
+      this.camera.lookAt(s.tx, 0.6, s.tz);
+      return;
+    }
     if (this.frozen && this.body) {
       // counting Ebe: face the wall, close
       this.camera.position.set(EBE_COUNT_SPOT.x + 1.2, 2.3, EBE_COUNT_SPOT.z + 3.4);
@@ -488,7 +551,7 @@ export class Game {
     );
     if (this.body) {
       let tMin = 1;
-      for (const c of SOLID_CAM) {
+      for (const c of this.solidCam) {
         const t = segmentEntryT(focus, desired, c);
         if (t >= 0 && t < tMin) tMin = t;
       }

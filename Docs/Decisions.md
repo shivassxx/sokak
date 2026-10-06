@@ -66,3 +66,18 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 - **Containers:** one hider per container; invisible to everyone while inside; the Ebe's "Gördüm!" within 1.8 m of the container opens the lid (hider pops out spotted). Hiders can't move inside, and can leave any time.
 - **Pebbles:** 12 s cooldown, land at the first obstacle or 11 m ahead; everyone sees the landing, nobody sees the thrower.
 - **Vertical speed of remotes is not sent**, so their "airborne" pose is inferred from height changes.
+
+## Mode 2 — 101 Okey in the kahvehane (user request)
+- **Scope:** the user asked for 101 Okey as the second game, set in a kahvehane that everybody can enter; friends sit at tables together, winnings buy çay/oralet etc., and tile stealing ("taş çalma") as a fun mechanic. Built as `packages/okey` (pure rules + bot AI, unit tested), `KahvehaneRoom` (public room), kahvehane 3D scene and an HTML okey board.
+- **Play money only.** Everyone starts each session with 1.000 ₺ of *virtual* money; nothing can be bought or cashed out, no accounts, nothing is persisted. "Veresiye" gives 200 ₺ to a broke player once every 5 minutes. Child-safety rules stay: no free text (okey-specific preset phrases), nickname filter.
+- **Public lobby:** `joinOrCreate('kahvehane')` (max 40 per kahvehane); the invite link `?kahve=<roomId>` puts friends in the same kahvehane. Six tables of 4 seats; empty seats can be filled with bots by the table host.
+- **Rules chosen (house rules vary in Turkey):**
+  - 106 tiles, gösterge → okey = same colour, next number (13 → 1); 2 sahte okey play as the okey's face; real okeys are wild.
+  - Dealer gets 22 tiles and starts by discarding; others 21; 20 left in the deck. Turn passes to the right (seat+1); you may take the top discard of your left player only if you lay it on the table the same turn (otherwise put it back; on timeout the unused tile costs 101).
+  - Opening: series melds (runs of one colour, 1 may follow 13; sets of 3–4 colours) worth ≥ 101, or ≥ 5 pairs. After opening: lay more melds (pairs only for pair-openers), işle onto any meld, swap a table okey for the real tile.
+  - Scoring per hand (lower is better): finisher −101; others: not opened +202, opened = remaining tile values (okey = 101, pair-openers ×2). Finishing with the okey or "elden" (open and finish in the same turn) doubles everything. Discarding a tile that could be işlenmiş costs +101 (opened players only). Deck running out ends the hand without a finisher.
+  - Ace after 13 counts 1 point. No rising opening threshold, no partner play (backlog).
+- **Match:** 1/3/5 hands; bet 0/10/50/100/250 ₺ per player into the pot; lowest total wins the pot (split on ties). Turn timer 30 s, then auto-play.
+- **Taş çalma (house mechanic):** once per hand, during your turn, swap one of your tiles with the top discard of the player opposite or on your right. Each opponent has a 55 % chance of a private "elleri bir garip" hint and the changed pile is visible to everyone. "Hile var!" within 6 s catches the thief: theft reverted, +101 penalty, 50 ₺ to the catcher. A wrong "Hile var!" costs 20 ₺. Bots occasionally steal and sometimes catch.
+- **Orders:** menu (çay 5, oralet 5, Türk kahvesi 12, gazoz 10, ayran 8, simit 7, kaşarlı tost 15 ₺) for yourself, a player or your whole table; the çaycı walks the tray to the table; drinks show as badges at the table.
+- **Hidden information:** hands are sent only to their owner; the table view in the schema contains counts, discards, melds and the gösterge only.

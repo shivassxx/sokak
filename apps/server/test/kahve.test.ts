@@ -1,0 +1,141 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { matchMaker } from '@colyseus/core';
+import { NetBot } from '@sokak/bots/client';
+import { KAHVE_ROOM, KMSG, MENU, START_MONEY, TABLES, type TableView } from '@sokak/shared';
+import { startServer, type StartedServer } from '../src/app';
+import { until, sleep } from './helpers';
+import type { KahvehaneRoom } from '../src/rooms/KahvehaneRoom';
+
+let server: StartedServer;
+let endpoint: string;
+
+beforeAll(async () => {
+  server = await startServer(0, { host: '127.0.0.1', kahve: { timing: { botMin: 5, botMax: 15, between: 200, result: 300, turn: 400 } } });
+  endpoint = `ws://127.0.0.1:${server.port}`;
+});
+afterAll(async () => {
+  await server.close();
+});
+
+const st = (b: NetBot) => b.room.state as any;
+const me = (b: NetBot) => st(b).players.get(b.id);
+const table = (b: NetBot, i: number) => st(b).tables[i];
+
+async function seated(name: string, ti = 0) {
+  const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name });
+  await until(() => !!st(a).players?.get(a.id));
+  const room = matchMaker.getLocalRoomById(a.room.roomId) as KahvehaneRoom;
+  room.debugPlace(a.id, TABLES[ti]!.x, TABLES[ti]!.z + 2);
+  await sleep(80);
+  a.room.send(KMSG.sit, { table: ti, seat: 0 });
+  await until(() => me(a).table === ti);
+  return { a, room };
+}
+
+describe('kahvehane', () => {
+  it('everyone lands in the same public kahvehane with play money', async () => {
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Ali' });
+    const b = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Veli' });
+    expect(b.room.roomId).toBe(a.room.roomId);
+    await until(() => st(a).players?.size === 2);
+    expect(me(a).money).toBe(START_MONEY);
+    expect(st(a).tables.length).toBe(6);
+    await a.leave();
+    await b.leave();
+  });
+
+  it('cannot sit from across the room', async () => {
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Uzak' });
+    await until(() => !!st(a).players?.get(a.id));
+    const room = matchMaker.getLocalRoomById(a.room.roomId) as KahvehaneRoom;
+    room.debugPlace(a.id, 11, -8);
+    await sleep(80);
+    a.room.send(KMSG.sit, { table: 3, seat: 0 });
+    await until(() => a.messages.some((m) => m.type === KMSG.okeyError));
+    expect(me(a).table).toBe(-1);
+    await a.leave();
+  });
+
+  it('a full match with bots: private hands, bets, pot paid to the winner', async () => {
+    const { a, room } = await seated('Oyuncu', 1);
+    a.room.send(KMSG.tableConfig, { bet: 50, hands: 1 });
+    for (let i = 0; i < 3; i++) a.room.send(KMSG.tableBot, {});
+    await until(() => [...table(a, 1).seats].every((s: string) => s));
+    a.room.send(KMSG.tableStart);
+    await until(() => table(a, 1).status === 'playing');
+    expect(me(a).money).toBe(START_MONEY - 50);
+    expect(table(a, 1).pot).toBe(200);
+    // my hand arrives privately; the public view hides hands
+    await until(() => a.messages.some((m) => m.type === KMSG.hand));
+    const hand = a.messages.filter((m) => m.type === KMSG.hand).pop()!.msg as { tiles: number[] };
+    expect([21, 22]).toContain(hand.tiles.length);
+    const view = JSON.parse(table(a, 1).view) as TableView & { hands?: unknown };
+    expect(view.hands).toBeUndefined();
+    expect(view.handCounts.reduce((x, y) => x + y, 0)).toBe(85);
+    // the human never acts: timeouts autoplay; bots play; the match must end
+    try {
+      await until(() => table(a, 1).status === 'result' || table(a, 1).status === 'open', 60000);
+    } catch (e) {
+      const g = room.debugGame(1)!;
+      console.log('STUCK', table(a, 1).status, 'turn', g.turn, 'phase', g.phase, 'deck', g.deck.length, 'hands', g.hands.map((h) => h.length), 'taken', g.takenFromLeft);
+      throw e;
+    }
+    const result = JSON.parse(table(a, 1).lastMatch);
+    expect(result.winners.length).toBeGreaterThan(0);
+    const total = [...st(a).players.values()].filter((p: any) => p.table === 1).reduce((s: number, p: any) => s + p.money, 0);
+    expect(total).toBe(START_MONEY * 4); // money is conserved
+    void room;
+    await a.leave();
+  }, 70000);
+
+  it('orders: tea for the table costs money for every seat', async () => {
+    const { a } = await seated('Ismarlayan', 2);
+    a.room.send(KMSG.tableBot, {});
+    await until(() => [...table(a, 2).seats].filter(Boolean).length === 2);
+    const before = me(a).money;
+    a.room.send(KMSG.order, { item: 'cay', to: 'table' });
+    await until(() => a.messages.some((m) => m.type === KMSG.served));
+    const served = a.messages.find((m) => m.type === KMSG.served)!.msg as { to: string[] };
+    expect(served.to.length).toBe(2);
+    await until(() => me(a).money === before - MENU.find((m) => m.id === 'cay')!.price * 2);
+    // veresiye only when broke
+    a.room.send(KMSG.credit);
+    await until(() => a.messages.filter((m) => m.type === KMSG.okeyError).length > 0);
+    await a.leave();
+  });
+
+  it('taş çalma: a caught thief pays the catcher; standing up mid-match hands the seat to a bot', async () => {
+    const { a, room } = await seated('Hirsiz', 3);
+    const b = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Bekci' });
+    await until(() => !!st(b).players?.get(b.id));
+    room.debugPlace(b.id, TABLES[3]!.x + 2, TABLES[3]!.z);
+    await sleep(80);
+    b.room.send(KMSG.sit, { table: 3, seat: 1 });
+    await until(() => me(b).table === 3);
+    a.room.send(KMSG.tableBot, {});
+    a.room.send(KMSG.tableBot, {});
+    await until(() => [...table(a, 3).seats].every((s: string) => s));
+    a.room.send(KMSG.tableStart);
+    await until(() => table(a, 3).status === 'playing');
+    const g = room.debugGame(3)!;
+    // rig: it's seat 0's turn in play phase, seat 2 has a discard
+    g.turn = 0;
+    g.phase = 'play';
+    g.discards[2]!.push(g.hands[2]!.pop()!);
+    const myTile = g.hands[0]![0]!;
+    a.room.send(KMSG.okey, { t: 'steal', tile: myTile, pile: 2 });
+    await until(() => g.lastSteal !== null);
+    const moneyA = me(a).money;
+    const moneyB = me(b).money;
+    b.room.send(KMSG.okey, { t: 'accuse' });
+    await until(() => me(a).money === moneyA - 50);
+    expect(me(b).money).toBe(moneyB + 50);
+    // stand up: a bot takes the seat, the table keeps going
+    b.room.send(KMSG.stand);
+    await until(() => me(b).table === -1);
+    const seat1 = table(a, 3).seats[1];
+    expect(st(a).players.get(seat1).isBot).toBe(true);
+    await a.leave();
+    await b.leave();
+  });
+});
