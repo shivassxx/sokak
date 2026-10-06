@@ -121,3 +121,32 @@ Ayrıntılı adımlar: **`Docs/Deploy.md`**. Kısaca:
 4. CC0 model paketleriyle görselleri yükselt (`Docs/ThirdPartyAssets.md`).
 5. Kurucuya oda ayarları (süre, bot sayısı), izleyici kamerası, ikinci bir mahalle haritası (`Docs/Backlog.md`).
 6. Sonra sıradaki mod: Yakar Top, Kör Ebe, İstop, Mendil Kapmaca, Elim Sende (Backlog'da).
+
+---
+
+## Ek: Kalite geçişi (M7) — "daha profesyonel, daha az basit"
+
+**Görsel**
+- **Yeni karakterler:** chibi tarzı, bebekli ve parlayan gözler, göz kırpma, kaşlar, yanaklar, dirsek/diz eklemleri. 5 saç modeli, 6 şapka (kasket, bere, hasır şapka, taç, kulaklık), 4 ten rengi. Koşma, sinsi çömelme ve zıplama animasyonları. Pozlar: Ebe duvarda gözlerini kapatıyor, görülenin başında "!", sobelenen üzgün, kurtulan seviniyor.
+- **Ana sayfada canlı 3D karakter önizlemesi:** görünüm buradan seçiliyor ve diğer oyunculara da gidiyor.
+- **Mahalle baştan yapıldı:** shader ile sıva, tuğla, karo, arnavut kaldırımı, asfalt, çimen ve ahşap dokuları; duvar diplerinde gölge. Panjurlar, saksılar, bitkili balkonlar, numaralı kapılar, çatı depoları ve çanak antenler eklendi. Kaldırım bordürleri, yaya geçitleri, tebeşirle çizilmiş seksek, bakkal tezgâhı, semaver, damalı dolmuş, çay bardakları, çimen ve çiçekler var.
+- **Canlılık:** koşan birinden kaçan güvercinler, bulutlar, ortam yansımalı ışık ve daha koyu bir akşam alacası.
+- **Kenney CC0 pikapları** park etmiş arabalar olarak kullanıldı. Kamera çalıya girince yapraklar şeffaflaşıyor.
+- **Arayüz:** Baloo 2 yazı tipi; yeniden tasarlanan HUD, paneller ve açılış sayfası; el sonu özetinde ödül kartları.
+- **Ses:** Kenney CC0 kayıtları (adım sesi, zıplama, iniş, kurtulma, sobe, şehir ambiyansı). Dosya çözülemezse sentez seslere dönülüyor.
+
+**Oynanış**
+- **Koşma ve dayanıklılık (Shift / Koş):** yaklaşık 3,6 saniye depar atılabiliyor; tükenince bir süre koşulamıyor.
+- **Ayak sesi ipucu:** Ebe, göremediği ama koşan birinin yönünü ekran kenarında sarı "tıkırtı" olarak görüyor. Konum değil, sadece yön gidiyor. Çömelmek sessiz.
+- **Ebe yakın uyarısı:** saklananlar Ebe yaklaşınca kırmızı kalp atışı efekti görüyor.
+- **Taş atma (Q / Taş at):** 12 saniye bekleme süresi var. Herkes taşın düştüğü yerde "TIK!" görüyor, atanı kimse görmüyor; Ebe sadece yönünü duyuyor.
+- **Çöp konteynerine saklanma (E):** içerideki kimseye görünmüyor. Ebe konteynerin yanında "Gördüm!" derse kapağı açıp yakalıyor.
+- **Diğer:** Ebe Duvarı pusulası, bağlama göre değişen eylem butonları (Gördüm! / Kapağı aç! / Konteynere saklan / Dışarı çık), kamera sarsıntısı, depar sırasında görüş açısı genişlemesi. Botlar da koşuyor; Ebe bot konteynerleri yokluyor.
+
+**Teknik**
+- Test sayısı 64'ten 70'e çıktı.
+- Basit sahnede çizim çağrısı 212'den 121'e indi.
+- Toplam indirme 2,07 MB (gzip). Bunun 1,2 MB'ı oyun açıldıktan sonra yüklenen ambiyans sesi; lobi için gereken 128 KB.
+- Yeni varlıklar `Docs/ThirdPartyAssets.md`, kararlar `Docs/Decisions.md` dosyasında.
+
+**Bilinen sınırlar:** Animasyonlu hazır CC0 karakter olarak sadece miğferli bir asker modeli erişilebilirdi; bu yüzden karakterler kodla üretildi. Gerçek bir telefonda kare hızının elle ölçülmesi önerilir; karakter başına yaklaşık 35 çizim çağrısı var.
