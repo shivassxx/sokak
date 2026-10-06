@@ -19,6 +19,7 @@ import {
   type MoveInput,
 } from '@sokak/shared';
 import { Character, type Emote, type Pose } from './character';
+import { itemModel, type UseKind } from './items';
 export { loadCharacterKit } from './character';
 import { Input } from './input';
 import { buildWorld, type Mover, type World } from './world';
@@ -70,6 +71,17 @@ const camBlocker = (minH: number) => (c: (typeof COLLIDERS)[number]) => c.solid 
 const SOLID_CAM_MAHALLE = COLLIDERS.filter(camBlocker(1));
 const SOLID_CAM_KAHVE = KAHVE_COLLIDERS.filter(camBlocker(1.5));
 const INTERP_DELAY = 110;
+const SMOKE_TEX = (() => {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const ctx = c.getContext('2d')!;
+  const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+  g.addColorStop(0, 'rgba(235,235,230,0.9)');
+  g.addColorStop(1, 'rgba(235,235,230,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+})();
 
 export class Game {
   readonly renderer: THREE.WebGLRenderer;
@@ -120,6 +132,8 @@ export class Game {
   private seatLook = new THREE.Vector3();
   private focusY: number | null = null;
   private camDistCur: number | null = null;
+  /** sitting on a bench / stool: lift the local character by (seat height − chair height) */
+  localSeatY = 0;
   /** prediction diagnostics (corrections applied by reconcile) */
   readonly stats = { corrections: 0, maxErr: 0 };
   /** dev-only: fixed camera for screenshots */
@@ -148,6 +162,9 @@ export class Game {
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     if (level === 'kahve' && kahveBuilder) {
+      // the Bosphorus view needs a long far plane (sky, skyline, vapur)
+      this.camera.far = 1500;
+      this.camera.updateProjectionMatrix();
       this.kahve = kahveBuilder(this.scene, this.renderer);
       this.world = this.kahve;
       this.camDist = 4.2;
@@ -155,7 +172,7 @@ export class Game {
       this.lighting = setupLighting(this.scene, this.renderer);
       this.world = buildWorld(this.scene);
     }
-    this.post = new PostFX(this.renderer, this.scene, this.camera, quality, level === 'kahve' ? { bloomStrength: 0.4, aoRadius: 0.45, vignette: 0.38 } : {});
+    this.post = new PostFX(this.renderer, this.scene, this.camera, quality, level === 'kahve' ? { bloomStrength: 0.28, aoRadius: 0.45, vignette: 0.32 } : {});
     this.applyDusk();
     this.input.attach(canvas);
     this.input.onPress((a) => {
@@ -343,6 +360,41 @@ export class Game {
     this.remotes.delete(id);
   }
 
+  /** Item in hand (market / simitçi); null id = local player. */
+  setHeld(id: string | null, item: string): void {
+    const ch = id === null ? this.localChar : this.remotes.get(id)?.char;
+    if (!ch || ch.userHeld === item) return;
+    ch.userHeld = item;
+    ch.hold(item ? itemModel(item) : null);
+  }
+
+  /** Someone used their item: arm to mouth, and a few smoke puffs for a cigarette. */
+  useItem(id: string | null, kind: UseKind): void {
+    const ch = id === null ? this.localChar : this.remotes.get(id)?.char;
+    if (!ch) return;
+    ch.playUse(kind);
+    if (kind !== 'smoke') return;
+    for (let k = 0; k < 4; k++) {
+      const puff = new THREE.Sprite(new THREE.SpriteMaterial({ map: SMOKE_TEX, transparent: true, depthWrite: false, opacity: 0 }));
+      this.scene.add(puff);
+      const start = 1.15 + k * 0.18;
+      const p0 = new THREE.Vector3();
+      this.effects.push({
+        obj: puff,
+        t: 0,
+        life: start + 2.2,
+        update: (kk) => {
+          const tt = kk * (start + 2.2) - start;
+          if (tt < 0) return;
+          if (tt < 0.05) ch.mouthPosition(p0);
+          puff.position.set(p0.x + Math.sin(tt * 2 + k) * 0.1, p0.y + tt * 0.35, p0.z + Math.cos(tt * 1.7 + k) * 0.1);
+          puff.scale.setScalar(0.15 + tt * 0.35);
+          (puff.material as THREE.SpriteMaterial).opacity = Math.max(0, 0.45 * (1 - tt / 2.2));
+        },
+      });
+    }
+  }
+
   /** Hide name tags (e.g. while seated at a table, they would cover the board). */
   setLabelsVisible(v: boolean): void {
     for (const r of this.remotes.values()) r.char.setLabelVisible(v);
@@ -444,7 +496,7 @@ export class Game {
     this.last = now;
 
     const look = this.input.consumeLook();
-    if (!this.frozen || !this.body) {
+    if (!this.frozen || !this.body || this.level === 'kahve') {
       this.camYaw += look.yaw;
       this.camPitch = Math.max(-0.25, Math.min(1.25, this.camPitch + look.pitch));
     }
@@ -467,7 +519,7 @@ export class Game {
       const ch = this.localChar;
       const speed = Math.hypot(b.x - p.x, b.z - p.z) / SIM_DT;
       ch.root.visible = this.inside < 0 && !this.seat;
-      ch.root.position.set(x, y, z);
+      ch.root.position.set(x, y + this.localSeatY, z);
       if (b.onGround) this.events.onStep?.(speed, speed > 6);
       this.fovKick += ((speed > 6 ? 1 : 0) - this.fovKick) * Math.min(1, dt * 4);
       ch.facing = lerpAngle(ch.facing, this.facing, Math.min(1, dt * 14));
@@ -535,6 +587,7 @@ export class Game {
 
     this.updateCamera(focus, dt);
     this.lighting?.follow(focus.x, focus.z);
+    this.world.follow?.(focus.x, focus.z);
     if (Math.abs(this.dusk - this.duskTarget) > 0.002) {
       this.dusk += (this.duskTarget - this.dusk) * Math.min(1, dt * 0.5);
       this.applyDusk();
@@ -564,7 +617,7 @@ export class Game {
       }
       return;
     }
-    if (this.frozen && this.body) {
+    if (this.frozen && this.body && this.level === 'mahalle') {
       // counting Ebe: face the wall, close
       this.camera.position.set(EBE_COUNT_SPOT.x + 1.2, 2.3, EBE_COUNT_SPOT.z + 3.4);
       this.camera.lookAt(EBE_COUNT_SPOT.x, 1.2, EBE_COUNT_SPOT.z - 1);

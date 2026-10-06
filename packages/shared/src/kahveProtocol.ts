@@ -15,7 +15,18 @@ export const KMSG = {
   served: 'served',
   credit: 'credit',
   money: 'money',
+  buy: 'buy',
+  use: 'use',
+  drop: 'drop',
+  sitSpot: 'sitSpot',
+  used: 'used',
 } as const;
+
+/** Someone used their held item (smoke, eat, drink, read). */
+export interface UsedMsg {
+  id: string;
+  item: string;
+}
 
 /** Client → server okey actions. */
 export type OkeyAction =
@@ -94,6 +105,9 @@ export interface KPlayerView {
   money: number;
   table: number;
   seat: number;
+  holding: string;
+  uses: number;
+  spot: number;
 }
 
 export interface KTableView {

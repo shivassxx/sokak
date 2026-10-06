@@ -15,7 +15,7 @@ import { paintSkin, type Outfit } from './skinPainter';
  * (facing -Z); every frame the joint rotations are mapped onto the skeleton.
  */
 export type Emote = 'wave' | 'laugh' | 'dance' | 'point';
-export type Pose = 'none' | 'counting' | 'caught' | 'celebrate' | 'spotted' | 'sit' | 'sitThink' | 'drink' | 'read' | 'doze';
+export type Pose = 'none' | 'counting' | 'caught' | 'celebrate' | 'spotted' | 'sit' | 'sitThink' | 'drink' | 'read' | 'doze' | 'fish';
 
 export interface CharacterOpts {
   /** grown-up proportions (kahvehane) instead of a neighborhood kid */
@@ -217,6 +217,9 @@ export class Character {
   private t = Math.random() * 10;
   private emote: Emote | null = null;
   private emoteT = 0;
+  private useKind: 'smoke' | 'eat' | 'drink' | 'read' | null = null;
+  private useT = 0;
+  private holding = false;
   private label: THREE.Sprite | null = null;
   private bubble: THREE.Sprite | null = null;
   private bubbleT = 0;
@@ -225,6 +228,8 @@ export class Character {
   private lean = 0;
   pose: Pose = 'none';
   facing = 0;
+  /** id of the item currently held (managed by Game.setHeld) */
+  userHeld = '';
 
   constructor(look: Look, opts: CharacterOpts = {}) {
     if (!kit) throw new Error('character kit not loaded');
@@ -457,12 +462,14 @@ export class Character {
   /** Put a small prop (tea glass …) in the right hand. */
   hold(obj: THREE.Object3D | null): void {
     for (const c of [...this.propGroup.children]) if (c.userData.held) this.propGroup.remove(c);
+    this.holding = !!obj;
     if (!obj) return;
     obj.userData.held = true;
     // hand bone units: the model is scaled ≈0.5, so props are scaled up to stay life-size
-    const s = 1 / (this.model.scale.x * 0.64);
+    // stylised big hands: props are drawn ~1.6× life size so they read on screen
+    const s = 1.6 / (this.model.scale.x * 0.64);
     obj.scale.setScalar(s);
-    obj.position.set(0, -0.12 * s * 0.6, 0.03 * s);
+    obj.position.set(0, 0.045 * s, 0.02 * s);
     obj.rotation.set(0, 0, Math.PI);
     this.propGroup.add(obj);
   }
@@ -547,6 +554,18 @@ export class Character {
     this.bubble = null;
   }
 
+  /** Bring the held item to the mouth (smoke / eat / drink) or hold it up to read. */
+  playUse(kind: 'smoke' | 'eat' | 'drink' | 'read'): void {
+    this.useKind = kind;
+    this.useT = 0;
+  }
+
+  /** World position of the mouth (for smoke puffs). */
+  mouthPosition(out = new THREE.Vector3()): THREE.Vector3 {
+    this.headBone.updateWorldMatrix(true, false);
+    return this.headBone.localToWorld(out.set(0, 0.25, 0.45));
+  }
+
   playEmote(e: Emote): void {
     this.emote = e;
     this.emoteT = 0;
@@ -609,6 +628,7 @@ export class Character {
 
     this.applyPose(moving);
     this.applyEmote(dt, moving);
+    this.applyUse(dt);
     this.applyRig();
   }
 
@@ -696,6 +716,16 @@ export class Character {
       }
       return;
     }
+    if (this.pose === 'fish') {
+      // both hands on the rod, leaning on the railing
+      this.chest.rotation.x = -0.12;
+      this.armL.upper.rotation.set(0.75, 0, 0.25);
+      this.armR.upper.rotation.set(0.85, 0, -0.1);
+      this.armL.lower.rotation.set(0.6, 0, 0.3);
+      this.armR.lower.rotation.set(0.5, 0, 0);
+      this.neck.rotation.x = -0.15 + Math.sin(t * 0.5) * 0.03;
+      return;
+    }
     if (this.pose === 'counting') {
       // face in the crook of the arm against the wall
       this.chest.rotation.x = -0.3;
@@ -717,6 +747,35 @@ export class Character {
       this.armL.lower.rotation.set(0, 0, 0);
       this.armR.lower.rotation.set(0, 0, 0);
     }
+  }
+
+  private applyUse(dt: number): void {
+    if (this.holding && !this.useKind && this.pose !== 'fish') {
+      // carry it in front, elbow bent
+      this.armR.lower.rotation.x = Math.max(this.armR.lower.rotation.x, 0.9);
+    }
+    if (!this.useKind) return;
+    this.useT += dt;
+    const dur = this.useKind === 'read' ? 3.2 : 2.4;
+    if (this.useT > dur) {
+      this.useKind = null;
+      return;
+    }
+    const w = Math.sin(Math.min(1, this.useT / dur) * Math.PI);
+    const k = Math.min(1, w * 1.6);
+    if (this.useKind === 'read') {
+      this.armL.upper.rotation.set(1.05 * k, 0, -0.35 * k);
+      this.armR.upper.rotation.set(1.05 * k, 0, 0.35 * k);
+      this.armL.lower.rotation.set(0.9 * k, 0, 0.5 * k);
+      this.armR.lower.rotation.set(0.9 * k, 0, -0.5 * k);
+      return;
+    }
+    // hand to mouth
+    const r = this.armR.upper.rotation;
+    r.set(r.x + (0.75 - r.x) * k, 0, r.z + (-0.32 - r.z) * k);
+    const l = this.armR.lower.rotation;
+    l.set(l.x + (2.15 - l.x) * k, 0, l.z * (1 - k));
+    if (this.useKind === 'drink') this.neck.rotation.x -= 0.2 * k;
   }
 
   private applyEmote(dt: number, moving: boolean): void {

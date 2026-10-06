@@ -48,7 +48,7 @@ export function Social({ room, input, phrases = QUICK_CHAT }: { room: Room; inpu
                 setOpen(false);
               }}
             >
-              <span className="key">{i === 5 ? 0 : i + 5}</span> {q}
+              {i < 6 && <span className="key">{i === 5 ? 0 : i + 5}</span>} {q}
             </button>
           ))}
         </div>

@@ -8,9 +8,15 @@ import {
   MENU,
   MSG,
   QUICK_CHAT_OKEY,
+  SHOPS,
+  SHOP_ITEMS,
+  SHOP_REACH,
   SIT_REACH,
+  SIT_SPOTS,
+  SPOT_REACH,
   TABLES,
   seatPosition,
+  type UsedMsg,
   type ChatMsg,
   type EmoteMsg,
   type InputMsg,
@@ -65,6 +71,9 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [orderTo, setOrderTo] = useState<string>('me');
   const [nearTable, setNearTable] = useState<number>(-1);
+  /** the closest thing to interact with: a table, a shop or a seat (bench / stool) */
+  const [nearThing, setNearThing] = useState<{ kind: 'table' | 'shop' | 'spot'; i: number } | null>(null);
+  const [shopOpen, setShopOpen] = useState<number>(-1);
   /** recently served drinks per player (shown as badges at the table) */
   const [drinks, setDrinks] = useState<Record<string, { emoji: string; t: number }[]>>({});
   const [suspicion, setSuspicion] = useState<{ seat: number; until: number } | null>(null);
@@ -121,6 +130,10 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       }),
       room.onMessage(KMSG.okeyEvent, (m: OkeyEventMsg) => onOkeyEvent(m)),
       room.onMessage(KMSG.served, (s: ServedMsg) => onServed(s)),
+      room.onMessage(KMSG.used, (u: UsedMsg) => {
+        const item = SHOP_ITEMS.find((i) => i.id === u.item);
+        if (item) game.useItem(u.id === me ? null : u.id, item.use);
+      }),
       room.onMessage(MSG.emote, (e: EmoteMsg) => (e.id === me ? game.playLocalEmote(e.e) : game.remoteEmote(e.id, e.e))),
       room.onMessage(MSG.chat, (c: ChatMsg) => {
         const text = QUICK_CHAT_OKEY[c.q];
@@ -225,17 +238,23 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     for (const p of Object.values(view.players)) {
       if (p.id === me) continue;
       game.upsertRemote(p.id, p, p.name, p.isBot ? '#cfe3f7' : '#ffffff');
+      const spot = p.spot >= 0 ? SIT_SPOTS[p.spot] : undefined;
       if (p.isBot && p.table >= 0) {
         const sp = seatPosition(p.table, p.seat);
         game.setFixed(p.id, { x: sp.x, y: 0, z: sp.z, yaw: sp.yaw });
-      } else game.setFixed(p.id, null);
-      game.setPose(p.id, p.table >= 0 ? 'sit' : 'none');
+      } else if (spot) game.setFixed(p.id, { x: spot.x, y: spot.h - 0.48, z: spot.z, yaw: spot.yaw });
+      else game.setFixed(p.id, null);
+      game.setPose(p.id, p.table >= 0 || spot ? 'sit' : 'none');
+      game.setHeld(p.id, p.holding);
     }
     const mine = view.players[me];
     const seated = !!mine && mine.table >= 0;
-    game.frozen = seated;
+    const mySpot = mine && mine.spot >= 0 ? SIT_SPOTS[mine.spot] : undefined;
+    game.frozen = seated || !!mySpot;
+    game.localSeatY = mySpot ? mySpot.h - 0.48 : 0;
     game.setLabelsVisible(!seated);
-    game.setPose(null, seated ? 'sit' : 'none');
+    game.setPose(null, seated || mySpot ? 'sit' : 'none');
+    game.setHeld(null, mine?.holding ?? '');
     game.seat = seated ? { table: mine.table, seat: mine.seat } : null;
     // real tiles on every table
     view.tables.forEach((t) => {
@@ -244,30 +263,62 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     });
   }, [game, view, me]);
 
-  // nearest table for the "Otur" prompt
+  // the nearest interactable (table, shop, free seat) for the prompt and the E key
   useEffect(() => {
     if (!game) return;
     const iv = setInterval(() => {
+      const v = viewRef.current;
       const pos = game.localPosition();
-      if (!pos || (viewRef.current?.players[me]?.table ?? -1) >= 0) return setNearTable(-1);
-      let best = -1;
-      let bd = SIT_REACH;
-      TABLES.forEach((t, i) => {
-        const d = Math.hypot(pos.x - t.x, pos.z - t.z);
-        if (d < bd) [best, bd] = [i, d];
-      });
-      setNearTable(best);
+      const mine = v?.players[me];
+      if (!pos || !v || !mine || mine.table >= 0 || mine.spot >= 0) {
+        setNearTable(-1);
+        setNearThing(null);
+        return;
+      }
+      let best: { kind: 'table' | 'shop' | 'spot'; i: number } | null = null;
+      let bd = Infinity;
+      const consider = (kind: 'table' | 'shop' | 'spot', i: number, d: number, reach: number) => {
+        // scale by reach so a bench right next to you beats a table 3 m away
+        if (d <= reach && d / reach < bd) [best, bd] = [{ kind, i }, d / reach];
+      };
+      TABLES.forEach((t, i) => consider('table', i, Math.hypot(pos.x - t.x, pos.z - t.z), SIT_REACH));
+      SHOPS.forEach((sh, i) => consider('shop', i, Math.hypot(pos.x - sh.x, pos.z - sh.z), SHOP_REACH));
+      const taken = new Set(Object.values(v.players).map((p) => p.spot));
+      SIT_SPOTS.forEach((sp, i) => !taken.has(i) && consider('spot', i, Math.hypot(pos.x - sp.x, pos.z - sp.z), SPOT_REACH));
+      const b = best as { kind: 'table' | 'shop' | 'spot'; i: number } | null;
+      setNearThing(b);
+      setNearTable(b?.kind === 'table' ? b.i : -1);
+      if (b?.kind !== 'shop') setShopOpen(-1);
     }, 200);
     return () => clearInterval(iv);
   }, [game, me]);
 
-  // E = sit at the nearby table
+  // E = interact with the nearby thing, Q = use the item in hand, moving gets you off a bench
   useEffect(() => {
     if (!game) return;
-    return game.input.onPress((a) => {
-      if (a === 'spot' && nearTableRef.current >= 0) room.send(KMSG.sit, { table: nearTableRef.current });
+    const offPress = game.input.onPress((a) => {
+      const mine = viewRef.current?.players[me];
+      if (a === 'throw' && mine?.holding) room.send(KMSG.use);
+      if (a !== 'spot') return;
+      if (mine && mine.spot >= 0) return room.send(KMSG.stand);
+      const n = nearThingRef.current;
+      if (!n) return;
+      if (n.kind === 'table') room.send(KMSG.sit, { table: n.i });
+      else if (n.kind === 'spot') room.send(KMSG.sitSpot, { spot: n.i });
+      else setShopOpen((o) => (o === n.i ? -1 : n.i));
     });
-  }, [game, room]);
+    const iv = setInterval(() => {
+      const mine = viewRef.current?.players[me];
+      const mv = game.input.moveVector();
+      if (mine && mine.spot >= 0 && Math.hypot(mv.x, mv.y) > 0.3) room.send(KMSG.stand);
+    }, 150);
+    return () => {
+      offPress();
+      clearInterval(iv);
+    };
+  }, [game, room]); // eslint-disable-line react-hooks/exhaustive-deps
+  const nearThingRef = useRef(nearThing);
+  nearThingRef.current = nearThing;
   const nearTableRef = useRef(nearTable);
   nearTableRef.current = nearTable;
 
@@ -323,6 +374,71 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
               Otur {!isTouch && <kbd>E</kbd>}
             </button>
           )}
+        </div>
+      )}
+      {nearThing?.kind === 'spot' && !myTable && (
+        <div className="sit-prompt">
+          <b>{SIT_SPOTS[nearThing.i]!.h < 0.4 ? 'Tabure' : 'Bank'}</b>
+          <button className="btn primary" onClick={() => room.send(KMSG.sitSpot, { spot: nearThing.i })}>
+            Otur {!isTouch && <kbd>E</kbd>}
+          </button>
+        </div>
+      )}
+      {nearThing?.kind === 'shop' && shopOpen < 0 && (
+        <div className="sit-prompt">
+          <b>{SHOPS[nearThing.i]!.id === 'market' ? '🛒 Market' : '🥯 Simitçi'}</b>
+          <button className="btn primary" onClick={() => setShopOpen(nearThing.i)}>
+            Alışveriş {!isTouch && <kbd>E</kbd>}
+          </button>
+        </div>
+      )}
+      {myP && myP.spot >= 0 && (
+        <div className="sit-prompt">
+          <span>Oturuyorsun · manzaranın tadını çıkar</span>
+          <button className="btn" onClick={() => room.send(KMSG.stand)}>
+            Kalk {!isTouch && <kbd>E</kbd>}
+          </button>
+        </div>
+      )}
+      {myP && myP.holding && !myTable && (
+        <div className="held">
+          <span className="held-emoji">{SHOP_ITEMS.find((i) => i.id === myP.holding)?.emoji}</span>
+          <span>
+            {SHOP_ITEMS.find((i) => i.id === myP.holding)?.name} <small>({myP.uses})</small>
+          </span>
+          <button className="btn small primary" onClick={() => room.send(KMSG.use)}>
+            {{ smoke: 'Yak', eat: 'Ye', drink: 'İç', read: 'Oku' }[SHOP_ITEMS.find((i) => i.id === myP.holding)?.use ?? 'eat']} {!isTouch && <kbd>Q</kbd>}
+          </button>
+          <button className="btn small" onClick={() => room.send(KMSG.drop)}>
+            Bırak
+          </button>
+        </div>
+      )}
+      {shopOpen >= 0 && myP && (
+        <div className="panel shop-panel">
+          <div className="panel-head">
+            <h2>{SHOPS[shopOpen]!.id === 'market' ? '🛒 Bakkal Hasan' : '🥯 Simitçi Cemal'}</h2>
+            <button className="btn small" onClick={() => setShopOpen(-1)}>
+              Kapat
+            </button>
+          </div>
+          <p className="hint">{SHOPS[shopOpen]!.id === 'market' ? 'Hoş geldin! Ne lazım?' : 'Taze simit, sıcak çay!'} · Cebinde {money(myP.money)}</p>
+          <div className="menu-items">
+            {SHOPS[shopOpen]!.items.map((id) => {
+              const it = SHOP_ITEMS.find((x) => x.id === id)!;
+              return (
+                <button key={id} className="menu-item" disabled={myP.money < it.price} onClick={() => room.send(KMSG.buy, { shop: SHOPS[shopOpen]!.id, item: id })}>
+                  <span className="emoji">{it.emoji}</span>
+                  <span>
+                    {it.name}
+                    {it.note && <small className="warn-note">{it.note}</small>}
+                  </span>
+                  <b>{it.price} ₺</b>
+                </button>
+              );
+            })}
+          </div>
+          <p className="hint">Aldığın şey elinde durur; Q ile kullanırsın. Yeni bir şey alırsan eskisi bırakılır.</p>
         </div>
       )}
 

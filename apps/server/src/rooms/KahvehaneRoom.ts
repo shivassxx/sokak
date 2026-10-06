@@ -18,8 +18,13 @@ import {
   QUICK_CHAT_OKEY,
   RECONNECT_SECONDS,
   SIM_DT,
+  SHOPS,
+  SHOP_ITEMS,
+  SHOP_REACH,
   SIT_REACH,
+  SIT_SPOTS,
   SKINS,
+  SPOT_REACH,
   START_MONEY,
   STEAL_FINE,
   TABLES,
@@ -48,6 +53,7 @@ import {
   type ServedMsg,
   type SnapshotMsg,
   type TeleportMsg,
+  type UsedMsg,
 } from '@sokak/shared';
 import { OkeyGame, botAction, type OkeyEvent, type Result } from '@sokak/okey';
 import { KPlayer, KTable, KahveState } from './kahveSchema';
@@ -65,6 +71,8 @@ interface Avatar {
   lastEmoteAt: number;
   lastOrderAt: number;
   lastCreditAt: number;
+  lastShopAt: number;
+  lastUseAt: number;
 }
 
 interface TableRuntime {
@@ -123,6 +131,13 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.onMessage(KMSG.okey, (c, a: OkeyAction) => this.okeyAction(c.sessionId, a));
     this.onMessage(KMSG.order, (c, m: OrderMsg) => this.order(c.sessionId, m));
     this.onMessage(KMSG.credit, (c) => this.credit(c.sessionId));
+    this.onMessage(KMSG.buy, (c, m: { shop?: unknown; item?: unknown }) => this.buy(c.sessionId, m));
+    this.onMessage(KMSG.use, (c) => this.useItem(c.sessionId));
+    this.onMessage(KMSG.drop, (c) => {
+      const p = this.state.players.get(c.sessionId);
+      if (p) (p.holding = ''), (p.uses = 0);
+    });
+    this.onMessage(KMSG.sitSpot, (c, m: { spot?: unknown }) => this.sitSpot(c.sessionId, m?.spot));
     this.onMessage(MSG.emote, (c, e: unknown) => {
       const a = this.avatars.get(c.sessionId);
       if (!a || typeof e !== 'string' || !(EMOTES as readonly string[]).includes(e)) return;
@@ -157,7 +172,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     const n = this.avatars.size;
     this.avatars.set(p.id, {
       id: p.id,
-      body: createBody(KAHVE_SPAWN.x + ((n % 5) - 2) * 0.9, KAHVE_SPAWN.z - Math.floor(n / 5) * 0.9),
+      // spread new arrivals inside the hall, in line with the door
+      body: createBody(KAHVE_SPAWN.x + ((n % 3) - 1) * 0.7, KAHVE_SPAWN.z - (Math.floor(n / 3) % 4) * 0.8),
       yaw: 0,
       queue: [],
       queueSeq: [],
@@ -167,6 +183,8 @@ export class KahvehaneRoom extends Room<KahveState> {
       lastEmoteAt: 0,
       lastOrderAt: 0,
       lastCreditAt: -1e12,
+      lastShopAt: 0,
+      lastUseAt: 0,
     });
   }
 
@@ -267,6 +285,7 @@ export class KahvehaneRoom extends Room<KahveState> {
   /** Leave the table; during a match a bot takes over the seat (the bet is lost). */
   private stand(id: string, leaving = false): void {
     const p = this.state.players.get(id);
+    if (p && p.spot >= 0) return this.leaveSpot(id);
     if (!p || p.table < 0) return;
     const ti = p.table;
     const t = this.state.tables[ti]!;
@@ -299,7 +318,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const p = new KPlayer();
     p.id = `kbot_${++this.botCounter}`;
     p.isBot = true;
-    p.name = `🤖 ${randomNickname()}`.slice(0, 16);
+    p.name = `🤖 ${randomNickname()}`;
     p.color = OUTFIT_COLORS[(this.botCounter * 3) % OUTFIT_COLORS.length]!;
     p.hat = this.botCounter % HATS.length;
     p.hair = (this.botCounter * 2) % HAIRS.length;
@@ -583,6 +602,68 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.broadcast(KMSG.served, msg);
   }
 
+  // ------------------------------------------------------------ market, simitçi, benches
+  private buy(id: string, m: { shop?: unknown; item?: unknown }): void {
+    const p = this.state.players.get(id);
+    const a = this.avatars.get(id);
+    const shop = SHOPS.find((s) => s.id === m?.shop);
+    const item = SHOP_ITEMS.find((i) => i.id === m?.item);
+    if (!p || !a || !shop || !item || !shop.items.includes(item.id)) return;
+    const now = Date.now();
+    if (now - a.lastShopAt < 600) return;
+    a.lastShopAt = now;
+    if (Math.hypot(a.body.x - shop.x, a.body.z - shop.z) > SHOP_REACH + 0.6) return this.error(id, `${shop.name}'e biraz daha yaklaş.`);
+    if (p.money < item.price) return this.error(id, 'Paran yetmiyor.');
+    p.money -= item.price;
+    p.holding = item.id;
+    p.uses = item.uses;
+  }
+
+  private useItem(id: string): void {
+    const p = this.state.players.get(id);
+    const a = this.avatars.get(id);
+    if (!p || !a || !p.holding || p.uses <= 0) return;
+    const now = Date.now();
+    if (now - a.lastUseAt < 1500) return;
+    a.lastUseAt = now;
+    const item = p.holding;
+    p.uses--;
+    if (p.uses <= 0) p.holding = '';
+    this.broadcast(KMSG.used, { id, item } satisfies UsedMsg);
+  }
+
+  private sitSpot(id: string, raw: unknown): void {
+    const p = this.state.players.get(id);
+    const a = this.avatars.get(id);
+    const i = Number(raw);
+    const s = SIT_SPOTS[i];
+    if (!p || !a || !s || p.table >= 0 || p.spot >= 0) return;
+    if (Math.hypot(a.body.x - s.x, a.body.z - s.z) > SPOT_REACH + 0.6) return this.error(id, 'Biraz daha yaklaş.');
+    if ([...this.state.players.values()].some((o) => o.spot === i)) return this.error(id, 'Orası dolu.');
+    p.spot = i;
+    a.body = createBody(s.x, s.z);
+    a.yaw = s.yaw;
+    a.queue = [];
+    a.queueSeq = [];
+    a.client?.send(MSG.teleport, { x: s.x, y: 0, z: s.z, yaw: s.yaw } satisfies TeleportMsg);
+  }
+
+  private leaveSpot(id: string): void {
+    const p = this.state.players.get(id);
+    const a = this.avatars.get(id);
+    if (!p || p.spot < 0) return;
+    const s = SIT_SPOTS[p.spot]!;
+    p.spot = -1;
+    if (!a) return;
+    // step forward off the seat (seated people face away from the seat)
+    const x = s.x - Math.sin(s.yaw) * 0.8;
+    const z = s.z - Math.cos(s.yaw) * 0.8;
+    a.body = createBody(x, z);
+    a.queue = [];
+    a.queueSeq = [];
+    a.client?.send(MSG.teleport, { x, y: 0, z, yaw: s.yaw } satisfies TeleportMsg);
+  }
+
   private credit(id: string): void {
     const p = this.state.players.get(id);
     const a = this.avatars.get(id);
@@ -602,7 +683,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       for (let k = 0; k < 3 && a.queue.length; k++) {
         const input = a.queue.shift()!;
         a.lastSeq = a.queueSeq.shift()!;
-        if (p && p.table < 0) stepBody(a.body, input, SIM_DT, KAHVE_WORLD);
+        if (p && p.table < 0 && p.spot < 0) stepBody(a.body, input, SIM_DT, KAHVE_WORLD);
       }
     }
     for (let ti = 0; ti < TABLE_COUNT; ti++) this.tickTable(ti, now);
@@ -679,7 +760,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const all: PlayerSnap[] = [];
     for (const a of this.avatars.values()) {
       const p = this.state.players.get(a.id);
-      all.push([a.id, r2(a.body.x), r2(a.body.y), r2(a.body.z), r2(a.yaw), p && p.table >= 0 ? 4 : 0]);
+      all.push([a.id, r2(a.body.x), r2(a.body.y), r2(a.body.z), r2(a.yaw), p && (p.table >= 0 || p.spot >= 0) ? 4 : 0]);
     }
     for (const a of this.avatars.values()) {
       if (!a.client) continue;

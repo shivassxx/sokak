@@ -151,6 +151,74 @@ export function okeyTable(b: Builder, x: number, z: number): void {
   b.pat = pat;
 }
 
+export const STEEL = 0x232528;
+export const LIGHT_OAK = 0xb98a5e;
+
+/** Modern café chair: black steel frame, oak seat and curved back; sitter faces -z. */
+export function modernChair(b: Builder, x: number, z: number, yaw: number): void {
+  const f = new Frame(x, 0, z, yaw);
+  const pat = b.pat;
+  b.pat = PAT.none;
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1]) b.addMatrix(new THREE.CylinderGeometry(0.012, 0.012, 0.45, 6), STEEL, f.m(sx * 0.18, 0.225, sz * 0.18, sz * 0.05, 0, -sx * 0.05));
+  b.addMatrix(new THREE.BoxGeometry(0.4, 0.02, 0.02), STEEL, f.m(0, 0.2, 0.18));
+  b.addMatrix(new THREE.BoxGeometry(0.4, 0.02, 0.02), STEEL, f.m(0, 0.2, -0.18));
+  for (const sx of [-1, 1]) b.addMatrix(new THREE.CylinderGeometry(0.011, 0.011, 0.42, 6), STEEL, f.m(sx * 0.17, 0.68, 0.2, -0.14, 0, 0));
+  b.pat = PAT.wood;
+  b.addMatrix(roundedSlab(0.42, 0.42, 0.035, 0.06), LIGHT_OAK, f.m(0, 0.45, 0));
+  // curved back rest: a bent plank
+  const back = new THREE.CylinderGeometry(0.42, 0.42, 0.16, 16, 1, true, -0.5, 1.0);
+  b.addMatrix(back, LIGHT_OAK, f.m(0, 0.84, -0.18, -0.14, 0, 0));
+  b.pat = pat;
+}
+
+/** Modern okey table: oak top with felt inset, black steel legs, four ıstakas. */
+export function modernOkeyTable(b: Builder, x: number, z: number): void {
+  const f = new Frame(x, 0, z, 0);
+  const pat = b.pat;
+  b.pat = PAT.wood;
+  b.addMatrix(roundedSlab(TABLE_HALF * 2, TABLE_HALF * 2, 0.04, 0.03), LIGHT_OAK, f.m(0, TABLE_TOP - 0.04, 0));
+  b.pat = PAT.none;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.addMatrix(new THREE.BoxGeometry(0.045, TABLE_TOP - 0.04, 0.045), STEEL, f.m(sx * 0.47, (TABLE_TOP - 0.04) / 2, sz * 0.47));
+  for (const s of [-1, 1]) {
+    b.addMatrix(new THREE.BoxGeometry(0.94, 0.05, 0.025), STEEL, f.m(0, TABLE_TOP - 0.07, s * 0.47));
+    b.addMatrix(new THREE.BoxGeometry(0.025, 0.05, 0.94), STEEL, f.m(s * 0.47, TABLE_TOP - 0.07, 0));
+  }
+  b.pat = PAT.wood;
+  for (let s = 0; s < 4; s++) {
+    const yaw = (s * Math.PI) / 2;
+    const rf = new Frame(x + Math.sin(yaw) * RACK_DIST, TABLE_TOP + 0.002, z + Math.cos(yaw) * RACK_DIST, yaw);
+    b.addMatrix(rackGeometry(), RACK_WOOD, rf.m(0, 0, 0));
+    for (const e of [-1, 1]) b.addMatrix(new THREE.BoxGeometry(0.012, 0.08, 0.126), 0x9a6436, rf.m((e * RACK_LEN) / 2, 0.04, 0));
+  }
+  b.pat = pat;
+}
+
+/** Square café parasol (cream canvas) on a dark pole. */
+export function parasol(b: Builder, x: number, z: number, color = 0xefe6d2): void {
+  const pat = b.pat;
+  b.pat = PAT.none;
+  b.cyl(x, 0, z, 0.03, 2.5, STEEL, 6);
+  b.cyl(x, 0, z, 0.3, 0.06, STEEL, 12);
+  b.pat = PAT.fabric;
+  const roof = new THREE.ConeGeometry(1.7, 0.55, 4, 1, true);
+  roof.rotateY(Math.PI / 4);
+  b.add(roof, color, x, 2.55, z);
+  b.add(new THREE.BoxGeometry(2.4, 0.12, 0.02), color, x, 2.24, z + 1.2);
+  b.add(new THREE.BoxGeometry(2.4, 0.12, 0.02), color, x, 2.24, z - 1.2);
+  b.add(new THREE.BoxGeometry(0.02, 0.12, 2.4), color, x + 1.2, 2.24, z);
+  b.add(new THREE.BoxGeometry(0.02, 0.12, 2.4), color, x - 1.2, 2.24, z);
+  b.pat = pat;
+}
+
+/** Patio heater: pole with a reflector hat (the burner glows). */
+export function patioHeater(b: Builder, x: number, z: number): void {
+  b.cyl(x, 0, z, 0.22, 0.08, 0x5a5d61, 14);
+  b.cyl(x, 0.08, z, 0.04, 1.9, 0x8d9196, 8);
+  b.add(new THREE.ConeGeometry(0.42, 0.18, 16, 1, true), 0x8d9196, x, 2.1, z);
+  b.cyl(x, 1.86, z, 0.07, 0.14, 0xff8a3d, 10, 0.07, 'glow');
+}
+
 /** Felt texture: green baize, darker border, a faint house emblem. */
 export function feltTexture(): THREE.CanvasTexture {
   return canvasTex(512, 512, (ctx) => {

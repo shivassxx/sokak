@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { matchMaker } from '@colyseus/core';
 import { NetBot } from '@sokak/bots/client';
-import { KAHVE_ROOM, KMSG, MENU, START_MONEY, TABLES, type TableView } from '@sokak/shared';
+import { KAHVE_ROOM, KMSG, MENU, SHOPS, SHOP_ITEMS, SIT_SPOTS, START_MONEY, TABLES, TABLE_COUNT, type TableView } from '@sokak/shared';
 import { startServer, type StartedServer } from '../src/app';
 import { until, sleep } from './helpers';
 import type { KahvehaneRoom } from '../src/rooms/KahvehaneRoom';
@@ -39,7 +39,8 @@ describe('kahvehane', () => {
     expect(b.room.roomId).toBe(a.room.roomId);
     await until(() => st(a).players?.size === 2);
     expect(me(a).money).toBe(START_MONEY);
-    expect(st(a).tables.length).toBe(6);
+    expect(st(a).tables.length).toBe(TABLE_COUNT);
+    expect(TABLE_COUNT).toBeGreaterThanOrEqual(20);
     await a.leave();
     await b.leave();
   });
@@ -137,5 +138,37 @@ describe('kahvehane', () => {
     expect(st(a).players.get(seat1).isBot).toBe(true);
     await a.leave();
     await b.leave();
+  });
+
+  it('market: buy a pack at the counter, use it up; benches: sit and stand', async () => {
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Alici' });
+    await until(() => !!st(a).players?.get(a.id));
+    const room = matchMaker.getLocalRoomById(a.room.roomId) as KahvehaneRoom;
+    const market = SHOPS.find((s) => s.id === 'market')!;
+    // too far away
+    a.room.send(KMSG.buy, { shop: 'market', item: 'sigara' });
+    await until(() => a.messages.some((m) => m.type === KMSG.okeyError));
+    expect(me(a).holding).toBe('');
+    room.debugPlace(a.id, market.x, market.z);
+    await sleep(700);
+    a.room.send(KMSG.buy, { shop: 'market', item: 'sigara' });
+    const pack = SHOP_ITEMS.find((i) => i.id === 'sigara')!;
+    await until(() => me(a).holding === 'sigara');
+    expect(me(a).money).toBe(START_MONEY - pack.price);
+    expect(me(a).uses).toBe(pack.uses);
+    // the simitçi does not sell cigarettes
+    a.room.send(KMSG.buy, { shop: 'simitci', item: 'sigara' });
+    a.room.send(KMSG.use);
+    await until(() => a.messages.some((m) => m.type === KMSG.used));
+    expect(me(a).uses).toBe(pack.uses - 1);
+    // bench
+    const spot = SIT_SPOTS[0]!;
+    room.debugPlace(a.id, spot.x, spot.z + 1);
+    await sleep(80);
+    a.room.send(KMSG.sitSpot, { spot: 0 });
+    await until(() => me(a).spot === 0);
+    a.room.send(KMSG.stand);
+    await until(() => me(a).spot === -1);
+    await a.leave();
   });
 });

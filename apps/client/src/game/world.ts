@@ -24,6 +24,8 @@ export interface World {
   setDusk(d: number): void;
   /** animate ambient life; `movers` are characters that can scare pigeons */
   update(dt: number, movers: Mover[]): void;
+  /** keep shadows near the camera focus (optional) */
+  follow?(x: number, z: number): void;
 }
 
 export type Bucket = 'main' | 'glow' | 'ground' | 'foliage' | 'cars';

@@ -12,6 +12,11 @@ export class KPlayer extends Schema {
   @type('int32') money = 0;
   @type('int8') table = -1;
   @type('int8') seat = -1;
+  /** item in hand (market / simitçi), '' = nothing */
+  @type('string') holding = '';
+  @type('uint8') uses = 0;
+  /** index into SIT_SPOTS while sitting on a bench / stool, −1 otherwise */
+  @type('int8') spot = -1;
 }
 
 export class KTable extends Schema {
