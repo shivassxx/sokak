@@ -257,6 +257,7 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - Çaycı markete veya sahile çay götürürken duvarların içinden geçiyordu. Artık engellerin etrafından dolaşan bir yol buluyor.
 - Telefonda yatay ekranda üst çubuk taşıyordu. Masadayken üstteki düğmeler ipucu satırının altında kalıyordu. "Otur" ve "Alışveriş" yazıları elindeki eşyanın çubuğuyla üst üste biniyordu. Üçü de düzeltildi.
 - Bankta veya duvarda otururken karakter havaya kalkabiliyordu. Bu da düzeltildi.
+- **Sunucu kurulum dosyası (Docker) okey paketini kurmuyordu.** Düzeltildi. Cüzdan dosyası artık kalıcı `data` klasörüne yazılıyor. İmaj gerçekten derlendi; kapsayıcının içinde bir salona girildi, liderlik tablosu ve cüzdan kaydı çalıştı.
 
 **Modern kıraathane**
 - Beton karo zemin, tuğla duvar, meşe ve siyah çelik mobilya, sarkıt lambalar var. Çay ocağı ve tavla köşesi korundu.
