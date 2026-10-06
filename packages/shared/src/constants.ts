@@ -9,3 +9,7 @@ export const TICK_MS = 1000 / TICK_RATE;
 export const MIN_PLAYERS = 3;
 export const MAX_PLAYERS = 10;
 export const RECONNECT_SECONDS = 20;
+
+export const COUNTING_SECONDS = 30;
+export const SEEKING_SECONDS = 180;
+export const SOBE_CALL = 'Önüm arkam sağım solum sobe, saklanmayan ebe!';

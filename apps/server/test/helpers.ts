@@ -1,7 +1,8 @@
+import type { RulesConfig } from '@sokak/rules';
 import { startServer, type StartedServer } from '../src/app';
 
-export async function withServer(): Promise<{ server: StartedServer; endpoint: string }> {
-  const server = await startServer(0, { host: '127.0.0.1' });
+export async function withServer(rules: Partial<RulesConfig> = {}): Promise<{ server: StartedServer; endpoint: string }> {
+  const server = await startServer(0, { host: '127.0.0.1', rules });
   return { server, endpoint: `ws://127.0.0.1:${server.port}` };
 }
 

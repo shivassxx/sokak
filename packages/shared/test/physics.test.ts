@@ -81,3 +81,13 @@ describe('physics', () => {
     }
   });
 });
+
+describe('spawn ring', () => {
+  it('spawn points are outside the base zone', async () => {
+    const { BASE, BASE_RADIUS } = await import('../src/map');
+    for (let i = 0; i < 10; i++) {
+      const s = spawnPoint(i);
+      expect(Math.hypot(s.x - BASE.x, s.z - BASE.z)).toBeGreaterThan(BASE_RADIUS + 0.3);
+    }
+  });
+});

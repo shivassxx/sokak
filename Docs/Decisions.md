@@ -24,3 +24,13 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 - **Reconnect:** non-consented leave keeps the slot for 20 s (`allowReconnection`). The client stores `{roomId, reconnectionToken}` in `sessionStorage`, retries automatically on drops and on page reload.
 - **Nickname + color** are kept in `sessionStorage` only (no accounts, no persistent personal data). Duplicate names get a number suffix.
 - **Vitest runs with `pool: 'threads'`:** Colyseus probes `process.send` (pm2) which breaks Vitest's forks pool.
+
+## M3
+- **Phase timings:** Ebe selection 3 s (shows who is Ebe), counting 30 s, seeking 3 min, round-end break 10 s. `SOKAK_TIMERS=fast` (6 s / 45 s / 8 s) exists only for local testing; timings cannot be set by clients.
+- **Catch rule:** when the Ebe is inside the base circle every currently spotted hider is sobelendi. Base touches are evaluated every tick, hiders before the Ebe, so a same-tick tie goes to the hider.
+- **Herkesi kurtarma** triggers when the last hider still in play (hiding or spotted) reaches the base while at least one player is caught. Everyone caught becomes safe, the saver gets a bonus, and the same Ebe counts next round.
+- **Next Ebe:** first caught player of the round; the same Ebe if nobody was caught or after "herkes kurtuldu"; random if the Ebe left or the chosen player left during the break.
+- **Scoring:** reach base +3, survive until timeout +2, save everyone +5, Ebe +2 per sobe. Per room only.
+- **Summary:** "best hiding spot" = hider unseen the longest, labeled with the named zone where they spent most of their hidden time; "longest survivor" = hider not caught for the longest time.
+- **Mid-round joiners** are spectators until the next round (they can walk around but, from M4 on, are invisible to everyone else).
+- **Too few players** (< 3 incl. bots) at the end of a break → back to the lobby.

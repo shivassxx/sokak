@@ -1,9 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Room } from 'colyseus.js';
-import { MSG, type EmoteMsg, type InputMsg, type SnapshotMsg, type TeleportMsg } from '@sokak/shared';
+import {
+  COUNTING_SECONDS,
+  MSG,
+  SOBE_CALL,
+  type EmoteMsg,
+  type EventMsg,
+  type InputMsg,
+  type SnapshotMsg,
+  type SummaryMsg,
+  type TeleportMsg,
+} from '@sokak/shared';
 import type { Game } from '../game/Game';
 import { useRoomView } from '../net/useRoom';
 import { Lobby } from './Lobby';
+import { Hud, Scoreboard, SummaryPanel, eventText, nameOf, useBanner, useToasts } from './Hud';
 import { TouchControls, isTouch } from './TouchControls';
 
 interface Props {
@@ -18,6 +29,50 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
   const view = useRoomView(room);
   const viewRef = useRef(view);
   viewRef.current = view;
+  const [toasts, pushToast] = useToasts();
+  const [banner, showBanner] = useBanner();
+  const [summary, setSummary] = useState<SummaryMsg | null>(null);
+  const [showScores, setShowScores] = useState(false);
+  const me = room.sessionId;
+
+  // Ebe cannot move or look around while counting
+  const frozen = !!view && view.ebeId === me && (view.phase === 'ebeSelection' || view.phase === 'counting');
+  useEffect(() => {
+    if (game) game.frozen = frozen;
+  }, [game, frozen]);
+
+  // rule events → toasts / banners
+  useEffect(() => {
+    const offEv = room.onMessage(MSG.event, (e: EventMsg) => {
+      const v = viewRef.current;
+      if (e.type === 'countingDone') showBanner(SOBE_CALL, 4000);
+      else if (e.type === 'herkesKurtuldu') showBanner(e.by === me ? 'HERKES KURTULDU! Hepsi senin sayende!' : `HERKES KURTULDU! (${nameOf(v, e.by)} sayesinde)`, 4500);
+      else if (e.type === 'phase' && e.phase === 'ebeSelection') setSummary(null);
+      const t = eventText(v, e, me);
+      if (t) pushToast(t);
+    });
+    const offSum = room.onMessage(MSG.summary, (s: SummaryMsg) => setSummary(s));
+    return () => {
+      offEv();
+      offSum();
+    };
+  }, [room]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tab = hold to show scoreboard
+  useEffect(() => {
+    if (!game) return;
+    const off = game.input.onPress((a) => {
+      if (a === 'scoreboard') setShowScores(true);
+    });
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'Tab') setShowScores(false);
+    };
+    window.addEventListener('keyup', up);
+    return () => {
+      off();
+      window.removeEventListener('keyup', up);
+    };
+  }, [game]);
 
   // create the 3D scene once
   useEffect(() => {
@@ -86,8 +141,16 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
           ← Çık
         </button>
         {reconnecting && <span className="pill warn">Bağlantı koptu, yeniden bağlanılıyor…</span>}
+        {view && view.phase !== 'lobby' && (
+          <button className="btn small" onPointerDown={() => setShowScores((v) => !v)}>
+            Skor
+          </button>
+        )}
       </div>
       {view && view.phase === 'lobby' && <Lobby room={room} view={view} />}
+      {view && view.phase !== 'lobby' && <Hud view={view} me={me} toasts={toasts} banner={banner} countingTotal={COUNTING_SECONDS} />}
+      {view && view.phase === 'roundEnd' && summary && <SummaryPanel view={view} summary={summary} me={me} />}
+      {view && showScores && view.phase !== 'roundEnd' && <Scoreboard view={view} me={me} onClose={() => setShowScores(false)} />}
       {game && isTouch && <TouchControls input={game.input} showSpot={false} spotReady={false} />}
     </div>
   );

@@ -110,3 +110,30 @@ export interface RoomView {
   hostId: string;
   players: Record<string, PlayerView>;
 }
+
+/** Round summary as broadcast by the server (mirrors rules RoundSummary). */
+export interface SummaryMsg {
+  round: number;
+  reason: 'allDone' | 'timeout' | 'ebeLeft';
+  ebeId: string;
+  firstCaughtId: string | null;
+  bestHiderId: string | null;
+  bestHiderMs: number;
+  bestHiderSpot: string | null;
+  longestSurvivorId: string | null;
+  longestSurvivorMs: number;
+  caught: string[];
+  safe: string[];
+  herkesKurtuldu: boolean;
+  nextEbeId: string | null;
+}
+
+/** Rule events as broadcast by the server (mirrors rules GameEvent, minus roundEnd). */
+export type EventMsg =
+  | { type: 'phase'; phase: Phase }
+  | { type: 'ebeChosen'; id: string; reason: 'random' | 'firstCaught' | 'sameEbe' }
+  | { type: 'countingDone' }
+  | { type: 'spotted'; id: string }
+  | { type: 'caught'; id: string }
+  | { type: 'safe'; id: string; how: 'base' | 'timeout' }
+  | { type: 'herkesKurtuldu'; by: string; freed: string[] };

@@ -152,8 +152,8 @@ lamp(-7, -7);
 lamp(7, 7);
 lamp(-7, 7);
 lamp(7, -7);
-box('bench', -5, 9, 2, 0.6, 0.5);
-box('bench', 5, 9, 2, 0.6, 0.5);
+box('bench', -5, 11.5, 2, 0.6, 0.5);
+box('bench', 5, 11.5, 2, 0.6, 0.5);
 tree(-11, 11, true);
 tree(11, -11, true);
 
@@ -310,6 +310,7 @@ export const COLLIDERS: readonly Aabb[] = objects.map((o) => ({
 /** Named areas for the round summary ("best hiding spot"). First match wins. */
 export const ZONES: readonly Zone[] = [
   { name: 'Ebe Duvarı', minX: -5, maxX: 5, minZ: -5, maxZ: 5 },
+  { name: 'Meydan', minX: -10, maxX: 10, minZ: -9, maxZ: 13 },
   { name: 'Merdiven altı', minX: -31, maxX: -27.5, minZ: -44, maxZ: -35 },
   { name: 'A Apartmanı balkonu', minX: -30, maxX: -26, minZ: -50, maxZ: -43 },
   { name: 'A Apartmanı girişi', minX: -46, maxX: -41, minZ: -43, maxZ: -38 },
@@ -329,7 +330,6 @@ export const ZONES: readonly Zone[] = [
   { name: 'C Apartmanı girişi', minX: 41, maxX: 45, minZ: 52, maxZ: 57 },
   { name: 'Park edilmiş arabalar', minX: -60, maxX: 60, minZ: -13, maxZ: -9 },
   { name: 'Park edilmiş arabalar', minX: -60, maxX: 60, minZ: 8, maxZ: 13 },
-  { name: 'Meydan', minX: -12, maxX: 12, minZ: -12, maxZ: 12 },
 ];
 
 export function zoneAt(x: number, z: number): string {
@@ -369,5 +369,5 @@ export const HIDING_SPOTS: readonly Vec2[] = [
 
 export function spawnPoint(index: number): Vec2 {
   const a = (index / 10) * Math.PI * 2;
-  return { x: Math.sin(a) * 7, z: 3.5 + Math.cos(a) * 3 };
+  return { x: Math.sin(a) * 5.5, z: 6 + Math.cos(a) * 3 };
 }

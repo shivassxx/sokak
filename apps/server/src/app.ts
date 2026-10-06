@@ -5,6 +5,7 @@ import express from 'express';
 import { Server } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { ROOM_NAME } from '@sokak/shared';
+import type { RulesConfig } from '@sokak/rules';
 import { SaklambacRoom } from './rooms/SaklambacRoom';
 
 export interface StartedServer {
@@ -13,7 +14,7 @@ export interface StartedServer {
   close(): Promise<void>;
 }
 
-export async function startServer(port: number, opts: { staticDir?: string; host?: string } = {}): Promise<StartedServer> {
+export async function startServer(port: number, opts: { staticDir?: string; host?: string; rules?: Partial<RulesConfig> } = {}): Promise<StartedServer> {
   const app = express();
   app.disable('x-powered-by');
   app.get('/health', (_req, res) => {
@@ -28,7 +29,13 @@ export async function startServer(port: number, opts: { staticDir?: string; host
     transport: new WebSocketTransport({ server: httpServer, pingInterval: 5000, pingMaxRetries: 3 }),
     greet: false,
   });
-  gameServer.define(ROOM_NAME, SaklambacRoom);
+  const rules = opts.rules ?? {};
+  gameServer.define(
+    ROOM_NAME,
+    class extends SaklambacRoom {
+      static override rulesConfig = rules;
+    },
+  );
   await gameServer.listen(port, opts.host ?? '0.0.0.0');
   const addr = httpServer.address();
   const actualPort = typeof addr === 'object' && addr ? addr.port : port;
