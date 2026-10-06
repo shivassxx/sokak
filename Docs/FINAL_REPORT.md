@@ -275,6 +275,7 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - Kıraathanenin yanında **Bakkal Hasan** var. Sigara, su, gazoz, çekirdek, çikolata, dondurma ve gazete satıyor. Simitçi Cemal ise simit, çay ve su satıyor.
 - Aldığın şey elinde duruyor ve **Q** ile kullanıyorsun: sigara yakıp duman üflüyorsun, simit yiyorsun, gazoz içiyorsun, gazete okuyorsun. Diğer oyuncular da bunu görüyor.
 - Sigara tamamen sanal ve oyun parasıyla alınıyor. Oyunda hiçbir avantaj sağlamıyor ve üstünde "Sigara içmek sağlığa zararlıdır" uyarısı var.
+- Sahil korkuluğunda ya da duvarında elinde simit varken **Q** "Martılara at" oluyor: simitten bir parça atıyorsun, en yakın martı dalıp havada kapıyor. Herkes görüyor.
 - Banklara, taburelere ve sahil duvarına **E** ile oturabilirsin. Emote, hazır sohbet cümleleri ("Sahile inelim mi?", "Manzaraya bak!") ve çay ısmarlama dışarıda da çalışıyor. Çaycı siparişi nerede olursan ol getiriyor.
 
 **Online oyun özellikleri**
@@ -322,6 +323,6 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 **Önerilen sonraki adımlar**
 - İlk iş olarak VDS'e kurulum yap ve TURN sunucusunu ayarla.
 - Kalıcı haftalık liderlik tablosu eklenebilir; bunun için takma ad saklamak gerekir.
-- Sahilde martıya simit atma, vapura binme gibi mini etkinlikler eklenebilir.
+- Sahilde vapura binip karşıya geçme, amcalarla balık tutma gibi yeni mini etkinlikler eklenebilir.
 - Saklambaç için de Üsküdar temalı ikinci bir mahalle yapılabilir.
 

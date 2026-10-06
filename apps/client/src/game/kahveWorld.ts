@@ -32,6 +32,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 export interface KahveWorld {
   update(dt: number): void;
   follow(x: number, z: number): void;
+  /** a piece of simit thrown from (x, z) towards the sea; the nearest gull dives for it */
+  feedGulls(x: number, z: number): void;
   /** world positions used by the scene for NPCs */
   tavlaBoards: THREE.Vector3[];
 }
@@ -643,8 +645,27 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   const gulls = Array.from({ length: low ? 4 : 10 }, (_, i) => {
     const g = gull();
     scene.add(g);
-    return { g, cx: -30 + i * 9, cz: 40 + (i % 3) * 25, r: 8 + (i % 4) * 4, y: 7 + (i % 5) * 2.5, sp: 0.25 + (i % 3) * 0.08, ph: i * 1.7 };
+    return {
+      g,
+      cx: -30 + i * 9,
+      cz: 40 + (i % 3) * 25,
+      r: 8 + (i % 4) * 4,
+      y: 7 + (i % 5) * 2.5,
+      sp: 0.25 + (i % 3) * 0.08,
+      ph: i * 1.7,
+      dive: null as null | { t: number; from: THREE.Vector3; catchAt: THREE.Vector3; piece: THREE.Mesh; hand: THREE.Vector3; land: THREE.Vector3 },
+    };
   });
+  const crumbGeo = new THREE.TorusGeometry(0.05, 0.018, 5, 8, Math.PI);
+  const crumbMat = new THREE.MeshStandardMaterial({ color: 0xb8752f, roughness: 0.7 });
+  const DIVE = 1.8; // seconds: the piece flies for DIVE, the gull grabs it at 55 %
+  const circlePos = (q: (typeof gulls)[number], at: number, out: THREE.Vector3) => {
+    const a = at * q.sp + q.ph;
+    return out.set(q.cx + Math.cos(a) * q.r, q.y + Math.sin(at * 0.7 + q.ph) * 0.6, q.cz + Math.sin(a) * q.r);
+  };
+  const piecePos = (d: NonNullable<(typeof gulls)[number]['dive']>, s: number, out: THREE.Vector3) =>
+    out.lerpVectors(d.hand, d.land, s).setY(d.hand.y + (d.land.y - d.hand.y) * s + Math.sin(Math.PI * s) * 3);
+  const tmpG = new THREE.Vector3();
 
   // parked cars from the Kenney kit
   const cars = KAHVE_OBJECTS.filter((o) => o.kind === 'car');
@@ -677,6 +698,23 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       sun.target.position.set(sx, 0, sz);
       sun.position.set(sx + sunDir.x * 60, sunDir.y * 60, sz + sunDir.z * 60);
     },
+    feedGulls(x, z) {
+      const hand = new THREE.Vector3(x, 1.5, z);
+      let best: (typeof gulls)[number] | null = null;
+      let bestD = Infinity;
+      for (const q of gulls) {
+        const dd = q.dive ? Infinity : circlePos(q, t, tmpG).distanceTo(hand);
+        if (dd < bestD) (best = q), (bestD = dd);
+      }
+      if (!best) return; // every gull is already busy with a piece
+      const land = new THREE.Vector3(x + (Math.random() - 0.5) * 3, -1.1, Math.max(z, SEA_Z) + 6 + Math.random() * 3);
+      const piece = new THREE.Mesh(crumbGeo, crumbMat);
+      piece.position.copy(hand);
+      scene.add(piece);
+      const d = { t: 0, from: circlePos(best, t, new THREE.Vector3()), catchAt: new THREE.Vector3(), piece, hand, land };
+      piecePos(d, 0.55, d.catchAt);
+      best.dive = d;
+    },
     update(dt) {
       t += dt;
       water.uniforms.uTime!.value = t;
@@ -686,9 +724,33 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       if (flag) flag.rotation.y = Math.sin(t * 2.3) * 0.25;
       for (const q of gulls) {
         const a = t * q.sp + q.ph;
-        q.g.position.set(q.cx + Math.cos(a) * q.r, q.y + Math.sin(t * 0.7 + q.ph) * 0.6, q.cz + Math.sin(a) * q.r);
+        circlePos(q, t, q.g.position);
         q.g.rotation.y = -a;
-        const flap = Math.sin(t * 7 + q.ph) * 0.6;
+        let flapSpeed = 7;
+        const d = q.dive;
+        if (d) {
+          d.t += dt;
+          const s = d.t / DIVE;
+          if (s < 0.55) {
+            // swoop down to where the piece will be
+            const k = s / 0.55;
+            const e = k * k * (3 - 2 * k);
+            q.g.position.lerpVectors(d.from, d.catchAt, e);
+            q.g.position.y += Math.sin(Math.PI * k) * 1.5;
+            q.g.rotation.y = Math.atan2(-(d.catchAt.z - d.from.z), d.catchAt.x - d.from.x);
+            piecePos(d, s, d.piece.position);
+            d.piece.rotation.x += dt * 9;
+            flapSpeed = 3;
+          } else {
+            // got it: carry it back up to the circle
+            if (d.piece.parent) scene.remove(d.piece);
+            const k = Math.min(1, (s - 0.55) / 0.45);
+            q.g.position.lerpVectors(d.catchAt, q.g.position, k * k);
+            flapSpeed = 11;
+            if (k >= 1) q.dive = null;
+          }
+        }
+        const flap = Math.sin(t * flapSpeed + q.ph) * 0.6;
         q.g.children[1]!.rotation.x = flap;
         q.g.children[2]!.rotation.x = -flap;
       }

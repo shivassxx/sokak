@@ -12,6 +12,7 @@ import {
   SHOP_ITEMS,
   SHOP_REACH,
   SIT_REACH,
+  SEA_Z,
   SIT_SPOTS,
   SPOT_REACH,
   TABLES,
@@ -38,6 +39,9 @@ import { TouchControls, isTouch } from '../TouchControls';
 import { OkeyBoard } from '../okey/OkeyBoard';
 import { shareRoom } from '../Lobby';
 import { VoiceChat } from '../../net/voice';
+
+/** standing (or sitting) at the sea railing / ledge, not on the pier */
+const bySea = (p: { x: number; z: number } | null | undefined): boolean => !!p && p.z > SEA_Z - 3.2 && p.x < 32;
 
 interface Props {
   room: Room;
@@ -76,6 +80,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const [nearTable, setNearTable] = useState<number>(-1);
   /** the closest thing to interact with: a table, a shop or a seat (bench / stool) */
   const [nearThing, setNearThing] = useState<{ kind: 'table' | 'shop' | 'spot'; i: number } | null>(null);
+  const [nearSea, setNearSea] = useState(false);
   const [shopOpen, setShopOpen] = useState<number>(-1);
   const [tablesOpen, setTablesOpen] = useState(false);
   // voice chat (opt-in)
@@ -148,7 +153,15 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       room.onMessage(KMSG.served, (s: ServedMsg) => onServed(s)),
       room.onMessage(KMSG.used, (u: UsedMsg) => {
         const item = SHOP_ITEMS.find((i) => i.id === u.item);
-        if (item) game.useItem(u.id === me ? null : u.id, item.use);
+        if (!item) return;
+        const who = u.id === me ? null : u.id;
+        const at = game.characterPosition(who);
+        if (item.id === 'simit' && bySea(at)) {
+          // by the water a simit goes to the gulls
+          if (who) game.remoteEmote(who, 'point');
+          else game.playLocalEmote('point');
+          game.kahve?.feedGulls(at!.x, at!.z);
+        } else game.useItem(who, item.use);
       }),
       room.onMessage(MSG.emote, (e: EmoteMsg) => (e.id === me ? game.playLocalEmote(e.e) : game.remoteEmote(e.id, e.e))),
       room.onMessage(MSG.chat, (c: ChatMsg) => {
@@ -338,6 +351,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       const v = viewRef.current;
       const pos = game.localPosition();
       const mine = v?.players[me];
+      setNearSea(bySea(pos));
       if (!pos || !v || !mine || mine.table >= 0 || mine.spot >= 0) {
         setNearTable(-1);
         setNearThing(null);
@@ -511,7 +525,8 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
               {SHOP_ITEMS.find((i) => i.id === myP.holding)?.name} <small>({myP.uses})</small>
             </span>
             <button className="btn small primary" onClick={() => room.send(KMSG.use)}>
-              {{ smoke: 'Yak', eat: 'Ye', drink: 'İç', read: 'Oku' }[SHOP_ITEMS.find((i) => i.id === myP.holding)?.use ?? 'eat']} {!isTouch && <kbd>Q</kbd>}
+              {myP.holding === 'simit' && nearSea ? 'Martılara at 🕊️' : { smoke: 'Yak', eat: 'Ye', drink: 'İç', read: 'Oku' }[SHOP_ITEMS.find((i) => i.id === myP.holding)?.use ?? 'eat']}{' '}
+            {!isTouch && <kbd>Q</kbd>}
             </button>
             <button className="btn small" onClick={() => room.send(KMSG.drop)}>
               Bırak

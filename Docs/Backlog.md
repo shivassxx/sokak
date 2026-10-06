@@ -18,7 +18,7 @@ Ideas that are out of scope for the current milestones.
 
 ## Kahvehane / 101 Okey (after the night session)
 - Persistent weekly leaderboard (needs storing nicknames; decide on privacy first).
-- Sahil mini activities: feed the gulls with simit, take the vapur to Karaköy (second map), fishing with the amcas.
+- Sahil mini activities: take the vapur to Karaköy (second map), fishing with the amcas.
 - TURN relay for voice chat on the VDS (coturn) and a real-phone voice/fps test.
 - Üsküdar-themed second mahalle for Saklambaç.
 - Partner (eşli) 101 and rising opening threshold as table options.

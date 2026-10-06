@@ -30,6 +30,8 @@ export interface TableAnchors {
 export interface KahveScene extends World {
   /** keep the sun's shadow box on the player */
   follow(x: number, z: number): void;
+  /** throw a piece of simit to the gulls from (x, z) */
+  feedGulls(x: number, z: number): void;
   /** waiter brings `item` to a world position; drink stays on the table */
   serve(item: string, to: THREE.Vector3, onTable: { x: number; z: number } | null): void;
   /** public table state (null = no game); viewerSeat hides that rack and orients the tiles */
@@ -438,6 +440,9 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     setDusk() {},
     follow(x, z) {
       world.follow(x, z);
+    },
+    feedGulls(x, z) {
+      world.feedGulls(x, z);
     },
     serve(item, to, onTable) {
       queue.push({ item, to, onTable });
