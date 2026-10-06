@@ -73,9 +73,17 @@ vec3 surfaceDetail(vec3 col){
     float tile = smoothstep(0.004, 0.014, e);
     f = (0.93 + 0.12 * h21(floor(t))) * mix(0.8, 1.0, tile) * (0.96 + 0.08 * vnoise(uv * 6.0));
     gHgt = 0.008 * tile + 0.002 * vnoise(uv * 11.0);
-  } else if (p == 4) { // asphalt grain + patches
-    f = 0.9 + 0.12 * vnoise(uv * 9.0) + 0.1 * (fbm(uv * 0.15) - 0.5);
-    gHgt = 0.004 * vnoise(uv * 24.0);
+  } else if (p == 4) { // asphalt: grain, repaired patches, cracks, speckles
+    float big = fbm(uv * 0.12);
+    float grain = vnoise(uv * 9.0);
+    f = 0.88 + 0.12 * grain + 0.14 * (big - 0.5);
+    float patchM = smoothstep(0.62, 0.66, fbm(uv * 0.07 + 3.1));
+    f *= mix(1.0, 0.82, patchM);
+    float crackN = abs(vnoise(uv * 0.9 + 7.0) - 0.5);
+    float crack = (1.0 - smoothstep(0.0, 0.018, crackN)) * smoothstep(0.55, 0.7, fbm(uv * 0.2));
+    f *= 1.0 - 0.35 * crack;
+    if (h21(floor(uv * 35.0)) > 0.985) f *= 1.25;
+    gHgt = 0.004 * vnoise(uv * 24.0) - 0.006 * crack + 0.002 * patchM;
   } else if (p == 5) { // grass
     f = 0.82 + 0.3 * fbm(uv * 0.6) + 0.08 * vnoise(uv * 12.0);
     gHgt = 0.01 * vnoise(uv * 9.0);

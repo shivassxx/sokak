@@ -37,8 +37,8 @@ export class CharacterPreview {
     this.scene.add(ground);
     this.char = new Character(look);
     this.scene.add(this.char.root);
-    this.camera.position.set(0, 1.35, -4.6);
-    this.camera.lookAt(0, 1.0, 0);
+    this.camera.position.set(0, 1.25, -5.6);
+    this.camera.lookAt(0, 0.95, 0);
     this.obs = new ResizeObserver(() => this.resize());
     this.obs.observe(canvas);
     this.resize();

@@ -676,11 +676,30 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
   const anchors: (TableAnchors | null)[] = TABLES.map(() => null);
   const v = new THREE.Vector3();
   let dirty = true;
+  /** where every tile should be; face-up tiles glide there (keyed by table + tile id) */
+  interface Placement {
+    key: string | null;
+    cell: number;
+    x: number;
+    y: number;
+    z: number;
+    yaw: number;
+    tilt: number;
+    scale: number;
+    /** where a newly appearing tile flies in from (the owner's ıstaka) */
+    from: THREE.Vector3 | null;
+  }
+  let placements: Placement[] = [];
+  const animPos = new Map<string, { x: number; y: number; z: number; yaw: number }>();
+  let animating = false;
+  const put = (key: string | null, cell: number, p: THREE.Vector3, yaw: number, tilt = 0, scale = 1, from: THREE.Vector3 | null = null) =>
+    placements.push({ key, cell, x: p.x, y: p.y, z: p.z, yaw, tilt, scale, from });
 
   const layoutTable = (t: number, view: TableView, viewer: number | null): TableAnchors => {
     const ctx: OkeyCtx = { okey: view.okey as OkeyCtx['okey'] };
     const ref = viewer ?? 0;
     const ry = seatYaw(ref);
+    const rackOf = (s: number) => tablePoint(t, seatYaw(s), 0, FELT_Y + 0.07, RACK_DIST);
     // racks: hidden tiles standing on the ıstaka (the viewer's own rack is on screen instead)
     for (let s = 0; s < 4; s++) {
       if (s === viewer) continue;
@@ -692,8 +711,7 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
         const lx = -0.3 + col * (TILE_W + 0.004) + (upper ? 0.02 : 0);
         const ly = FELT_Y + (upper ? 0.062 : 0.04);
         const lz = RACK_DIST + (upper ? -0.03 : 0.018);
-        tablePoint(t, yaw, lx, ly, lz, v);
-        field.push(-1, v.x, v.y, v.z, yaw, Math.PI / 2 - LEAN);
+        put(null, -1, tablePoint(t, yaw, lx, ly, lz, v), yaw, Math.PI / 2 - LEAN);
       }
     }
     // deck: face-down stacks in the middle
@@ -701,11 +719,10 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     const piles6 = Math.ceil(view.deck / 6);
     for (let k = 0; k < view.deck; k++) {
       const pile = Math.floor(k / 6);
-      tablePoint(t, ry, (pile - (piles6 - 1) / 2) * (TILE_W + 0.006), FELT_Y + TILE_T / 2 + (k % 6) * TILE_T, -0.05, v);
-      field.push(-1, v.x, v.y, v.z, ry);
+      put(null, -1, tablePoint(t, ry, (pile - (piles6 - 1) / 2) * (TILE_W + 0.006), FELT_Y + TILE_T / 2 + (k % 6) * TILE_T, -0.05, v), ry);
     }
     const gPos = tablePoint(t, ry, 0, FELT_Y + TILE_T / 2, 0.05);
-    field.push(cellOf(view.gosterge, null), gPos.x, gPos.y, gPos.z, ry + 0.12);
+    put(`${t}:g${view.gosterge}`, cellOf(view.gosterge, null), gPos, ry + 0.12, 0, 1, deckPos);
     // discard piles at each player's right-hand corner
     const piles: THREE.Vector3[] = [];
     for (let s = 0; s < 4; s++) {
@@ -716,17 +733,17 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
       shown.forEach((id, k) => {
         const off = shown.length - 1 - k;
         tablePoint(t, yaw, 0.41 - off * 0.012, FELT_Y + TILE_T / 2 + k * TILE_T * 0.6, 0.4 - off * 0.016, v);
-        field.push(cellOf(id, ctx), v.x, v.y, v.z, ry + Math.sin(id * 1.7) * 0.12);
+        put(`${t}:${id}`, cellOf(id, ctx), v, ry + Math.sin(id * 1.7) * 0.12, 0, 1, rackOf(s));
       });
       piles.push(base.setY(FELT_Y + 0.02));
     }
     // melds: each player's zone, laid out in the reference frame so they read upright
     const melds: MeldAnchor[] = [];
     const zones = [
-      { x0: -0.36, x1: 0.36, z0: 0.14, dir: 1, scale: 1 },
-      { x0: 0.13, x1: 0.385, z0: -0.17, dir: 1, scale: 0.82 },
-      { x0: -0.36, x1: 0.36, z0: -0.38, dir: 1, scale: 1 },
-      { x0: -0.385, x1: -0.13, z0: -0.17, dir: 1, scale: 0.82 },
+      { x0: -0.36, x1: 0.36, z0: 0.14, scale: 1 },
+      { x0: 0.13, x1: 0.385, z0: -0.17, scale: 0.82 },
+      { x0: -0.36, x1: 0.36, z0: -0.38, scale: 1 },
+      { x0: -0.385, x1: -0.13, z0: -0.17, scale: 0.82 },
     ];
     const cursor = zones.map((z) => ({ x: z.x0, row: 0 }));
     for (const m of view.melds) {
@@ -742,8 +759,8 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
       const z = zn.z0 + cur.row * (TILE_H * zn.scale + 0.008);
       const x0 = cur.x;
       m.tiles.forEach((id, k) => {
-        tablePoint(t, ry, x0 + tw * (k + 0.5), FELT_Y + TILE_T / 2, z + (TILE_H * zn.scale) / 2, v);
-        field.push(cellOf(id, ctx), v.x, v.y, v.z, ry);
+        tablePoint(t, ry, x0 + tw * (k + 0.5), FELT_Y + (TILE_T * zn.scale) / 2, z + (TILE_H * zn.scale) / 2, v);
+        put(`${t}:${id}`, cellOf(id, ctx), v, ry, 0, zn.scale, rackOf(m.owner));
       });
       const z1 = z + TILE_H * zn.scale;
       melds.push({
@@ -760,13 +777,78 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     return { deck: deckPos.setY(FELT_Y + 0.04), gosterge: gPos, piles, melds };
   };
 
+  // glowing bar on the ıstaka of whoever's turn it is
+  const turnBars = TABLES.map(() => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.008, 0.012), new THREE.MeshBasicMaterial({ color: 0xffd166, toneMapped: false }));
+    (m.material as THREE.MeshBasicMaterial).color.multiplyScalar(2.5);
+    m.visible = false;
+    scene.add(m);
+    return m;
+  });
+
   const rebuildTiles = () => {
     dirty = false;
-    field.begin();
+    placements = [];
+    tableState.forEach((st, t) => {
+      const bar = turnBars[t]!;
+      bar.visible = !!st.view && st.view.phase !== 'ended';
+      if (!st.view) return;
+      const yaw = seatYaw(st.view.turn);
+      tablePoint(t, yaw, 0, FELT_Y + 0.004, RACK_DIST + 0.075, bar.position);
+      bar.rotation.y = yaw;
+    });
     tableState.forEach((st, t) => {
       anchors[t] = st.view ? layoutTable(t, st.view, st.viewer) : null;
     });
+    // new face-up tiles start at their owner's rack; vanished ones are forgotten
+    const live = new Set<string>();
+    for (const p of placements) {
+      if (!p.key) continue;
+      live.add(p.key);
+      if (!animPos.has(p.key)) {
+        const f = p.from ?? new THREE.Vector3(p.x, p.y, p.z);
+        animPos.set(p.key, { x: f.x, y: f.y, z: f.z, yaw: p.yaw + 0.6 });
+      }
+    }
+    for (const k of [...animPos.keys()]) if (!live.has(k)) animPos.delete(k);
+    animating = true;
+  };
+
+  /** write instance matrices; face-up tiles ease towards their places with a small hop */
+  const drawTiles = (dt: number) => {
+    if (!animating) return;
+    let moving = false;
+    const k = Math.min(1, dt * 9);
+    field.begin();
+    for (const p of placements) {
+      let x = p.x;
+      let y = p.y;
+      let z = p.z;
+      let yaw = p.yaw;
+      if (p.key) {
+        const a = animPos.get(p.key)!;
+        const d = Math.hypot(p.x - a.x, p.z - a.z);
+        if (d > 0.0005 || Math.abs(p.y - a.y) > 0.0005 || Math.abs(p.yaw - a.yaw) > 0.002) {
+          moving = true;
+          a.x += (p.x - a.x) * k;
+          a.y += (p.y - a.y) * k;
+          a.z += (p.z - a.z) * k;
+          a.yaw += (p.yaw - a.yaw) * k;
+        } else {
+          a.x = p.x;
+          a.y = p.y;
+          a.z = p.z;
+          a.yaw = p.yaw;
+        }
+        x = a.x;
+        y = a.y + Math.min(0.12, d * 0.5);
+        z = a.z;
+        yaw = a.yaw;
+      }
+      field.push(p.cell, x, y, z, yaw, p.tilt, null, p.scale);
+    }
     field.end();
+    animating = moving;
   };
 
   // -------------------------------------------------------------- regulars (NPC amcas)
@@ -872,7 +954,10 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
       dirty = true;
     },
     anchors(table) {
-      if (dirty) rebuildTiles();
+      if (dirty) {
+        rebuildTiles();
+        drawTiles(0);
+      }
       return anchors[table] ?? null;
     },
     seatView(table, seat, aspect, bottomNdc) {
@@ -904,6 +989,7 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     update(dt: number, _movers: Mover[]) {
       t += dt;
       if (dirty) rebuildTiles();
+      drawTiles(dt);
       for (const f of fans) f.rotation.y += dt * 2.2;
       // clock
       const now = new Date();

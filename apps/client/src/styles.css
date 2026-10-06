@@ -267,6 +267,7 @@ kbd { font: 800 11px/1 'Baloo 2', system-ui; padding: 3px 6px; border-radius: 6p
 .dotc { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 2px #fff; flex: none; }
 .tag.open { background: #cdeed8; color: #1f6b45; }
 .tag.left { background: #ffe9b0; color: #6b4a00; }
+.score-pill { background: rgba(255,255,255,.16); border-radius: 999px; padding: 0 7px; font-weight: 800; }
 .okey-hint { position: absolute; top: max(10px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); width: max-content; max-width: min(620px, calc(100% - 360px)); background: rgba(30,18,10,.78); color: #fff; padding: 7px 14px; border-radius: 14px; font-size: 15px; font-weight: 700; display: flex; gap: 8px; align-items: center; text-align: center; line-height: 1.25; backdrop-filter: blur(6px); }
 .okey-hint.mine { background: linear-gradient(180deg, #2f9e5e, #217a47); box-shadow: 0 0 0 2px #ffe08a, 0 6px 18px rgba(0,0,0,.35); }
 .okey-info { position: absolute; top: 58px; left: 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; background: rgba(30,18,10,.62); color: #fff; padding: 6px 10px; border-radius: 12px; font-size: 13px; backdrop-filter: blur(6px); }

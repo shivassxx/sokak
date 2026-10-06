@@ -168,12 +168,12 @@ export class TileField {
    * Add a tile. `cell` < 0 = hidden (blank). yaw turns it on the table, `tilt`
    * stands it up (radians from lying flat, face towards +z after yaw).
    */
-  push(cell: number, x: number, y: number, z: number, yaw: number, tilt = 0, tint: THREE.ColorRepresentation | null = null): number {
+  push(cell: number, x: number, y: number, z: number, yaw: number, tilt = 0, tint: THREE.ColorRepresentation | null = null, scale = 1): number {
     if (this.n >= this.capacity) return -1;
     const i = this.n++;
     _q.setFromEuler(_e.set(0, yaw, 0));
     if (tilt) _q.multiply(_q2.setFromEuler(_e.set(tilt, 0, 0)));
-    _m.compose(_p.set(x, y, z), _q, _s);
+    _m.compose(_p.set(x, y, z), _q, _s.setScalar(scale));
     this.mesh.setMatrixAt(i, _m);
     (this.mesh.geometry.getAttribute('aCell') as THREE.InstancedBufferAttribute).setX(i, cell < 0 ? BLANK_CELL : cell);
     this.mesh.setColorAt(i, tint === null ? WHITE : _c.set(tint));

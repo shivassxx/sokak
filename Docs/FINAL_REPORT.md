@@ -194,3 +194,49 @@ Ayrıntılı adımlar: **`Docs/Deploy.md`**. Kısaca:
 - Eşli (2'ye 2) oyun yok.
 - Katlamalı açma barajı ve renk okeyi gibi yöresel varyantlar yok. Bunlar `Docs/Backlog.md` dosyasına eklenebilir.
 - Telefonda dikey modda oynanmıyor.
+
+---
+
+## Ek: Kalite geçişi 2 — karakterler, grafik, kıraathane ve okey masası
+
+**Karakterler**
+- Kenney'nin CC0 lisanslı, iskeletli (rigged) insan modeli kullanıldı. Kaynak `pmndrs/market-assets` deposu, ayrıntılar `Docs/ThirdPartyAssets.md` dosyasında.
+- Modelin hazır kıyafet dokusu yok. Yüz, saç çizgisi, tişört (düz, çizgili, polo, düğmeli), pantolon ve ayakkabı her görünüm için kodla çiziliyor. Böylece renk, saç, şapka ve ten seçimi aynen çalışıyor.
+- Çocuklar Saklambaç için biraz daha küçük ve büyük kafalı. Kahvehanede yetişkin oranları kullanılıyor; amcalarda bıyık, kır saç, kel, yelek, gözlük ve tespih var.
+- Yürüme, koşma, çömelme, zıplama, oturma, çay içme, gazete okuma, uyuklama ve emoji animasyonları iskelete uygulanıyor.
+
+**Grafik**
+- Masaüstünde ortam gölgelemesi (GTAO), lamba parlaması (bloom), renk düzenlemesi, kenar karartma ve kenar yumuşatma var.
+- Telefonda hafif mod kullanılıyor. Kare hızı düşerse kalite kendiliğinden bir kademe iniyor.
+- Tuğla derzleri, parke ve taş aralıkları, tahta çizgileri ve asfalt çatlakları gölgelendirici ile kabartmalı görünüyor. Karakterlerde hafif bir kenar ışığı var.
+
+**Kıraathane baştan yapıldı**
+- Zemin desenli karo, duvarlarda ceviz lambri ve adaçayı yeşili sıva var.
+- Pencerelerde dantel perdeler ve dışarıda akşam sokağı görünüyor. Akşam güneşi pencerelerden içeri vuruyor.
+- Çay ocağında mermer tezgâh, çini pano, semaver, çaydanlıklar, bardaklar, tepsiler ve menü tahtası var.
+- Thonet tarzı hasır oturaklı kahvehane sandalyeleri ve tornalı ayaklı, keçeli okey masaları var. Her masada iki katlı ıstakalar bulunuyor.
+- Köşelerde zar atarak tavla oynayan, gazete okuyan, uyuklayan ve çay içen amcalar var.
+- Gerçek saati gösteren duvar saati, maç yayınlayan televizyon, eski fotoğraflar, takvim, ayna, vantilatörler, sarkıt lambalar ve havada uçuşan toz zerreleri eklendi.
+
+**101 Okey masası**
+- Masalardaki her şey gerçek 3D taş: ıstakalardaki taşlar, deste, gösterge, atılan taşlar ve açılan perler. Salonda gezerken diğer masalardaki oyunları da görebiliyorsun.
+- Atılan taş oyuncunun ıstakasından yığına uçuyor, perler masaya kayarak iniyor. Sırası gelen oyuncunun ıstakası parlıyor.
+- Oturunca kamera masayı ekranın altındaki ahşap ıstakanın tam üstüne yerleştiriyor.
+- **Taşları istediğin gibi dizebilirsin.** Bir taşı sürükleyip başka bir taşın üstüne bırakırsan araya girer, diğer taşlar kayar; boş yere bırakırsan oraya yerleşir. İstersen önce taşa, sonra boş yuvaya dokunarak da taşıyabilirsin. Dokunmatik ekranda da çalışıyor.
+- Taş atmak için taşı sağ köşedeki yığına sürüklemen yeterli. İşlemek için taşı yerdeki pere bırakıyorsun.
+- Desteden çekmek için desteye, soldan almak için soldaki yığına dokunuyorsun; ikisi de sıra sende olunca parlıyor.
+- Ekranın üstünde yalnızca o an ne yapman gerektiğini söyleyen tek bir yönlendirme satırı var.
+- "Per: 87/101" ilerleme çubuğu gösteriliyor ve geçerli perler ıstakada yeşil çerçeveyle işaretleniyor. "Elini aç" düğmesi sadece açabilecek durumdayken çıkıyor.
+- Seyrek kullanılan işlemler (taş çal, geri koy, deste bitti, kalk) "⋯" menüsünde. "Hile var!" düğmesi yalnızca şüpheli bir durum olduğunda beliriyor.
+- "Nasıl oynanır?" panelinde kurallar kısaca anlatılıyor.
+- Yeni çekilen taş ıstakada vurgulanıyor, sıra sana gelince ses çalıyor ve isim etiketlerinde maç puanları görünüyor.
+
+**Test**
+- 98 test geçiyor. Bunların 5'i yeni eklenen ıstaka düzenleme testi.
+- Playwright ile masaüstünde ve telefon boyutunda (yatay) gerçek sürükle-bırak denendi: taşı araya sokma, desteden çekme ve yığına atma çalıştı.
+- Saklambaç botlarla oynatıldı ve sorunsuz çalıştı.
+- Toplam indirme 2,16 MB (gzip), lobi için gereken 132 KB.
+
+**Bilinen sınırlar**
+- Karakter animasyonları koddan üretiliyor; Kenney'nin hazır animasyon dosyaları indirilebilirse daha akıcı olur.
+- Yüksek kalite modu (AO ve bloom) zayıf dizüstü bilgisayarlarda kendiliğinden düşüyor. Telefonlarda kare hızı gerçek cihazda ölçülmeli.

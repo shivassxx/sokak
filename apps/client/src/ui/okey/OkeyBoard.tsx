@@ -66,10 +66,20 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
     return () => clearInterval(iv);
   }, []);
 
-  // keep the rack in sync with the authoritative hand
+  // keep the rack in sync with the authoritative hand; freshly drawn tiles glow for a moment
+  const prevHand = useRef<number[]>([]);
+  const [fresh, setFresh] = useState<number[]>([]);
   useEffect(() => {
     setRack((r) => syncRack(r, hand));
     if (sel !== null && !hand.includes(sel)) setSel(null);
+    const before = new Set(prevHand.current);
+    const added = prevHand.current.length && hand.length - prevHand.current.length <= 2 ? hand.filter((t) => !before.has(t)) : [];
+    prevHand.current = hand;
+    if (added.length) {
+      setFresh(added);
+      const id = setTimeout(() => setFresh([]), 2500);
+      return () => clearTimeout(id);
+    }
   }, [hand]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // new hand → fresh rack, arranged once so it is readable
@@ -92,6 +102,14 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
   const name = (s: number) => seatPlayer(s)?.name ?? '—';
   const remaining = Math.max(0, Math.ceil((table.turnEndsAt - serverNow()) / 1000));
   const suspicious = !!suspicion && suspicion.until > Date.now();
+  const wasMyTurn = useRef(false);
+  useEffect(() => {
+    if (myTurn && !wasMyTurn.current) {
+      play('pop');
+      navigator.vibrate?.(60);
+    }
+    wasMyTurn.current = myTurn;
+  }, [myTurn]);
 
   // ------------------------------------------------------------ project 3D anchors to the screen
   useEffect(() => {
@@ -345,6 +363,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
                 <b>{p?.name ?? '—'}</b>
                 {p?.isBot && <span className="tag bot">bot</span>}
                 {view.opened[s] && <span className="tag open">{view.opened[s] === 'pairs' ? 'çift' : 'açtı'}</span>}
+                {table.handNo > 1 && <span className="score-pill">{table.totals[s]} p</span>}
                 {view.turn === s && <span className="timer">{remaining}</span>}
                 {s === leftSeat && <span className="tag left">solun</span>}
                 {(drinks[table.seats[s] ?? ''] ?? []).map((d) => (
@@ -385,6 +404,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
       <div className="me-area">
         <div className="me-bar">
           <span className={`me-name ${myTurn ? 'turn' : ''}`}>{name(mySeat)}</span>
+          {table.handNo > 1 && <span className="score-pill">{table.totals[mySeat]} p</span>}
           {opened && <span className="tag open">Elin açık ({opened === 'pairs' ? 'çift' : 'seri'})</span>}
           {view.penalties[mySeat]! > 0 && <span className="pen">Ceza +{view.penalties[mySeat]}</span>}
           {!opened && plan && (
@@ -422,7 +442,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
                   style={{ gridRow: Math.floor(i / ROW) + 1, gridColumn: (i % ROW) + 1 }}
                   onPointerDown={onTileDown(t)}
                 >
-                  <Tile id={t} ctx={ctx} selected={sel === t} dim={drag?.tile === t} isNew={t === takenTile} />
+                  <Tile id={t} ctx={ctx} selected={sel === t} dim={drag?.tile === t} isNew={t === takenTile || fresh.includes(t)} />
                 </div>
               ))}
           </div>

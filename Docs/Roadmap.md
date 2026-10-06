@@ -13,3 +13,4 @@
 | K1 | 101 Okey rules package (`packages/okey`): tiles, okey/gösterge, melds, opening, işleme, okey swap, scoring, taş çalma, bot AI | ✅ done |
 | K2 | Kahvehane server room: public lobby, 6 tables, seating, bets/pot, turn timer, bots, private hands, orders, veresiye, steal/catch fines | ✅ done |
 | K3 | Kahvehane client: mode select, 3D kahvehane + çaycı, okey board (rack drag & drop, seri/çift diz, open/lay/işle/swap, steal/accuse), menu, drinks | ✅ done |
+| Q2 | Quality pass 2: rigged CC0 characters with painted skins, post-processing tiers, bump-mapped surfaces, rebuilt kıraathane (karo, wainscot, windows + sun, çay ocağı, Thonet chairs, new okey tables, regulars), 3D okey table with animated tiles and an insert-and-slide ıstaka | ✅ done |

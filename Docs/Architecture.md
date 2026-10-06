@@ -39,3 +39,10 @@ packages/okey   101 Okey rules (pure) + meld search + okey bot
 
 ## Tests
 `pnpm test` runs Vitest across packages: physics/visibility/map sanity, nav grid, profanity filter, 26 rules tests, and multiplayer integration tests that start a real server on a random port and drive it with headless `NetBot` clients (join by link, movement sync, reconnect, round flow, Ebe filtering, Gördüm!, race, herkes kurtuldu, bot-only rounds, analytics).
+
+## Client rendering (quality pass 2)
+- `game/character.ts` — rigged character (Kenney CC0 mesh, `public/models/character.glb`); virtual joints → bones each frame; `skinPainter.ts` paints the atlas per look.
+- `game/postfx.ts` — quality tiers and the EffectComposer chain (RenderPass → GTAO → Bloom → Output → grade).
+- `game/kahveScene.ts` + `kahveProps.ts` — kıraathane, regulars, çaycı, and the table tiles: `layoutTable()` produces placements (racks, deck, gösterge, piles, melds) + anchors (deck, piles, meld corners) for the UI; face-up tiles ease to their placements.
+- `game/okeyTiles.ts` — `TileField` (one InstancedMesh, per-instance atlas cell).
+- `ui/okey/OkeyBoard.tsx` — overlay that projects anchors to screen every frame (hot-spots, name plates) and owns the HTML ıstaka; `ui/okey/rack.ts` — pure rack logic (`moveTile`, `syncRack`, groups, open plan), unit tested in `apps/client/test/rack.test.ts`.

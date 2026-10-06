@@ -174,6 +174,8 @@ interface BoneInfo {
   joint: JointName | null;
   /** extra rotation that maps the rest pose into the joint's neutral pose (arms down) */
   base: THREE.Quaternion;
+  /** scratch: current orientation in the body frame */
+  world: THREE.Quaternion;
   children: BoneInfo[];
 }
 
@@ -305,6 +307,7 @@ export class Character {
         restWorld: b.getWorldQuaternion(new THREE.Quaternion()),
         joint,
         base: joint === 'armL' || joint === 'foreL' ? baseArmL : joint === 'armR' || joint === 'foreR' ? baseArmR : new THREE.Quaternion(),
+        world: new THREE.Quaternion(),
         children: [],
       };
       for (const c of b.children) if ((c as THREE.Bone).isBone) info.children.push(build(c as THREE.Bone));
@@ -609,35 +612,31 @@ export class Character {
     this.applyRig();
   }
 
-  /** Map the virtual joints onto the skeleton. */
+  /** Map the virtual joints onto the skeleton (no allocations: runs for every character every frame). */
   private applyRig(): void {
     const q = this.jointQ;
-    const get = (o: THREE.Object3D, parent: THREE.Quaternion | null) => {
-      const r = new THREE.Quaternion().setFromEuler(o.rotation);
-      return parent ? r.premultiply(parent) : r;
+    const get = (name: JointName, o: THREE.Object3D, parent: JointName | null) => {
+      let r = q.get(name);
+      if (!r) q.set(name, (r = new THREE.Quaternion()));
+      r.setFromEuler(o.rotation);
+      if (parent) r.premultiply(q.get(parent)!);
     };
-    const hips = get(this.hips, null);
-    const chest = get(this.chest, hips);
-    q.set('hips', hips);
-    q.set('chest', chest);
-    q.set('neck', get(this.neck, chest));
-    const armL = get(this.armL.upper, chest);
-    const armR = get(this.armR.upper, chest);
-    q.set('armL', armL);
-    q.set('foreL', get(this.armL.lower, armL));
-    q.set('armR', armR);
-    q.set('foreR', get(this.armR.lower, armR));
-    const legL = get(this.legL.upper, hips);
-    const legR = get(this.legR.upper, hips);
-    q.set('legL', legL);
-    q.set('shinL', get(this.legL.lower, legL));
-    q.set('legR', legR);
-    q.set('shinR', get(this.legR.lower, legR));
+    get('hips', this.hips, null);
+    get('chest', this.chest, 'hips');
+    get('neck', this.neck, 'chest');
+    get('armL', this.armL.upper, 'chest');
+    get('foreL', this.armL.lower, 'armL');
+    get('armR', this.armR.upper, 'chest');
+    get('foreR', this.armR.lower, 'armR');
+    get('legL', this.legL.upper, 'hips');
+    get('shinL', this.legL.lower, 'legL');
+    get('legR', this.legR.upper, 'hips');
+    get('shinR', this.legR.lower, 'legR');
     this.applyBone(this.boneRoot, this.parentRest);
   }
 
   private applyBone(info: BoneInfo, parentWorld: THREE.Quaternion): void {
-    const world = new THREE.Quaternion();
+    const world = info.world;
     if (info.joint) {
       // desired orientation in the body frame: joint rotation ∘ neutral pose ∘ rest
       world.copy(this.jointQ.get(info.joint)!).multiply(info.base).multiply(info.restWorld);
@@ -647,7 +646,7 @@ export class Character {
       info.bone.quaternion.copy(info.rest);
       world.copy(parentWorld).multiply(info.rest);
     }
-    for (const c of info.children) c && this.applyBone(c, world);
+    for (const c of info.children) this.applyBone(c, world);
   }
 
   private applyPose(moving: boolean): void {
