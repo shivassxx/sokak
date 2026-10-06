@@ -406,11 +406,11 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         </button>
         {reconnecting && <span className="pill warn">Bağlantı koptu, yeniden bağlanılıyor…</span>}
         {myP && <span className="wallet">💰 {money(myP.money)}</span>}
-        <button className="btn small" onClick={() => setMenuOpen((o) => !o)}>
+        <button className="btn small" title="Çaycı" onClick={() => setMenuOpen((o) => !o)}>
           ☕<span className="lbl"> Çaycı!</span>
         </button>
         {!myTable && (
-          <button className="btn small" onClick={() => setTablesOpen((o) => !o)}>
+          <button className="btn small" title="Masalar" onClick={() => setTablesOpen((o) => !o)}>
             🃏<span className="lbl"> Masalar</span>
           </button>
         )}

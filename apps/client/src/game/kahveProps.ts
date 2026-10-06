@@ -80,7 +80,12 @@ function turnedLeg(): THREE.BufferGeometry {
   return new THREE.LatheGeometry(pts, 10);
 }
 
-function roundedSlab(w: number, d: number, h: number, r: number): THREE.BufferGeometry {
+// shared geometries: Builder.addMatrix clones what it merges, so one instance serves every prop
+const slabCache = new Map<string, THREE.BufferGeometry>();
+function roundedSlab(w: number, d: number, h: number, r: number, detail = 6): THREE.BufferGeometry {
+  const key = `${w}|${d}|${h}|${r}|${detail}`;
+  const hit = slabCache.get(key);
+  if (hit) return hit;
   const s = new THREE.Shape();
   const x = -w / 2;
   const y = -d / 2;
@@ -93,15 +98,18 @@ function roundedSlab(w: number, d: number, h: number, r: number): THREE.BufferGe
   s.quadraticCurveTo(x, y + d, x, y + d - r);
   s.lineTo(x, y + r);
   s.quadraticCurveTo(x, y, x + r, y);
-  const g = new THREE.ExtrudeGeometry(s, { depth: h - 0.012, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.008, bevelSegments: 2, curveSegments: 6 });
+  const g = new THREE.ExtrudeGeometry(s, { depth: h - 0.012, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.008, bevelSegments: detail > 3 ? 2 : 1, curveSegments: detail });
   g.rotateX(-Math.PI / 2);
   g.translate(0, 0.006, 0);
+  slabCache.set(key, g);
   return g;
 }
 
 /** Two-tier ıstaka: x along its length, +z towards its player, y up from the felt. */
 export const RACK_LEN = 0.66;
+let rackGeo: THREE.BufferGeometry | null = null;
 function rackGeometry(): THREE.BufferGeometry {
+  if (rackGeo) return rackGeo;
   const s = new THREE.Shape();
   const P: [number, number][] = [
     [-0.062, 0],
@@ -120,6 +128,7 @@ function rackGeometry(): THREE.BufferGeometry {
   const g = new THREE.ExtrudeGeometry(s, { depth: RACK_LEN, bevelEnabled: false });
   g.rotateY(-Math.PI / 2);
   g.translate(RACK_LEN / 2, 0, 0);
+  rackGeo = g;
   return g;
 }
 
@@ -154,6 +163,7 @@ export function okeyTable(b: Builder, x: number, z: number): void {
 export const STEEL = 0x232528;
 export const LIGHT_OAK = 0xb98a5e;
 
+let chairBack: THREE.BufferGeometry | null = null;
 /** Modern café chair: black steel frame, oak seat and curved back; sitter faces -z. */
 export function modernChair(b: Builder, x: number, z: number, yaw: number): void {
   const f = new Frame(x, 0, z, yaw);
@@ -165,10 +175,10 @@ export function modernChair(b: Builder, x: number, z: number, yaw: number): void
   b.addMatrix(new THREE.BoxGeometry(0.4, 0.02, 0.02), STEEL, f.m(0, 0.2, -0.18));
   for (const sx of [-1, 1]) b.addMatrix(new THREE.CylinderGeometry(0.011, 0.011, 0.42, 6), STEEL, f.m(sx * 0.17, 0.68, 0.2, -0.14, 0, 0));
   b.pat = PAT.wood;
-  b.addMatrix(roundedSlab(0.42, 0.42, 0.035, 0.06), LIGHT_OAK, f.m(0, 0.45, 0));
+  b.addMatrix(roundedSlab(0.42, 0.42, 0.035, 0.06, 3), LIGHT_OAK, f.m(0, 0.45, 0));
   // curved back rest: a bent plank
-  const back = new THREE.CylinderGeometry(0.42, 0.42, 0.16, 16, 1, true, -0.5, 1.0);
-  b.addMatrix(back, LIGHT_OAK, f.m(0, 0.84, -0.18, -0.14, 0, 0));
+  chairBack ??= new THREE.CylinderGeometry(0.42, 0.42, 0.16, 10, 1, true, -0.5, 1.0);
+  b.addMatrix(chairBack, LIGHT_OAK, f.m(0, 0.84, -0.18, -0.14, 0, 0));
   b.pat = pat;
 }
 
