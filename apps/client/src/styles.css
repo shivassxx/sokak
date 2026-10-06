@@ -102,3 +102,7 @@ input { font: inherit; }
 .summary { top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(440px, calc(100% - 20px)); max-height: calc(100% - 40px); overflow-y: auto; }
 .summary .scoreboard { position: static; width: auto; box-shadow: none; padding: 0; background: none; }
 .facts { margin: 6px 0 10px; padding-left: 18px; font-size: 15px; display: flex; flex-direction: column; gap: 4px; }
+.spot-desktop { position: absolute; right: 24px; bottom: 28px; border: 3px solid #fff; border-radius: 999px; padding: 16px 26px; font-size: 22px; font-weight: 900; color: #fff; background: rgba(216,87,60,.55); box-shadow: 0 4px 0 rgba(0,0,0,.25); }
+.spot-desktop small { font-size: 13px; opacity: .8; }
+.spot-desktop.ready { background: #d8573c; box-shadow: 0 0 26px #ffcf6b; animation: pulse2 .5s infinite alternate; }
+@keyframes pulse2 { from { transform: scale(1); } to { transform: scale(1.07); } }

@@ -92,23 +92,23 @@ export class Character {
       this.label.material.dispose();
     }
     const c = document.createElement('canvas');
-    c.width = 256;
+    c.width = 384;
     c.height = 64;
     const ctx = c.getContext('2d')!;
     ctx.font = 'bold 30px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const w = Math.min(250, ctx.measureText(text).width + 24);
+    const w = Math.min(380, ctx.measureText(text).width + 24);
     ctx.fillStyle = 'rgba(0,0,0,0.45)';
     ctx.beginPath();
-    ctx.roundRect(128 - w / 2, 10, w, 44, 14);
+    ctx.roundRect(192 - w / 2, 10, w, 44, 14);
     ctx.fill();
     ctx.fillStyle = color;
-    ctx.fillText(text, 128, 33);
+    ctx.fillText(text, 192, 33);
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: true, transparent: true }));
-    s.scale.set(1.6, 0.4, 1);
+    s.scale.set(2.4, 0.4, 1);
     s.position.y = 2.25;
     this.label = s;
     this.root.add(s);

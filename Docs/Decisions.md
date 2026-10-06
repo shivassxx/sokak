@@ -34,3 +34,11 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 - **Summary:** "best hiding spot" = hider unseen the longest, labeled with the named zone where they spent most of their hidden time; "longest survivor" = hider not caught for the longest time.
 - **Mid-round joiners** are spectators until the next round (they can walk around but, from M4 on, are invisible to everyone else).
 - **Too few players** (< 3 incl. bots) at the end of a break → back to the lobby.
+
+## M4
+- **Ranges:** the Ebe receives hider positions up to 34 m when in sight; "Gördüm!" works up to 20 m. Within 1.8 m a hider is always seen (no hiding inside a bush while the Ebe stands in it).
+- **No aiming for "Gördüm!":** the server picks the nearest valid hider. One big button is far easier on phones and the server check stays authoritative.
+- **"Gördüm!" is refused while the Ebe stands on the base circle.** Otherwise a camping Ebe could spot and catch in the same instant; leaving the base and racing back is the fun part of the real game.
+- **Crouching** shrinks the visibility profile (rays to 0.85 m and 0.45 m instead of 1.55/1.0/0.4 m) and halves speed — low walls, cars and bushes become real cover.
+- **Hysteresis:** once seen, a hider stays visible to the Ebe for 250 ms to avoid flicker at corners.
+- **Bots only use information a player could have:** the Ebe bot sees exactly what the Ebe filter allows; hider bots know where the Ebe is only when they can see it. Bot skill varies (0.6–1.0) so humans can win.

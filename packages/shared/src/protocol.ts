@@ -136,4 +136,6 @@ export type EventMsg =
   | { type: 'spotted'; id: string }
   | { type: 'caught'; id: string }
   | { type: 'safe'; id: string; how: 'base' | 'timeout' }
-  | { type: 'herkesKurtuldu'; by: string; freed: string[] };
+  | { type: 'herkesKurtuldu'; by: string; freed: string[] }
+  /** only sent to the Ebe: "Gördüm!" found nobody / Ebe is standing at the base */
+  | { type: 'spotMiss'; reason: 'base' | 'none' };

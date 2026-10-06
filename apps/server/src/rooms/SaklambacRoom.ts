@@ -5,6 +5,9 @@ import {
   EBE_COUNT_SPOT,
   EMOTES,
   MAX_PLAYERS,
+  SPOT_RANGE,
+  VIEW_RANGE,
+  canSee,
   MSG,
   OUTFIT_COLORS,
   QUICK_CHAT,
@@ -21,6 +24,7 @@ import {
   type Body,
   type ChatMsg,
   type EmoteMsg,
+  type EventMsg,
   type InputMsg,
   type JoinOptions,
   type MoveInput,
@@ -30,7 +34,7 @@ import {
   type TeleportMsg,
   zoneAt,
 } from '@sokak/shared';
-import { WanderBrain } from '@sokak/bots';
+import { SaklambacBot, type BotContext } from '@sokak/bots';
 import { SaklambacRules, type GameEvent, type RulesConfig } from '@sokak/rules';
 import { PlayerState, SaklambacState } from './schema';
 import { generateRoomId } from '../roomId';
@@ -47,7 +51,8 @@ interface Sim {
   queue: MoveInput[];
   queueSeq: number[];
   lastSeq: number;
-  bot: WanderBrain | null;
+  bot: SaklambacBot | null;
+  botClaim: string | null;
   client: Client | null;
   lastChatAt: number;
 }
@@ -67,6 +72,9 @@ export class SaklambacRoom extends Room<SaklambacState> {
   /** per hider: ms spent in each named zone during seeking (best hiding spot) */
   private zoneTime = new Map<string, Map<string, number>>();
   private zoneAcc = 0;
+  /** hider id → time (ms) until which the Ebe may see it (small hysteresis) */
+  private ebeSees = new Map<string, number>();
+  private lastSpotAt = 0;
 
   override onCreate(): void {
     this.roomId = generateRoomId();
@@ -79,6 +87,7 @@ export class SaklambacRoom extends Room<SaklambacState> {
       if (client.sessionId !== this.state.hostId) return;
       this.handleEvents(this.rules.start());
     });
+    this.onMessage(MSG.spot, (client) => this.handleSpot(client.sessionId));
     this.onMessage(MSG.addBot, (client) => {
       if (client.sessionId === this.state.hostId) this.addBot();
     });
@@ -196,7 +205,8 @@ export class SaklambacRoom extends Room<SaklambacState> {
       queue: [],
       queueSeq: [],
       lastSeq: 0,
-      bot: client ? null : new WanderBrain(Math.random),
+      bot: client ? null : new SaklambacBot(Math.random),
+      botClaim: null,
       client,
       lastChatAt: 0,
     });
@@ -227,10 +237,13 @@ export class SaklambacRoom extends Room<SaklambacState> {
   protected tick(dtMs: number): void {
     for (const sim of this.sims.values()) {
       if (sim.bot) {
-        const input = this.canMove(sim.id) ? sim.bot.think(sim.body, SIM_DT) : { mx: 0, mz: 0, jump: false, crouch: false };
+        const decision = sim.bot.think(this.botContext(sim), SIM_DT);
+        sim.botClaim = decision.claim;
+        const input = this.canMove(sim.id) ? decision.input : { mx: 0, mz: 0, jump: false, crouch: false };
         if (input.mx || input.mz) sim.yaw = Math.atan2(-input.mx, -input.mz);
         sim.crouch = input.crouch;
         stepBody(sim.body, input, SIM_DT);
+        if (decision.spot) this.handleSpot(sim.id);
         continue;
       }
       for (let k = 0; k < MAX_INPUTS_PER_TICK && sim.queue.length; k++) {
@@ -241,13 +254,14 @@ export class SaklambacRoom extends Room<SaklambacState> {
       }
     }
     this.checkBaseTouches();
+    this.updateEbeVision();
     this.trackZones(dtMs);
     this.handleEvents(this.rules.tick(dtMs));
     this.syncState();
     this.sendSnapshots();
   }
 
-  private atBase(sim: Sim): boolean {
+  protected atBase(sim: Sim): boolean {
     return Math.hypot(sim.body.x - BASE.x, sim.body.z - BASE.z) <= BASE_RADIUS && sim.body.y < 1.5;
   }
 
@@ -349,9 +363,106 @@ export class SaklambacRoom extends Room<SaklambacState> {
     }
   }
 
-  /** Which players may `viewerId` see right now? (filtered by later milestones) */
-  protected isVisibleTo(_viewerId: string, _targetId: string): boolean {
-    return true;
+  /**
+   * Anti-cheat information filter: may `viewerId` receive `targetId`'s position?
+   * Spectators are invisible; the Ebe gets no hiders while counting and only
+   * hiders that pass the server visibility check while seeking.
+   */
+  protected isVisibleTo(viewerId: string, targetId: string): boolean {
+    const target = this.rules.get(targetId);
+    if (target?.role === 'spectator') return false;
+    if (viewerId !== this.rules.ebeId || !target || target.role !== 'hider') return true;
+    const phase = this.rules.phase;
+    if (phase === 'ebeSelection' || phase === 'counting') return false;
+    if (phase !== 'seeking') return true;
+    if (target.status === 'caught' || target.status === 'safe') return true;
+    return (this.ebeSees.get(targetId) ?? 0) > Date.now();
+  }
+
+  private simOf(id: string | null): Sim | undefined {
+    return id ? this.sims.get(id) : undefined;
+  }
+
+  private updateEbeVision(): void {
+    if (this.rules.phase !== 'seeking') {
+      this.ebeSees.clear();
+      return;
+    }
+    const ebe = this.simOf(this.rules.ebeId);
+    if (!ebe) return;
+    const now = Date.now();
+    for (const h of this.rules.activeHiders()) {
+      const sim = this.sims.get(h.id);
+      if (!sim) continue;
+      if (canSee(ebe.body, { ...sim.body, crouch: sim.crouch }, VIEW_RANGE)) this.ebeSees.set(h.id, now + 250);
+    }
+  }
+
+  /** "Gördüm!": nearest hiding hider within range and in clear line of sight. */
+  protected handleSpot(id: string): void {
+    if (this.rules.phase !== 'seeking' || id !== this.rules.ebeId) return;
+    const now = Date.now();
+    if (now - this.lastSpotAt < 300) return;
+    this.lastSpotAt = now;
+    const ebe = this.sims.get(id);
+    if (!ebe) return;
+    const reply = (reason: 'base' | 'none') => ebe.client?.send(MSG.event, { type: 'spotMiss', reason } satisfies EventMsg);
+    if (this.atBase(ebe)) return reply('base');
+    let best: Sim | null = null;
+    let bestD = Infinity;
+    for (const h of this.rules.hiders()) {
+      if (h.status !== 'hiding') continue;
+      const sim = this.sims.get(h.id);
+      if (!sim) continue;
+      const d = Math.hypot(sim.body.x - ebe.body.x, sim.body.z - ebe.body.z);
+      if (d < bestD && canSee(ebe.body, { ...sim.body, crouch: sim.crouch }, SPOT_RANGE)) {
+        best = sim;
+        bestD = d;
+      }
+    }
+    if (!best) return reply('none');
+    this.handleEvents(this.rules.spot(best.id));
+  }
+
+  private botContext(sim: Sim): BotContext {
+    const r = this.rules;
+    const me = r.get(sim.id);
+    const ebe = this.simOf(r.ebeId);
+    const isEbe = sim.id === r.ebeId;
+    const visibleHiders: BotContext['visibleHiders'] = [];
+    let anySpotted = false;
+    if (isEbe && r.phase === 'seeking') {
+      for (const h of r.activeHiders()) {
+        if (h.status === 'spotted') anySpotted = true;
+        const hs = this.sims.get(h.id);
+        if (!hs || h.status !== 'hiding' || !this.isVisibleTo(sim.id, h.id)) continue;
+        visibleHiders.push({ id: h.id, x: hs.body.x, z: hs.body.z, dist: Math.hypot(hs.body.x - sim.body.x, hs.body.z - sim.body.z) });
+      }
+    }
+    const ebeVisible = !!ebe && !isEbe && canSee(sim.body, { ...ebe.body, crouch: false }, VIEW_RANGE);
+    const claimed = new Set<string>();
+    for (const s of this.sims.values()) if (s !== sim && s.botClaim) claimed.add(s.botClaim);
+    return {
+      phase: r.phase,
+      role: me?.role ?? 'none',
+      status: me?.status ?? 'none',
+      self: { x: sim.body.x, z: sim.body.z },
+      ebe: ebeVisible && ebe ? { x: ebe.body.x, z: ebe.body.z } : null,
+      visibleHiders,
+      anySpotted,
+      spotRange: SPOT_RANGE,
+      claimed,
+    };
+  }
+
+  /** test helper: move a player instantly */
+  debugPlace(id: string, x: number, z: number, crouch = false): void {
+    const sim = this.sims.get(id);
+    if (!sim) return;
+    sim.body = createBody(x, z);
+    sim.crouch = crouch;
+    sim.queue = [];
+    sim.queueSeq = [];
   }
 
   private sendSnapshots(): void {

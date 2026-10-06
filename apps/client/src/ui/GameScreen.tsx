@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Room } from 'colyseus.js';
 import {
+  BASE,
+  BASE_RADIUS,
   COUNTING_SECONDS,
   MSG,
+  SPOT_RANGE,
   SOBE_CALL,
   type EmoteMsg,
   type EventMsg,
@@ -10,6 +13,7 @@ import {
   type SnapshotMsg,
   type SummaryMsg,
   type TeleportMsg,
+  type PlayerView,
 } from '@sokak/shared';
 import type { Game } from '../game/Game';
 import { useRoomView } from '../net/useRoom';
@@ -33,7 +37,43 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
   const [banner, showBanner] = useBanner();
   const [summary, setSummary] = useState<SummaryMsg | null>(null);
   const [showScores, setShowScores] = useState(false);
+  const [spotReady, setSpotReady] = useState(false);
   const me = room.sessionId;
+  // the first timeLeft seen while counting = total count (server decides the length)
+  const countTotal = useRef(COUNTING_SECONDS);
+  const lastPhase = useRef<string | null>(null);
+  if (view && view.phase !== lastPhase.current) {
+    if (view.phase === 'counting') countTotal.current = Math.max(1, view.timeLeft);
+    lastPhase.current = view.phase;
+  }
+  const amSeekingEbe = !!view && view.ebeId === me && view.phase === 'seeking';
+
+  // "Gördüm!" input → server (validated there)
+  useEffect(() => {
+    if (!game) return;
+    return game.input.onPress((a) => {
+      if (a === 'spot') room.send(MSG.spot);
+    });
+  }, [game, room]);
+
+  // highlight the button when a hiding player is in view and in range
+  useEffect(() => {
+    if (!game || !amSeekingEbe) {
+      setSpotReady(false);
+      return;
+    }
+    const iv = setInterval(() => {
+      const v = viewRef.current;
+      const pos = game.localPosition();
+      if (!v || !pos) return;
+      const atBase = Math.hypot(pos.x - BASE.x, pos.z - BASE.z) <= BASE_RADIUS;
+      const ready =
+        !atBase &&
+        game.visibleRemotes().some((r) => v.players[r.id]?.status === 'hiding' && Math.hypot(r.x - pos.x, r.z - pos.z) <= SPOT_RANGE);
+      setSpotReady(ready);
+    }, 150);
+    return () => clearInterval(iv);
+  }, [game, amSeekingEbe]);
 
   // Ebe cannot move or look around while counting
   const frozen = !!view && view.ebeId === me && (view.phase === 'ebeSelection' || view.phase === 'counting');
@@ -45,6 +85,10 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
   useEffect(() => {
     const offEv = room.onMessage(MSG.event, (e: EventMsg) => {
       const v = viewRef.current;
+      if (e.type === 'spotMiss') {
+        pushToast({ text: e.reason === 'base' ? 'Ebe Duvarı’ndan “Gördüm” diyemezsin, biraz uzaklaş!' : 'Yakında görünen kimse yok…', kind: 'info' });
+        return;
+      }
       if (e.type === 'countingDone') showBanner(SOBE_CALL, 4000);
       else if (e.type === 'herkesKurtuldu') showBanner(e.by === me ? 'HERKES KURTULDU! Hepsi senin sayende!' : `HERKES KURTULDU! (${nameOf(v, e.by)} sayesinde)`, 4500);
       else if (e.type === 'phase' && e.phase === 'ebeSelection') setSummary(null);
@@ -128,7 +172,8 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
     for (const id of game.remoteIds()) if (!ids.has(id)) game.removeRemote(id);
     for (const p of Object.values(view.players)) {
       if (p.id === room.sessionId) continue;
-      game.upsertRemote(p.id, p.color, p.name);
+      const [label, color] = labelFor(p, view.ebeId, view.phase);
+      game.upsertRemote(p.id, p.color, label, color);
     }
   }, [game, view, room]);
 
@@ -148,10 +193,29 @@ export function GameScreen({ room, onLeave, reconnecting }: Props) {
         )}
       </div>
       {view && view.phase === 'lobby' && <Lobby room={room} view={view} />}
-      {view && view.phase !== 'lobby' && <Hud view={view} me={me} toasts={toasts} banner={banner} countingTotal={COUNTING_SECONDS} />}
+      {view && view.phase !== 'lobby' && <Hud view={view} me={me} toasts={toasts} banner={banner} countingTotal={countTotal.current} />}
       {view && view.phase === 'roundEnd' && summary && <SummaryPanel view={view} summary={summary} me={me} />}
       {view && showScores && view.phase !== 'roundEnd' && <Scoreboard view={view} me={me} onClose={() => setShowScores(false)} />}
-      {game && isTouch && <TouchControls input={game.input} showSpot={false} spotReady={false} />}
+      {game && isTouch && <TouchControls input={game.input} showSpot={amSeekingEbe} spotReady={spotReady} />}
+      {game && !isTouch && amSeekingEbe && (
+        <button className={`spot-desktop ${spotReady ? 'ready' : ''}`} onClick={() => game.input.trigger('spot')}>
+          Gördüm! <small>(E)</small>
+        </button>
+      )}
     </div>
   );
+}
+
+function labelFor(p: PlayerView, ebeId: string, phase: string): [string, string] {
+  if (phase !== 'lobby' && p.id === ebeId) return [`👁 ${p.name} (ebe)`, '#ffb4a6'];
+  switch (p.status) {
+    case 'spotted':
+      return [`${p.name} — görüldü!`, '#ffd27a'];
+    case 'caught':
+      return [`${p.name} — sobelendi`, '#c8c8c8'];
+    case 'safe':
+      return [`${p.name} ✓`, '#9ff0b8'];
+    default:
+      return [p.name, '#ffffff'];
+  }
 }
