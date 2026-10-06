@@ -40,6 +40,22 @@ function canSwap(m: Meld, tile: number, ctx: OkeyCtx): boolean {
 }
 
 const COLOR_NAMES = ['Kırmızı', 'Sarı', 'Mavi', 'Siyah'];
+const RACK_STORE = 'sokak.rack';
+function loadRack(key: string): Rack | null {
+  try {
+    const v = JSON.parse(sessionStorage.getItem(RACK_STORE) ?? 'null') as { key: string; rack: Rack } | null;
+    return v?.key === key && Array.isArray(v.rack) && v.rack.length === SLOTS ? v.rack : null;
+  } catch {
+    return null;
+  }
+}
+function saveRack(key: string, rack: Rack): void {
+  try {
+    sessionStorage.setItem(RACK_STORE, JSON.stringify({ key, rack }));
+  } catch {
+    /* private mode: arrangement just isn't kept */
+  }
+}
 const _v = new THREE.Vector3();
 
 /**
@@ -82,15 +98,21 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
     }
   }, [hand]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // new hand → fresh rack, arranged once so it is readable
-  const handKey = `${table.handNo}-${view?.gosterge}`;
+  // new hand → fresh rack, arranged once so it is readable; after a reload the player's own
+  // arrangement of this hand comes back from the tab's session storage
+  const handKey = `${table.id}-${table.handNo}-${view?.gosterge}`;
   const lastKey = useRef('');
   useEffect(() => {
     if (lastKey.current !== handKey && ctx) {
       lastKey.current = handKey;
-      setRack(arrangeSeries(hand, ctx));
+      const saved = loadRack(handKey);
+      if (saved) setRack(hand.length ? syncRack(saved, hand) : saved);
+      else setRack(arrangeSeries(hand, ctx));
     }
   }, [handKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (lastKey.current === handKey && rack.some((t) => t !== null)) saveRack(handKey, rack);
+  }, [rack, handKey]);
 
   const leftSeat = (mySeat + 3) % 4;
   const myTurn = !!view && view.turn === mySeat && view.phase !== 'ended';

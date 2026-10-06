@@ -252,7 +252,7 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - **Mekânın dışına çıkılması:** harita kenarları kapatıldı. Denize atlamayı önlemek için korkuluğun üstüne görünmez bir duvar konuldu. Kamera da artık ince duvarlardan, vitrin camından ve kapı üstünden dışarı geçmiyor.
 
 **Gece test ederken bulup düzelttiğim hatalar**
-- Oyun ortasında sayfa yenilenince masaya geri dönülüyordu ama ıstaka boş geliyordu. Artık taşlar geri geliyor.
+- Oyun ortasında sayfa yenilenince masaya geri dönülüyordu ama ıstaka boş geliyordu. Artık taşlar geri geliyor, üstelik senin dizdiğin sırayla.
 - Özel salonun davet linkini almanın bir yolu yoktu. Kahvede **🔗 Davet et** düğmesi eklendi: telefonda paylaşma menüsünü açıyor, bilgisayarda linki kopyalıyor.
 - Çaycı markete veya sahile çay götürürken duvarların içinden geçiyordu. Artık engellerin etrafından dolaşan bir yol buluyor.
 - Telefonda yatay ekranda üst çubuk taşıyordu. Masadayken üstteki düğmeler ipucu satırının altında kalıyordu. "Otur" ve "Alışveriş" yazıları elindeki eşyanın çubuğuyla üst üste biniyordu. Üçü de düzeltildi.
@@ -321,7 +321,6 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 
 **Önerilen sonraki adımlar**
 - İlk iş olarak VDS'e kurulum yap ve TURN sunucusunu ayarla.
-- Istaka dizilişin sayfa yenilenince sıfırlanıyor; bunun saklanması iyi olur.
 - Kalıcı haftalık liderlik tablosu eklenebilir; bunun için takma ad saklamak gerekir.
 - Sahilde martıya simit atma, vapura binme gibi mini etkinlikler eklenebilir.
 - Saklambaç için de Üsküdar temalı ikinci bir mahalle yapılabilir.

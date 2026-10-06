@@ -17,7 +17,6 @@ Ideas that are out of scope for the current milestones.
 - Reconnect for the host role switching back when the original host returns.
 
 ## Kahvehane / 101 Okey (after the night session)
-- Remember the player's ıstaka arrangement across a reload (sessionStorage per salon + table).
 - Persistent weekly leaderboard (needs storing nicknames; decide on privacy first).
 - Sahil mini activities: feed the gulls with simit, take the vapur to Karaköy (second map), fishing with the amcas.
 - TURN relay for voice chat on the VDS (coturn) and a real-phone voice/fps test.
