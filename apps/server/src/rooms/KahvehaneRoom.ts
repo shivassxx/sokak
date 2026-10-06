@@ -52,12 +52,18 @@ import {
   type PlayerSnap,
   type ServedMsg,
   type SnapshotMsg,
+  type SalonMeta,
   type TeleportMsg,
   type UsedMsg,
 } from '@sokak/shared';
 import { OkeyGame, botAction, type OkeyEvent, type Result } from '@sokak/okey';
 import { KPlayer, KTable, KahveState } from './kahveSchema';
 import { generateRoomId } from '../roomId';
+import { WalletStore } from '../wallets';
+
+/** daily play-money bonus for returning devices */
+export const DAILY_BONUS = 250;
+const DAY_MS = 20 * 3600 * 1000;
 
 interface Avatar {
   id: string;
@@ -73,6 +79,8 @@ interface Avatar {
   lastCreditAt: number;
   lastShopAt: number;
   lastUseAt: number;
+  /** anonymous wallet token, '' = no persistence */
+  device: string;
 }
 
 interface TableRuntime {
@@ -108,14 +116,28 @@ export class KahvehaneRoom extends Room<KahveState> {
   static rng: () => number = Math.random;
   /** override for tests (ms) */
   static timing = { botMin: 700, botMax: 1600, between: 6000, result: 9000, turn: TURN_SECONDS * 1000 };
+  static wallets: WalletStore | null = null;
   static analyticsSink: { tableStarted?(players: number, bet: number): void; handPlayed?(): void } | null = null;
 
   private get cls(): typeof KahvehaneRoom {
     return this.constructor as typeof KahvehaneRoom;
   }
 
-  override onCreate(): void {
+  /** Üsküdar neighbourhoods as salon names */
+  static salonNames = ['Salacak', 'Kuzguncuk', 'Çengelköy', 'Doğancılar', 'Ahmediye', 'Bağlarbaşı', 'Validebağ', 'Altunizade', 'Beylerbeyi', 'Kandilli'];
+  static salonCounter = 0;
+  private meta: SalonMeta = { name: '', private: false, playing: 0, waiting: 0, humans: 0 };
+
+  override onCreate(options: JoinOptions = {}): void {
     this.roomId = generateRoomId();
+    const n = KahvehaneRoom.salonCounter++;
+    const names = KahvehaneRoom.salonNames;
+    this.meta.name = `${names[n % names.length]}${n >= names.length ? ` ${Math.floor(n / names.length) + 1}` : ''}`;
+    this.meta.private = !!options.private;
+    this.state.name = this.meta.name;
+    if (this.meta.private) void this.setPrivate(true);
+    void this.setMetadata({ ...this.meta });
+    this.clock.setInterval(() => this.updateMeta(), 2000);
     for (let i = 0; i < TABLE_COUNT; i++) {
       const t = new KTable();
       t.id = i;
@@ -138,6 +160,8 @@ export class KahvehaneRoom extends Room<KahveState> {
       if (p) (p.holding = ''), (p.uses = 0);
     });
     this.onMessage(KMSG.sitSpot, (c, m: { spot?: unknown }) => this.sitSpot(c.sessionId, m?.spot));
+    this.onMessage(KMSG.quickSeat, (c, m: { table?: unknown }) => this.quickSeat(c.sessionId, m?.table));
+    this.onMessage(KMSG.fillBots, (c) => this.fillBotsAndStart(c.sessionId));
     this.onMessage(MSG.emote, (c, e: unknown) => {
       const a = this.avatars.get(c.sessionId);
       if (!a || typeof e !== 'string' || !(EMOTES as readonly string[]).includes(e)) return;
@@ -168,6 +192,20 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.color = sanitizeColor(options.color);
     Object.assign(p, sanitizeLook(options));
     p.money = START_MONEY;
+    // returning device: restore the wallet (+ daily bonus)
+    const device = WalletStore.validToken(options.device) ? options.device : '';
+    let bonus = 0;
+    const store = this.cls.wallets;
+    if (device && store) {
+      const w = store.get(device);
+      const now = Date.now();
+      if (w) p.money = Math.max(0, w.money);
+      if (!w || now - w.lastBonus > DAY_MS) {
+        if (w) bonus = DAILY_BONUS;
+        p.money += bonus;
+        store.set(device, { money: p.money, lastBonus: now, seen: now });
+      }
+    }
     this.state.players.set(p.id, p);
     const n = this.avatars.size;
     this.avatars.set(p.id, {
@@ -185,7 +223,10 @@ export class KahvehaneRoom extends Room<KahveState> {
       lastCreditAt: -1e12,
       lastShopAt: 0,
       lastUseAt: 0,
+      device,
     });
+    if (bonus) this.clock.setTimeout(() => this.avatars.get(p.id)?.client?.send(KMSG.notice, `🎁 Günlük bonus: +${bonus} ₺. Hoş geldin!`), 1500);
+    if (options.quick) this.quickSeat(p.id, undefined);
   }
 
   override async onLeave(client: Client, consented: boolean): Promise<void> {
@@ -212,9 +253,19 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.removePlayer(p.id);
   }
 
+  private saveWallet(id: string): void {
+    const a = this.avatars.get(id);
+    const p = this.state.players.get(id);
+    const store = this.cls.wallets;
+    if (!a?.device || !p || !store) return;
+    const w = store.get(a.device);
+    store.set(a.device, { money: p.money, lastBonus: w?.lastBonus ?? Date.now(), seen: Date.now() });
+  }
+
   private removePlayer(id: string): void {
     const p = this.state.players.get(id);
     if (!p) return;
+    this.saveWallet(id);
     if (p.table >= 0) this.stand(id, true);
     this.state.players.delete(id);
     this.avatars.delete(id);
@@ -600,6 +651,55 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.money -= cost;
     const msg: ServedMsg = { from: id, to, item: item.id };
     this.broadcast(KMSG.served, msg);
+  }
+
+  // ------------------------------------------------------------ lobby helpers
+  private updateMeta(): void {
+    for (const a of this.avatars.values()) if (a.device) this.saveWallet(a.id);
+    const humans = [...this.state.players.values()].filter((p) => !p.isBot).length;
+    let playing = 0;
+    let waiting = 0;
+    for (const t of this.state.tables) {
+      if (t.status !== 'open') playing++;
+      else if ([...t.seats].some((s) => s && this.isHuman(s))) waiting++;
+    }
+    if (playing === this.meta.playing && waiting === this.meta.waiting && humans === this.meta.humans) return;
+    Object.assign(this.meta, { playing, waiting, humans });
+    void this.setMetadata({ ...this.meta });
+  }
+
+  /**
+   * "Hızlı otur": go to a table without walking. With a table index it is that
+   * table, otherwise the best one: people already waiting first, else an empty one.
+   */
+  private quickSeat(id: string, raw: unknown): void {
+    const p = this.state.players.get(id);
+    const a = this.avatars.get(id);
+    if (!p || !a || p.table >= 0) return;
+    if (p.spot >= 0) this.leaveSpot(id);
+    let ti = Number(raw);
+    if (!Number.isInteger(ti) || ti < 0 || ti >= TABLE_COUNT) {
+      const free = (i: number) => this.state.tables[i]!.status === 'open' && [...this.state.tables[i]!.seats].some((s) => !s);
+      const waitingHumans = (i: number) => [...this.state.tables[i]!.seats].filter((s) => s && this.isHuman(s)).length;
+      const order = [...Array(TABLE_COUNT).keys()].filter(free).sort((x, y) => waitingHumans(y) - waitingHumans(x));
+      ti = order[0] ?? -1;
+      if (ti < 0) return this.error(id, 'Şu an boş masa yok, biraz bekle.');
+    }
+    const t = this.state.tables[ti]!;
+    if (t.status !== 'open' || ![...t.seats].some((s) => !s)) return this.error(id, 'Bu masada yer yok.');
+    const tc = TABLES[ti]!;
+    a.body = createBody(tc.x, tc.z + 1.8);
+    this.sit(id, ti, undefined);
+  }
+
+  /** Host: fill the empty chairs with bots and deal right away. */
+  private fillBotsAndStart(id: string): void {
+    const p = this.state.players.get(id);
+    if (!p || p.table < 0) return;
+    const t = this.state.tables[p.table]!;
+    if (t.hostId !== id || t.status !== 'open') return;
+    for (let s = 0; s < 4; s++) if (t.seats[s] === '') t.seats[s] = this.createBot(p.table, s).id;
+    this.startMatch(id);
   }
 
   // ------------------------------------------------------------ market, simitçi, benches

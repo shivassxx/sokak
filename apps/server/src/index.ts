@@ -14,12 +14,14 @@ const s = await startServer(port, {
   staticDir: prod ? staticDir : undefined,
   analyticsFile: process.env.ANALYTICS_FILE ?? (prod ? path.resolve('data/analytics.jsonl') : null),
   statsToken: process.env.STATS_TOKEN,
+  walletFile: process.env.WALLET_FILE ?? path.resolve('data/wallets.json'),
   rules: fast ? { countingMs: 6000, seekingMs: 45000, roundEndMs: 8000 } : {},
 });
 console.log(`[sokak] server listening on :${s.port}`);
 
 const shutdown = async () => {
   console.log('[sokak] shutting down…');
+  s.wallets.flush();
   await s.close();
   process.exit(0);
 };

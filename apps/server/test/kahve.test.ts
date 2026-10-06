@@ -172,4 +172,35 @@ describe('kahvehane', () => {
     await until(() => me(a).spot === -1);
     await a.leave();
   });
+
+  it('wallet: the same device keeps its play money between visits', async () => {
+    const device = 'ab'.repeat(16);
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Cuzdan', device });
+    await until(() => !!st(a).players?.get(a.id));
+    expect(me(a).money).toBe(START_MONEY);
+    const room = matchMaker.getLocalRoomById(a.room.roomId) as KahvehaneRoom;
+    const market = SHOPS.find((s) => s.id === 'market')!;
+    room.debugPlace(a.id, market.x, market.z);
+    await sleep(80);
+    a.room.send(KMSG.buy, { shop: 'market', item: 'su' });
+    const su = SHOP_ITEMS.find((i) => i.id === 'su')!;
+    await until(() => me(a).money === START_MONEY - su.price);
+    await a.leave();
+    await sleep(150);
+    const b = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Cuzdan', device });
+    await until(() => !!st(b).players?.get(b.id));
+    expect(me(b).money).toBe(START_MONEY - su.price);
+    await b.leave();
+  });
+
+  it('lobby: quick join seats you at a table; fill with bots and deal', async () => {
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Hizli', quick: true });
+    await until(() => (st(a).players?.get(a.id)?.table ?? -1) >= 0);
+    const ti = me(a).table;
+    expect(table(a, ti).hostId).toBe(a.id);
+    a.room.send(KMSG.fillBots);
+    await until(() => table(a, ti).status === 'playing');
+    a.room.send(KMSG.stand);
+    await a.leave();
+  });
 });

@@ -1,5 +1,5 @@
 import { Client, type Room } from 'colyseus.js';
-import { KAHVE_ROOM, ROOM_NAME, SERVER_PORT, type JoinOptions } from '@sokak/shared';
+import { KAHVE_ROOM, ROOM_NAME, SERVER_PORT, type JoinOptions, type SalonInfo } from '@sokak/shared';
 
 export function serverEndpoint(): string {
   const env = import.meta.env.VITE_SERVER_URL as string | undefined;
@@ -59,9 +59,48 @@ export async function tryReconnect(roomId?: string): Promise<Room | null> {
   }
 }
 
-/** Public kahvehane: join a friend's (by id) or any kahvehane with free chairs. */
-export async function joinKahve(opts: JoinOptions, roomId?: string): Promise<Room> {
-  const room = roomId ? await client.joinById(roomId, opts) : await client.joinOrCreate(KAHVE_ROOM, opts);
+/** Anonymous random token that keeps this device's play money between visits. */
+export function deviceToken(): string {
+  const KEY = 'sokak.device';
+  try {
+    let t = localStorage.getItem(KEY);
+    if (!t || !/^[a-f0-9]{32}$/.test(t)) {
+      const b = new Uint8Array(16);
+      crypto.getRandomValues(b);
+      t = [...b].map((x) => x.toString(16).padStart(2, '0')).join('');
+      localStorage.setItem(KEY, t);
+    }
+    return t;
+  } catch {
+    return '';
+  }
+}
+
+export function httpEndpoint(): string {
+  return serverEndpoint().replace(/^ws/, 'http');
+}
+
+/** Lobby: public salons with player counts. */
+export async function listSalons(): Promise<SalonInfo[]> {
+  const r = await fetch(`${httpEndpoint()}/api/salons`, { cache: 'no-store' });
+  if (!r.ok) throw new Error('salons');
+  return (await r.json()) as SalonInfo[];
+}
+
+export interface KahveJoin {
+  /** a specific salon (lobby list / invite link) */
+  roomId?: string;
+  /** sit me at a table right away */
+  quick?: boolean;
+  /** open a new salon (optionally private: link only) */
+  create?: boolean;
+  private?: boolean;
+}
+
+/** Kahvehane salon: join by id, quick-join any, or create a new (private) one. */
+export async function joinKahve(opts: JoinOptions, how: KahveJoin = {}): Promise<Room> {
+  const o: JoinOptions = { ...opts, device: deviceToken(), quick: how.quick, private: how.private };
+  const room = how.roomId ? await client.joinById(how.roomId, o) : how.create ? await client.create(KAHVE_ROOM, o) : await client.joinOrCreate(KAHVE_ROOM, o);
   remember(room);
   return room;
 }

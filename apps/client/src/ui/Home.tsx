@@ -130,7 +130,7 @@ export function Home({ invite, busy, error, onStart, onPractice }: Props) {
             </div>
           </div>
           <button className="btn big" disabled={busy} onClick={go}>
-            {busy ? 'Bağlanıyor…' : mode === 'okey' ? (joining ? 'Arkadaşlarının kahvesine gir' : 'Kahvehaneye gir') : joining ? 'Oyuna katıl' : 'Oda kur'}
+            {busy ? 'Bağlanıyor…' : mode === 'okey' ? (joining ? 'Arkadaşlarının salonuna gir' : 'Lobiye gir') : joining ? 'Oyuna katıl' : 'Oda kur'}
           </button>
           {error && <div className="error">{error}</div>}
           <button className="link" onClick={onPractice}>

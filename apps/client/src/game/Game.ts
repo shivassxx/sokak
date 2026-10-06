@@ -608,11 +608,12 @@ export class Game {
     }
     if (this.seat && this.kahve) {
       const sv = this.kahve.seatView(this.seat.table, this.seat.seat, this.camera.aspect, this.seatBottom);
-      this.camera.position.lerp(sv.pos, 0.12);
-      this.seatLook.lerp(sv.target, 0.2);
+      const k = 1 - Math.exp(-dt * 6);
+      this.camera.position.lerp(sv.pos, k);
+      this.seatLook.lerp(sv.target, Math.min(1, k * 1.6));
       this.camera.lookAt(this.seatLook);
       if (Math.abs(this.camera.fov - sv.fov) > 0.05) {
-        this.camera.fov += (sv.fov - this.camera.fov) * 0.2;
+        this.camera.fov += (sv.fov - this.camera.fov) * Math.min(1, k * 1.6);
         this.camera.updateProjectionMatrix();
       }
       return;

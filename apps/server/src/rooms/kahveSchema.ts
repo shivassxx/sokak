@@ -39,6 +39,8 @@ export class KTable extends Schema {
 }
 
 export class KahveState extends Schema {
+  /** salon name shown in the lobby and the HUD */
+  @type('string') name = '';
   @type({ map: KPlayer }) players = new MapSchema<KPlayer>();
   @type([KTable]) tables = new ArraySchema<KTable>();
 }

@@ -20,7 +20,31 @@ export const KMSG = {
   drop: 'drop',
   sitSpot: 'sitSpot',
   used: 'used',
+  quickSeat: 'quickSeat',
+  fillBots: 'fillBots',
+  notice: 'notice',
 } as const;
+
+/** Lobby listing of a kahvehane room (GET /api/salons). */
+export interface SalonInfo {
+  roomId: string;
+  name: string;
+  players: number;
+  max: number;
+  /** tables with a match going on */
+  playing: number;
+  /** open tables where somebody is waiting for players */
+  waiting: number;
+}
+
+/** Room metadata kept by the server for the lobby. */
+export interface SalonMeta {
+  name: string;
+  private: boolean;
+  playing: number;
+  waiting: number;
+  humans: number;
+}
 
 /** Someone used their held item (smoke, eat, drink, read). */
 export interface UsedMsg {
@@ -127,6 +151,7 @@ export interface KTableView {
 }
 
 export interface KahveView {
+  name?: string;
   players: Record<string, KPlayerView>;
   tables: KTableView[];
 }

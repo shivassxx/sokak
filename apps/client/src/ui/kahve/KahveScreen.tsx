@@ -74,6 +74,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   /** the closest thing to interact with: a table, a shop or a seat (bench / stool) */
   const [nearThing, setNearThing] = useState<{ kind: 'table' | 'shop' | 'spot'; i: number } | null>(null);
   const [shopOpen, setShopOpen] = useState<number>(-1);
+  const [tablesOpen, setTablesOpen] = useState(false);
   /** recently served drinks per player (shown as badges at the table) */
   const [drinks, setDrinks] = useState<Record<string, { emoji: string; t: number }[]>>({});
   const [suspicion, setSuspicion] = useState<{ seat: number; until: number } | null>(null);
@@ -129,6 +130,10 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         play('click');
       }),
       room.onMessage(KMSG.okeyEvent, (m: OkeyEventMsg) => onOkeyEvent(m)),
+      room.onMessage(KMSG.notice, (text: string) => {
+        toastRef.current({ text, kind: 'good' });
+        play('pop');
+      }),
       room.onMessage(KMSG.served, (s: ServedMsg) => onServed(s)),
       room.onMessage(KMSG.used, (u: UsedMsg) => {
         const item = SHOP_ITEMS.find((i) => i.id === u.item);
@@ -344,6 +349,12 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         <button className="btn small" onClick={() => setMenuOpen((o) => !o)}>
           ☕ Çaycı!
         </button>
+        {!myTable && (
+          <button className="btn small" onClick={() => setTablesOpen((o) => !o)}>
+            🃏 Masalar
+          </button>
+        )}
+        {view?.name && <span className="pill salon-name">📍 {view.name}</span>}
         {myP && myP.money < 50 && (
           <button className="btn small" onClick={() => room.send(KMSG.credit)}>
             Veresiye yaz
@@ -442,6 +453,53 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         </div>
       )}
 
+      {tablesOpen && !myTable && view && (
+        <div className="panel tables-panel">
+          <div className="panel-head">
+            <h2>🃏 Masalar</h2>
+            <button className="btn small" onClick={() => setTablesOpen(false)}>
+              Kapat
+            </button>
+          </div>
+          <button
+            className="btn primary"
+            onClick={() => {
+              room.send(KMSG.quickSeat, {});
+              setTablesOpen(false);
+            }}
+          >
+            ⚡ Hızlı masa: beni boş bir yere oturt
+          </button>
+          <ul className="table-list">
+            {view.tables.map((t) => {
+              const filled = [...t.seats].filter(Boolean);
+              const humans = filled.filter((id) => !view.players[id]?.isBot);
+              const free = t.status === 'open' && filled.length < 4;
+              return (
+                <li key={t.id} className={t.status !== 'open' ? 'busy' : humans.length ? 'waiting' : ''}>
+                  <span className="tno">{t.id + 1}</span>
+                  <span className="tinfo">
+                    <b>{t.id >= 18 ? 'Teras' : 'Salon'}</b> · {filled.length}/4 {t.status === 'open' ? (t.bet ? `· ${t.bet} ₺` : '· bahissiz') : '· oyunda'}
+                    {humans.length > 0 && <small>{humans.map((id) => view.players[id]?.name).join(', ')}</small>}
+                  </span>
+                  {free && (
+                    <button
+                      className="btn small primary"
+                      onClick={() => {
+                        room.send(KMSG.quickSeat, { table: t.id });
+                        setTablesOpen(false);
+                      }}
+                    >
+                      Otur
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
       {myTable && myTable.status === 'open' && (
         <div className="panel table-lobby">
           <div className="panel-head">
@@ -495,6 +553,11 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
               <button className="btn primary" disabled={![...myTable.seats].every(Boolean)} onClick={() => room.send(KMSG.tableStart)}>
                 Taşları dağıt
               </button>
+              {![...myTable.seats].every(Boolean) && (
+                <button className="btn primary" onClick={() => room.send(KMSG.fillBots)}>
+                  🤖 Botlarla hemen başla
+                </button>
+              )}
             </div>
           ) : (
             <p className="hint">Masa sahibinin başlatması bekleniyor…</p>

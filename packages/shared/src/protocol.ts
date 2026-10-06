@@ -63,6 +63,12 @@ export interface JoinOptions {
   hat?: number;
   hair?: number;
   skin?: number;
+  /** kahvehane: seat me at a table right away */
+  quick?: boolean;
+  /** kahvehane: when creating a salon, hide it from the lobby list */
+  private?: boolean;
+  /** kahvehane: anonymous random device token for the play-money wallet */
+  device?: string;
 }
 
 /** client → server, one per simulation step */

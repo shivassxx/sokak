@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react'
 import type { Room } from 'colyseus.js';
 import { createRoom, forgetRoom, joinKahve, joinRoom, tryReconnect } from '../net/connection';
 import { Home, type Mode } from './Home';
+import { KahveLobby } from './kahve/KahveLobby';
 import { Practice } from './Practice';
 import { GameScreen } from './GameScreen';
 import type { Prefs } from './prefs';
@@ -42,6 +43,7 @@ export function App() {
   const [invite, setInvite] = useState(inviteFromUrl);
   const [room, setRoom] = useState<{ room: Room; kind: Kind } | null>(null);
   const [practice, setPractice] = useState(false);
+  const [lobby, setLobby] = useState<Prefs | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reconnecting, setReconnecting] = useState(false);
@@ -53,6 +55,7 @@ export function App() {
     r.onMessage('*', () => {});
     setUrlRoom(kind, r.roomId);
     setRoom({ room: r, kind });
+    setLobby(null);
     r.onLeave(async (code) => {
       if (leavingRef.current || code === 4000 || code === 1000) return;
       // unexpected drop: retry within the reconnect window
@@ -106,6 +109,9 @@ export function App() {
   };
 
   if (practice) return <Practice onExit={() => setPractice(false)} />;
+  if (lobby && !room) {
+    return <KahveLobby prefs={lobby} busy={busy} error={error} onBack={() => setLobby(null)} onJoin={(how) => void run(() => joinKahve(lobby, how), 'kahve')} />;
+  }
   if (room?.kind === 'oda') return <GameScreen room={room.room} reconnecting={reconnecting} onLeave={leave} />;
   if (room?.kind === 'kahve') {
     return (
@@ -123,7 +129,11 @@ export function App() {
         if (mode === 'saklambac') {
           if (invite?.kind === 'oda') void run(() => joinRoom(invite.id, p), 'oda');
           else void run(() => createRoom(p), 'oda');
-        } else void run(() => joinKahve(p, invite?.kind === 'kahve' ? invite.id : undefined), 'kahve');
+        } else if (invite?.kind === 'kahve') void run(() => joinKahve(p, { roomId: invite.id }), 'kahve');
+        else {
+          setError(null);
+          setLobby(p);
+        }
       }}
       onPractice={() => setPractice(true)}
     />
