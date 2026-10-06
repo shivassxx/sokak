@@ -515,7 +515,7 @@ export class Character {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const w = Math.min(500, ctx.measureText(text).width + 44);
-    ctx.fillStyle = '#fffaf0';
+    ctx.fillStyle = '#f1e9d8';
     ctx.strokeStyle = '#2b2118';
     ctx.lineWidth = 5;
     ctx.beginPath();
@@ -531,8 +531,8 @@ export class Character {
     const tex = new THREE.CanvasTexture(c);
     tex.colorSpace = THREE.SRGBColorSpace;
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-    s.scale.set(3.2, 0.69, 1);
-    s.position.y = 2.75;
+    s.scale.set(2.5, 0.54, 1);
+    s.position.y = 2.6;
     s.renderOrder = 10;
     this.bubble = s;
     this.bubbleT = 3.2;

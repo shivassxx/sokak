@@ -65,8 +65,10 @@ interface Remote {
   prevZ: number;
 }
 
-const SOLID_CAM_MAHALLE = COLLIDERS.filter((c) => c.solid && c.maxY - c.minY > 1);
-const SOLID_CAM_KAHVE = KAHVE_COLLIDERS.filter((c) => c.solid && c.maxY - c.minY > 1.5);
+// camera occluders: tall and not thin (lamp posts / trunks would make the camera pump in and out)
+const camBlocker = (minH: number) => (c: (typeof COLLIDERS)[number]) => c.solid && c.maxY - c.minY > minH && Math.min(c.maxX - c.minX, c.maxZ - c.minZ) >= 0.5;
+const SOLID_CAM_MAHALLE = COLLIDERS.filter(camBlocker(1));
+const SOLID_CAM_KAHVE = KAHVE_COLLIDERS.filter(camBlocker(1.5));
 const INTERP_DELAY = 110;
 
 export class Game {
@@ -116,6 +118,10 @@ export class Game {
   /** NDC y of the top of the on-screen rack (the table is framed above it) */
   seatBottom = -0.42;
   private seatLook = new THREE.Vector3();
+  private focusY: number | null = null;
+  private camDistCur: number | null = null;
+  /** prediction diagnostics (corrections applied by reconcile) */
+  readonly stats = { corrections: 0, maxErr: 0 };
   /** dev-only: fixed camera for screenshots */
   debugCam: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null;
   private dusk = 0.15;
@@ -292,6 +298,10 @@ export class Game {
     this.pending = this.pending.filter((p) => p.seq > ack);
     for (const p of this.pending) stepBody(b, p.input, SIM_DT, this.phys);
     const err = Math.hypot(b.x - this.body.x, b.y - this.body.y, b.z - this.body.z);
+    if (err > 0.001) {
+      this.stats.corrections++;
+      this.stats.maxErr = Math.max(this.stats.maxErr, err);
+    }
     this.body.stamina = b.stamina;
     this.body.tired = b.tired;
     if (err > 0.001) {
@@ -523,7 +533,7 @@ export class Game {
       } else e.update(k);
     }
 
-    this.updateCamera(focus);
+    this.updateCamera(focus, dt);
     this.lighting?.follow(focus.x, focus.z);
     if (Math.abs(this.dusk - this.duskTarget) > 0.002) {
       this.dusk += (this.duskTarget - this.dusk) * Math.min(1, dt * 0.5);
@@ -537,7 +547,7 @@ export class Game {
     this.post.render(dt);
   }
 
-  private updateCamera(focus: THREE.Vector3): void {
+  private updateCamera(focus: THREE.Vector3, dt: number): void {
     if (this.debugCam) {
       this.camera.position.copy(this.debugCam.pos);
       this.camera.lookAt(this.debugCam.target);
@@ -560,24 +570,34 @@ export class Game {
       this.camera.lookAt(EBE_COUNT_SPOT.x, 1.2, EBE_COUNT_SPOT.z - 1);
       return;
     }
+    // only the height is smoothed (steps, curbs, landings); the horizontal follow is exact so the
+    // character never wobbles on screen when frame times vary
+    if (this.focusY === null || !this.body) this.focusY = focus.y;
+    else this.focusY += (focus.y - this.focusY) * (1 - Math.exp(-dt * 12));
+    const f = new THREE.Vector3(focus.x, this.focusY, focus.z);
     const dist = this.body ? this.camDist : 22;
     const cp = Math.cos(this.camPitch);
-    const desired = new THREE.Vector3(
-      focus.x + Math.sin(this.camYaw) * dist * cp,
-      focus.y + Math.sin(this.camPitch) * dist + 0.3,
-      focus.z + Math.cos(this.camYaw) * dist * cp,
-    );
+    const dir = new THREE.Vector3(Math.sin(this.camYaw) * cp, Math.sin(this.camPitch), Math.cos(this.camYaw) * cp);
+    let want = dist;
     if (this.body) {
+      const full = f.clone().addScaledVector(dir, dist);
+      full.y += 0.3;
       let tMin = 1;
       for (const c of this.solidCam) {
-        const t = segmentEntryT(focus, desired, c);
+        const t = segmentEntryT(f, full, c);
         if (t >= 0 && t < tMin) tMin = t;
       }
-      if (tMin < 1) desired.lerpVectors(focus, desired, Math.max(0.12, tMin - 0.05));
-      if (desired.y < 0.3) desired.y = 0.3;
+      if (tMin < 1) want = Math.max(0.7, dist * (tMin - 0.05));
     }
-    this.camera.position.lerp(desired, 0.5);
-    this.camera.lookAt(focus);
+    // pull in fast when something gets in the way, ease back out slowly
+    if (this.camDistCur === null) this.camDistCur = want;
+    const k = want < this.camDistCur ? 1 - Math.exp(-dt * 30) : 1 - Math.exp(-dt * 3.5);
+    this.camDistCur += (want - this.camDistCur) * k;
+    const pos = f.clone().addScaledVector(dir, this.camDistCur);
+    pos.y += 0.3 * (this.camDistCur / dist);
+    if (this.body && pos.y < 0.3) pos.y = 0.3;
+    this.camera.position.copy(pos);
+    this.camera.lookAt(f);
     if (this.shakeT > 0) {
       this.shakeT -= 1 / 60;
       const a = this.shakeAmp * Math.max(0, this.shakeT / 0.45);

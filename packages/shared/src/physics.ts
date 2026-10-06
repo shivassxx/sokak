@@ -146,6 +146,21 @@ export function stepBody(body: Body, input: MoveInput, dt: number = SIM_DT, worl
   const dz = mz * speed * dt;
   const near = [...world.solidsNear(body.x - r - 1, body.x + r + 1, body.z - r - 1, body.z + r + 1)];
 
+  // already overlapping something (teleported, landed on an edge, stood up next to a table)?
+  // push out along the shallowest axis first, so the sweep below never pushes the wrong way
+  for (const c of near) {
+    if (!blocksAt(c, body.y, allowance) || !overlapsXZ(c, body.x, body.z, r)) continue;
+    const toMaxX = c.maxX + r - body.x;
+    const toMinX = body.x - (c.minX - r);
+    const toMaxZ = c.maxZ + r - body.z;
+    const toMinZ = body.z - (c.minZ - r);
+    const m = Math.min(toMaxX, toMinX, toMaxZ, toMinZ);
+    if (m === toMaxX) body.x = c.maxX + r + EPS;
+    else if (m === toMinX) body.x = c.minX - r - EPS;
+    else if (m === toMaxZ) body.z = c.maxZ + r + EPS;
+    else body.z = c.minZ - r - EPS;
+  }
+
   if (dx !== 0) {
     body.x += dx;
     for (const c of near) {

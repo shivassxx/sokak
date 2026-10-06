@@ -84,10 +84,31 @@ export class PostFX {
       ao.blendIntensity = 0.9;
       ao.updateGtaoMaterial({ radius: this.opts.aoRadius ?? 0.6, distanceExponent: 1.4, thickness: 1.2, scale: 1.0, samples: 12 });
       ao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+      // the AO g-buffer pass must not see sprites (name tags, speech bubbles), transparent or
+      // depth-less things: their quads would cast big dark AO halos around them
+      const pass = ao as unknown as { _overrideVisibility: () => void; _visibilityCache: THREE.Object3D[]; scene: THREE.Scene };
+      pass._overrideVisibility = function () {
+        const cache = this._visibilityCache;
+        this.scene.traverse((o) => {
+          if (!o.visible) return;
+          const m = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined;
+          const mat = Array.isArray(m) ? m[0] : m;
+          const skip =
+            (o as THREE.Sprite).isSprite ||
+            (o as THREE.Points).isPoints ||
+            (o as THREE.Line).isLine ||
+            o.userData.noAO === true ||
+            (mat && (mat.transparent || !mat.depthWrite || (mat as THREE.MeshBasicMaterial).isMeshBasicMaterial));
+          if (skip) {
+            o.visible = false;
+            cache.push(o);
+          }
+        });
+      };
       composer.addPass(ao);
       this.gtao = ao;
     }
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(this.w / 2, this.h / 2), this.opts.bloomStrength ?? 0.35, 0.5, 0.92);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(this.w / 2, this.h / 2), this.opts.bloomStrength ?? 0.35, 0.5, 0.96);
     composer.addPass(this.bloom);
     composer.addPass(new OutputPass());
     this.grade = new ShaderPass(GradeShader);

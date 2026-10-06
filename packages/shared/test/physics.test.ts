@@ -34,6 +34,23 @@ describe('physics', () => {
     expect(b.z).toBeCloseTo(-1.9 + PLAYER_RADIUS, 2);
   });
 
+  it('a body stuck inside a solid is pushed out and can walk away (no sticking)', () => {
+    const wall = COLLIDERS.find((c) => c.solid && c.maxY > 1.5 && c.minX < 0 && c.maxX > 0 && Math.abs(c.maxZ + 1.9) < 0.01)!;
+    expect(wall).toBeTruthy();
+    // just inside the wall's front face
+    const b = createBody(0, wall.maxZ - 0.1);
+    run(b, { mx: 0, mz: 1, jump: false, crouch: false }, 1);
+    expect(insideSolid(b.x, b.z)).toBe(false);
+    const z0 = b.z;
+    run(b, { mx: 0, mz: 1, jump: false, crouch: false }, 10);
+    expect(b.z).toBeGreaterThan(z0 + 2);
+    // and walking sideways along the face does not get caught either
+    const c = createBody(0, wall.maxZ - 0.1);
+    run(c, { mx: 1, mz: 0, jump: false, crouch: false }, 10);
+    expect(insideSolid(c.x, c.z)).toBe(false);
+    expect(c.x).toBeGreaterThan(1.5);
+  });
+
   it('is deterministic', () => {
     const a = createBody(5, 5);
     const b = createBody(5, 5);
