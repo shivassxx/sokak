@@ -253,7 +253,7 @@ export function skylineTexture(): THREE.CanvasTexture {
     ctx.fillStyle = 'rgba(92,72,108,0.85)';
     ctx.beginPath();
     ctx.moveTo(0, base);
-    for (let x = 0; x <= W; x += 64) ctx.lineTo(x, base - 40 - Math.sin(x * 0.0021) * 30 - Math.sin(x * 0.009) * 10);
+    for (let x = 0; x <= W; x += 64) ctx.lineTo(x, base - 60 - Math.sin(x * 0.0021) * 45 - Math.sin(x * 0.009) * 14);
     ctx.lineTo(W, H);
     ctx.lineTo(0, H);
     ctx.fill();
@@ -261,7 +261,7 @@ export function skylineTexture(): THREE.CanvasTexture {
     ctx.fillStyle = 'rgba(70,52,86,0.95)';
     ctx.beginPath();
     ctx.moveTo(0, base + 10);
-    for (let x = 0; x <= W; x += 16) ctx.lineTo(x, base - 10 - ((x * 7919) % 23) - Math.sin(x * 0.004) * 18);
+    for (let x = 0; x <= W; x += 16) ctx.lineTo(x, base - 16 - ((x * 7919) % 30) - Math.sin(x * 0.004) * 24);
     ctx.lineTo(W, H);
     ctx.lineTo(0, H);
     ctx.fill();
@@ -277,29 +277,46 @@ export function skylineTexture(): THREE.CanvasTexture {
         ctx.fill();
       }
       ctx.fillRect(cx - 2, base - r * 2.2, 4, r * 0.2);
+      const mw = Math.max(4, r * 0.09);
       for (let k = 0; k < minarets; k++) {
         const mx = cx + (k - (minarets - 1) / 2) * spread;
         const mh = r * 3.0;
-        ctx.fillRect(mx - 4, base - mh, 8, mh);
+        ctx.fillRect(mx - mw, base - mh, mw * 2, mh);
         ctx.beginPath();
-        ctx.moveTo(mx - 5, base - mh);
+        ctx.moveTo(mx - mw * 1.2, base - mh);
         ctx.lineTo(mx, base - mh - r * 0.8);
-        ctx.lineTo(mx + 5, base - mh);
+        ctx.lineTo(mx + mw * 1.2, base - mh);
         ctx.fill();
-        ctx.fillRect(mx - 7, base - mh * 0.72, 14, 4);
+        ctx.fillRect(mx - mw * 1.8, base - mh * 0.72, mw * 3.6, 5);
       }
     };
-    mosque(900, 46, 4, 70); // Ayasofya-like
-    mosque(1250, 50, 6, 52); // Sultanahmet-like
-    mosque(2050, 42, 4, 80); // Süleymaniye-like
-    mosque(2600, 30, 2, 60); // Yeni Cami-like
+    // the historic peninsula reads from Salacak: bigger than life so it carries at this distance
+    mosque(820, 72, 4, 110); // Ayasofya-like
+    mosque(1300, 78, 6, 80); // Sultanahmet-like
+    // Topkapı on Sarayburnu: long low roofs, the Adalet tower and the point's trees
+    ctx.fillStyle = 'rgba(62,46,78,1)';
+    for (let k = 0; k < 9; k++) ctx.fillRect(1560 + k * 46, base - 34 - (k % 3) * 8, 40, 40 + (k % 3) * 8);
+    ctx.fillRect(1700, base - 120, 22, 120);
+    ctx.beginPath();
+    ctx.moveTo(1694, base - 120);
+    ctx.lineTo(1711, base - 165);
+    ctx.lineTo(1728, base - 120);
+    ctx.fill();
+    for (let k = 0; k < 14; k++) {
+      ctx.beginPath();
+      ctx.arc(1600 + k * 30, base - 28 - (k % 4) * 6, 18, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    mosque(2150, 66, 4, 120); // Süleymaniye-like
+    mosque(2650, 46, 2, 90); // Yeni Cami-like
     // Galata tower
     ctx.fillStyle = 'rgba(66,48,82,1)';
-    ctx.fillRect(3300, base - 170, 34, 170);
+    ctx.fillRect(3300, base - 250, 50, 250);
+    ctx.fillRect(3294, base - 262, 62, 14);
     ctx.beginPath();
-    ctx.moveTo(3292, base - 170);
-    ctx.lineTo(3317, base - 230);
-    ctx.lineTo(3342, base - 170);
+    ctx.moveTo(3288, base - 262);
+    ctx.lineTo(3325, base - 345);
+    ctx.lineTo(3362, base - 262);
     ctx.fill();
     // twinkling windows
     for (let k = 0; k < 700; k++) {
@@ -308,6 +325,19 @@ export function skylineTexture(): THREE.CanvasTexture {
       ctx.fillStyle = k % 3 ? 'rgba(255,214,140,0.85)' : 'rgba(255,240,200,0.6)';
       ctx.fillRect(x, y, 3, 2);
     }
+    // fade both ends into the haze instead of a hard edge
+    ctx.globalCompositeOperation = 'destination-out';
+    for (const [x0, x1] of [
+      [0, 260],
+      [W, W - 260],
+    ] as const) {
+      const g = ctx.createLinearGradient(x0, 0, x1, 0);
+      g.addColorStop(0, 'rgba(0,0,0,1)');
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(Math.min(x0, x1), 0, 260, H);
+    }
+    ctx.globalCompositeOperation = 'source-over';
   });
 }
 
