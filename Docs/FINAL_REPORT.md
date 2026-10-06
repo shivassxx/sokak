@@ -150,3 +150,47 @@ Ayrıntılı adımlar: **`Docs/Deploy.md`**. Kısaca:
 - Yeni varlıklar `Docs/ThirdPartyAssets.md`, kararlar `Docs/Decisions.md` dosyasında.
 
 **Bilinen sınırlar:** Animasyonlu hazır CC0 karakter olarak sadece miğferli bir asker modeli erişilebilirdi; bu yüzden karakterler kodla üretildi. Gerçek bir telefonda kare hızının elle ölçülmesi önerilir; karakter başına yaklaşık 35 çizim çağrısı var.
+
+---
+
+## Ek: Mod 2 — 101 Okey · Kahvehane
+
+**Nasıl girilir**
+1. Ana sayfada **"101 Okey"** modunu seç, sonra **"Kahvehaneye gir"** düğmesine bas. Herkes aynı herkese açık kahvehane lobisine düşer; 40 kişi dolunca yeni bir kahvehane açılır. `?kahve=<id>` linkiyle arkadaşın aynı kahvehaneye gelir.
+2. Salonda yürü, bir masaya yaklaş ve **Otur (E)** de. İlk oturan masanın sahibi olur.
+3. Masa sahibi **bahsi** (0 / 10 / 50 / 100 / 250) ve **el sayısını** (1 / 3 / 5) seçer. Boş sandalyelere **bot** ekleyip **"Taşları dağıt"** der.
+
+**Kurallar (101 Okey)**
+- 106 taş (2 sahte okey), gösterge ve okey, 22/21 taş dağıtımı. Desteden ya da soldaki oyuncunun attığı taştan çekilir, sonra bir taş atılır.
+- **Elini açmak** için en az **101 puanlık** seri ve per ya da en az **5 çift** gerekir. Soldan alınan taş kullanılmazsa atılamaz; zorla atılırsa ceza yazılır.
+- Açtıktan sonra yere per indirme, başkasının perine taş işleme ve okeyle yer değiştirme var. İşlek taş atana +101 ceza.
+- **Puanlama:** biten oyuncu −101 alır, okeyle ya da elden bitirilirse ×2. Açmayan oyuncu 202, açan oyuncu elinde kalan taşların toplamını yazar; çift açanda ×2. Deste biterse el kimse bitirmeden kapanır.
+- Maçın sonunda en düşük toplam puanı olan **potu** kazanır.
+
+**Taş çalma**
+- Her elde bir kez, sol hariç bir oyuncunun atık yığınındaki üst taşı kendi taşınla gizlice değiştirebilirsin (**Taş çal**).
+- Masadakiler 6 saniye içinde **"Hile var!"** derse hamle geri alınır, çalan 101 ceza ve 50 lira para cezası öder. Haksız suçlama yapan 20 lira öder.
+- Diğer oyunculara bazen "bir şeyler dönüyor…" ipucu gelir. Botlar da arada çalıyor ve şüphelenince suçluyor.
+
+**Kahvehane**
+- **Çaycı Rıza**'dan çay, oralet, Türk kahvesi, gazoz, ayran, simit ve tost sipariş edilebiliyor. Kendine, bütün masaya ya da bir oyuncuya ısmarlanabiliyor.
+- Çaycı tepsisiyle yürüyerek siparişi getiriyor; içecek masada görünüyor ve karakter içiyor.
+- **Sanal para:** başlangıçta 1000 ₺ var. Para bitince 5 dakikada bir 200 ₺ **Veresiye** alınabiliyor. Para tamamen oyun içi; gerçek parayla hiçbir bağı yok.
+- "En zenginler" listesi, okeye özel hazır mesajlar ve emojiler var. Serbest sohbet yok.
+- 3D salonda ahşap zemin, çini duvar, semaverli tezgâh, tavla, televizyon, vantilatörler ve tabelalar bulunuyor. Masalarda istekalar ve taşlar görünüyor.
+
+**Arayüz**
+- 2×14'lük ıstaka var; taşlar sürükle-bırak ile diziliyor. **Seri diz** ve **Çift diz** otomatik dizer.
+- **"Elini aç"** düğmesi kaç puanla açacağını gösteriyor. Rakiplerin atık yığınları, gösterge ve okey bilgisi ekranda.
+- Hamle süresi 30 saniye; süre dolarsa otomatik oynanıyor. Oyundan kalkan oyuncunun yerine bot geçiyor.
+- Telefonda yatay ekran destekleniyor; dikey tutulduğunda "çevir" uyarısı çıkıyor.
+
+**Test**
+- `packages/okey` paketinde 18 birim testi var: taşlar, dağıtım, açma, işleme, okey değiştirme, puanlama, deste bitmesi, çalma ve suçlama. 12 tam el sadece botlarla oynatılıp taşların korunduğu doğrulandı.
+- Sunucuda 5 entegrasyon testi var: ortak oda, oturma mesafesi, para korunumuyla tam bot maçı, sipariş ve veresiye, çalmanın yakalanması ve bot devralması.
+- Toplam test sayısı 93/93. Masaüstü ve telefon (yatay) ekran görüntüleri Playwright ile kontrol edildi.
+
+**Bilinen sınırlar**
+- Eşli (2'ye 2) oyun yok.
+- Katlamalı açma barajı ve renk okeyi gibi yöresel varyantlar yok. Bunlar `Docs/Backlog.md` dosyasına eklenebilir.
+- Telefonda dikey modda oynanmıyor.
