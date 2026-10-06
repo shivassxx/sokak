@@ -15,3 +15,12 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 - **No sprint.** Ebe and hiders have equal speed so the race to base is decided by position, not stamina.
 - **Controls:** WASD/arrows, mouse drag to look (double-click = pointer lock), Space jump, C crouch (toggle), E/F "Gördüm!", Tab scoreboard, 1–4 emotes. Touch: dynamic joystick on the left 45 % of the screen, drag-to-look on the right, buttons bottom-right.
 - **The 3D bundle is lazy-loaded** (`import('./game/Game')`) so the home screen / lobby shows before Three.js arrives.
+
+## M2
+- **Positions are not in the Colyseus schema.** The schema holds only low-frequency data (names, colors, roles, statuses, scores, phase, timer). Positions go out as a per-client `s` message every tick so the server can filter what each client sees (anti-cheat, M4) and include the receiver's own exact body + last processed input for reconciliation. 10 players × ~30 bytes per tick is well within budget.
+- **Room ids:** 12 random chars from a 56-symbol alphabet (~70 bits) via `crypto.randomInt`; rooms are private (never matched by `joinOrCreate`).
+- **Host** = first human in the room; passes to the next connected human when the host leaves. Only the host can start and add/remove bots. A room with only bots left is emptied (and auto-disposed).
+- **Bots** are simulated inside the room (no network), use the same `stepBody`, and are labeled "bot" in the UI and with 🤖 in their name tag.
+- **Reconnect:** non-consented leave keeps the slot for 20 s (`allowReconnection`). The client stores `{roomId, reconnectionToken}` in `sessionStorage`, retries automatically on drops and on page reload.
+- **Nickname + color** are kept in `sessionStorage` only (no accounts, no persistent personal data). Duplicate names get a number suffix.
+- **Vitest runs with `pool: 'threads'`:** Colyseus probes `process.send` (pm2) which breaks Vitest's forks pool.

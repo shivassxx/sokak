@@ -1,0 +1,16 @@
+import { startServer, type StartedServer } from '../src/app';
+
+export async function withServer(): Promise<{ server: StartedServer; endpoint: string }> {
+  const server = await startServer(0, { host: '127.0.0.1' });
+  return { server, endpoint: `ws://127.0.0.1:${server.port}` };
+}
+
+export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export async function until(fn: () => boolean, timeout = 5000, step = 25): Promise<void> {
+  const t0 = Date.now();
+  while (!fn()) {
+    if (Date.now() - t0 > timeout) throw new Error('until(): timeout');
+    await sleep(step);
+  }
+}

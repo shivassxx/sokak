@@ -36,6 +36,7 @@ interface Sample {
 
 interface Remote {
   char: Character;
+  key: string;
   buf: Sample[];
   lastSeen: number;
   prevX: number;
@@ -174,12 +175,15 @@ export class Game {
   // ------------------------------------------------------------ remotes
   upsertRemote(id: string, color: string, label: string, labelColor?: string): void {
     let r = this.remotes.get(id);
+    const key = `${color}|${label}|${labelColor ?? ''}`;
+    if (r?.key === key) return;
     if (!r) {
-      r = { char: new Character(color), buf: [], lastSeen: 0, prevX: 0, prevZ: 0 };
+      r = { char: new Character(color), key, buf: [], lastSeen: 0, prevX: 0, prevZ: 0 };
       r.char.root.visible = false;
       this.scene.add(r.char.root);
       this.remotes.set(id, r);
     } else r.char.setColor(color);
+    r.key = key;
     r.char.setLabel(label, labelColor);
   }
 

@@ -1,17 +1,11 @@
-import http from 'node:http';
-import express from 'express';
-import { Server } from '@colyseus/core';
-import { WebSocketTransport } from '@colyseus/ws-transport';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { SERVER_PORT } from '@sokak/shared';
+import { startServer } from './app';
 
+const here = path.dirname(fileURLToPath(import.meta.url));
+const staticDir = process.env.CLIENT_DIR ?? path.resolve(here, '../../client/dist');
 const port = Number(process.env.PORT ?? SERVER_PORT);
-const app = express();
-app.get('/health', (_req, res) => {
-  res.json({ ok: true });
-});
 
-const httpServer = http.createServer(app);
-const gameServer = new Server({ transport: new WebSocketTransport({ server: httpServer }) });
-
-await gameServer.listen(port, '0.0.0.0');
-console.log(`[sokak] server listening on :${port}`);
+const s = await startServer(port, { staticDir: process.env.NODE_ENV === 'production' ? staticDir : undefined });
+console.log(`[sokak] server listening on :${s.port}`);
