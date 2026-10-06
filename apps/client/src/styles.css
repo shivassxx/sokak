@@ -374,3 +374,8 @@ kbd { font: 800 11px/1 'Baloo 2', system-ui; padding: 3px 6px; border-radius: 6p
 .table-list .tinfo { flex: 1; display: flex; flex-direction: column; text-align: left; font-size: 14px; }
 .table-list .tinfo small { color: #7a5a3a; }
 .lobby-card .fineprint { color: #7a6a5a; text-shadow: none; margin-top: 14px; }
+
+.voice-panel { right: 12px; top: 64px; width: min(340px, calc(100% - 24px)); z-index: 7; }
+.voice-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 6px; }
+.voice-list li { display: flex; gap: 8px; align-items: center; background: #fff; border-radius: 12px; padding: 6px 8px; }
+.voice-list li b { flex: 1; text-align: left; }

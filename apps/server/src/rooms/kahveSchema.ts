@@ -17,6 +17,8 @@ export class KPlayer extends Schema {
   @type('uint8') uses = 0;
   /** index into SIT_SPOTS while sitting on a bench / stool, −1 otherwise */
   @type('int8') spot = -1;
+  /** opted into voice chat (peers only connect when both have it on) */
+  @type('boolean') voice = false;
 }
 
 export class KTable extends Schema {

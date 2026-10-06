@@ -46,6 +46,11 @@ Notes
 - One process handles everything. For much larger traffic, Colyseus can be scaled with its Redis presence/driver (backlog).
 - `/stats` returns only aggregate numbers (rooms, rounds, room-size histogram). No names, ids or IPs are stored.
 
+## Kahvehane extras
+
+- **Wallets (play money):** stored in `data/wallets.json` (override with `WALLET_FILE`). Only an anonymous random device token, the balance and the last daily-bonus time are kept; entries unseen for 60 days are dropped. Keep the `data/` volume when redeploying.
+- **Voice chat** is peer-to-peer WebRTC; the game server only relays signalling. Public STUN (Google) is used by default. Players behind strict NATs (some mobile networks) need a TURN relay: run e.g. `coturn` on the VDS (UDP 3478 + a relay port range open in the firewall) and build the client with `VITE_TURN_URL=turn:your.domain:3478`, `VITE_TURN_USER`, `VITE_TURN_PASS` (account-bound / server setup: the user must do this).
+
 ## Verified in development
 - `docker build` of this Dockerfile succeeds and the container serves the client, `/health`, `/stats` and a real Colyseus room (tested with a headless bot client).
 - `docker compose config` validates. The Caddy image could not be pulled in the sandbox (no registry access), the Caddyfile uses only the standard `reverse_proxy` + `encode` directives.

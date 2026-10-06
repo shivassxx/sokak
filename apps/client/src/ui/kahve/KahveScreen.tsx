@@ -16,6 +16,7 @@ import {
   SPOT_REACH,
   TABLES,
   seatPosition,
+  type SignalMsg,
   type UsedMsg,
   type ChatMsg,
   type EmoteMsg,
@@ -35,6 +36,7 @@ import { useToasts } from '../Hud';
 import { Social } from '../Social';
 import { TouchControls, isTouch } from '../TouchControls';
 import { OkeyBoard } from '../okey/OkeyBoard';
+import { VoiceChat } from '../../net/voice';
 
 interface Props {
   room: Room;
@@ -75,6 +77,13 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const [nearThing, setNearThing] = useState<{ kind: 'table' | 'shop' | 'spot'; i: number } | null>(null);
   const [shopOpen, setShopOpen] = useState<number>(-1);
   const [tablesOpen, setTablesOpen] = useState(false);
+  // voice chat (opt-in)
+  const voiceRef = useRef<VoiceChat | null>(null);
+  const [voiceOn, setVoiceOn] = useState(false);
+  const [micMuted, setMicMuted] = useState(false);
+  const [voicePanel, setVoicePanel] = useState(false);
+  const [speaking, setSpeaking] = useState<Set<string>>(new Set());
+  const [, voiceTick] = useState(0);
   /** recently served drinks per player (shown as badges at the table) */
   const [drinks, setDrinks] = useState<Record<string, { emoji: string; t: number }[]>>({});
   const [suspicion, setSuspicion] = useState<{ seat: number; until: number } | null>(null);
@@ -130,6 +139,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         play('click');
       }),
       room.onMessage(KMSG.okeyEvent, (m: OkeyEventMsg) => onOkeyEvent(m)),
+      room.onMessage(KMSG.signal, (m: SignalMsg) => void voiceRef.current?.onSignal(m)),
       room.onMessage(KMSG.notice, (text: string) => {
         toastRef.current({ text, kind: 'good' });
         play('pop');
@@ -268,6 +278,56 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     });
   }, [game, view, me]);
 
+  // voice chat: who to hear (same table, or close by when not playing) and how loud
+  useEffect(() => {
+    if (!game || !voiceOn) return;
+    const iv = setInterval(() => {
+      const vc = voiceRef.current;
+      const v = viewRef.current;
+      const mine = v?.players[me];
+      if (!vc || !v || !mine) return;
+      const wanted = new Map<string, number>();
+      const pos = game.localPosition();
+      for (const p of Object.values(v.players)) {
+        if (p.id === me || !p.voice || p.isBot) continue;
+        if (mine.table >= 0 || p.table >= 0) {
+          if (p.table === mine.table) wanted.set(p.id, 1);
+          continue;
+        }
+        const q = game.characterPosition(p.id);
+        if (!pos || !q) continue;
+        const d = Math.hypot(q.x - pos.x, q.z - pos.z);
+        // hysteresis: connect within 14 m, keep until 18 m
+        const reach = vc.connectedPeers().includes(p.id) ? 18 : 14;
+        if (d < reach) wanted.set(p.id, Math.max(0.15, Math.min(1, 1.25 - d / 14)));
+      }
+      vc.sync(wanted);
+      const lv = vc.levels();
+      const now = new Set<string>();
+      for (const [id, l] of lv) if (l > 0.02) now.add(id);
+      for (const id of Object.keys(v.players)) if (id !== me) game.setSpeaking(id, now.has(id));
+      setSpeaking((old) => (old.size === now.size && [...now].every((x) => old.has(x)) ? old : now));
+      voiceTick((n) => n + 1);
+    }, 250);
+    return () => clearInterval(iv);
+  }, [game, voiceOn, me]);
+  useEffect(() => () => voiceRef.current?.disable(), []);
+  const toggleVoice = async () => {
+    if (voiceRef.current?.enabled) {
+      voiceRef.current.disable();
+      voiceRef.current = null;
+      setVoiceOn(false);
+      return;
+    }
+    const vc = new VoiceChat(room, me);
+    voiceRef.current = vc;
+    if (import.meta.env.DEV) (window as unknown as { __voice: VoiceChat }).__voice = vc;
+    await vc.enable();
+    setVoiceOn(true);
+    setVoicePanel(true);
+    pushToast({ text: vc.hasMic ? '🎙️ Sesli sohbet açık. Masandakiler ve yanındakiler seni duyar.' : '🎧 Mikrofon izni yok: sadece dinliyorsun.', kind: 'info' });
+  };
+
   // the nearest interactable (table, shop, free seat) for the prompt and the E key
   useEffect(() => {
     if (!game) return;
@@ -355,6 +415,26 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
           </button>
         )}
         {view?.name && <span className="pill salon-name">📍 {view.name}</span>}
+        <button className={`btn small ${voiceOn ? 'on' : ''}`} onClick={() => void toggleVoice()} title="Sesli sohbet (isteğe bağlı)">
+          {voiceOn ? '🎙️ Sesli: açık' : '🎙️ Sesli sohbet'}
+        </button>
+        {voiceOn && (
+          <>
+            <button
+              className={`btn small ${micMuted ? 'warn' : ''}`}
+              onClick={() => {
+                const m = !micMuted;
+                voiceRef.current?.setMicMuted(m);
+                setMicMuted(m);
+              }}
+            >
+              {micMuted ? '🔇 Mikrofon kapalı' : '🎤 Mikrofon'}
+            </button>
+            <button className="btn small" onClick={() => setVoicePanel((o) => !o)}>
+              👥 {voiceRef.current?.connectedPeers().length ?? 0}
+            </button>
+          </>
+        )}
         {myP && myP.money < 50 && (
           <button className="btn small" onClick={() => room.send(KMSG.credit)}>
             Veresiye yaz
@@ -624,6 +704,39 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
               </button>
             ))}
           </div>
+        </div>
+      )}
+
+      {voiceOn && voicePanel && view && (
+        <div className="panel voice-panel">
+          <div className="panel-head">
+            <h2>🎙️ Sesli sohbet</h2>
+            <button className="btn small" onClick={() => setVoicePanel(false)}>
+              Kapat
+            </button>
+          </div>
+          <p className="hint">Masadaysan masandakilerle, değilsen yakınındakilerle konuşursun. İstemediğin kişiyi sustur. Kimsenin sesi kaydedilmez.</p>
+          <ul className="voice-list">
+            {(voiceRef.current?.connectedPeers() ?? []).map((id) => {
+              const muted = voiceRef.current?.isPeerMuted(id) ?? false;
+              return (
+                <li key={id}>
+                  <span>{speaking.has(id) ? '🔊' : '🔈'}</span>
+                  <b>{view.players[id]?.name ?? '—'}</b>
+                  <button
+                    className={`btn small ${muted ? 'warn' : ''}`}
+                    onClick={() => {
+                      voiceRef.current?.mutePeer(id, !muted);
+                      voiceTick((n) => n + 1);
+                    }}
+                  >
+                    {muted ? 'Sesini aç' : 'Sustur'}
+                  </button>
+                </li>
+              );
+            })}
+            {(voiceRef.current?.connectedPeers().length ?? 0) === 0 && <li className="muted">Yakında sesli sohbeti açık kimse yok.</li>}
+          </ul>
         </div>
       )}
 

@@ -71,6 +71,8 @@ const camBlocker = (minH: number) => (c: (typeof COLLIDERS)[number]) => c.solid 
 const SOLID_CAM_MAHALLE = COLLIDERS.filter(camBlocker(1));
 const SOLID_CAM_KAHVE = KAHVE_COLLIDERS.filter(camBlocker(1.5));
 const INTERP_DELAY = 110;
+/** dev/test only: run the game without drawing (multi-client browser tests) */
+const NO_RENDER = import.meta.env.DEV && new URLSearchParams(location.search).has('norender');
 const SMOKE_TEX = (() => {
   const c = document.createElement('canvas');
   c.width = c.height = 64;
@@ -360,6 +362,12 @@ export class Game {
     this.remotes.delete(id);
   }
 
+  /** Voice chat speaking indicator (null id = local player). */
+  setSpeaking(id: string | null, on: boolean): void {
+    const ch = id === null ? this.localChar : this.remotes.get(id)?.char;
+    ch?.setSpeaking(on);
+  }
+
   /** Item in hand (market / simitçi); null id = local player. */
   setHeld(id: string | null, item: string): void {
     const ch = id === null ? this.localChar : this.remotes.get(id)?.char;
@@ -597,7 +605,7 @@ export class Game {
     for (const r of this.remotes.values()) if (r.char.root.visible) movers.push({ x: r.prevX, z: r.prevZ, speed: 4 });
     this.world.update(dt, movers);
     this.onFrame?.(dt);
-    this.post.render(dt);
+    if (!NO_RENDER) this.post.render(dt);
   }
 
   private updateCamera(focus: THREE.Vector3, dt: number): void {

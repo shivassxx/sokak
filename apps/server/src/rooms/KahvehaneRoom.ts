@@ -53,6 +53,7 @@ import {
   type ServedMsg,
   type SnapshotMsg,
   type SalonMeta,
+  type SignalMsg,
   type TeleportMsg,
   type UsedMsg,
 } from '@sokak/shared';
@@ -162,6 +163,17 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.onMessage(KMSG.sitSpot, (c, m: { spot?: unknown }) => this.sitSpot(c.sessionId, m?.spot));
     this.onMessage(KMSG.quickSeat, (c, m: { table?: unknown }) => this.quickSeat(c.sessionId, m?.table));
     this.onMessage(KMSG.fillBots, (c) => this.fillBotsAndStart(c.sessionId));
+    // voice chat: opt-in flag + relaying WebRTC signalling between two opted-in players
+    this.onMessage(KMSG.voice, (c, on: unknown) => {
+      const p = this.state.players.get(c.sessionId);
+      if (p) p.voice = on === true;
+    });
+    this.onMessage(KMSG.signal, (c, m: SignalMsg) => {
+      const from = this.state.players.get(c.sessionId);
+      const to = typeof m?.peer === 'string' ? this.state.players.get(m.peer) : undefined;
+      if (!from?.voice || !to?.voice || !m.data || JSON.stringify(m.data).length > 16000) return;
+      this.avatars.get(to.id)?.client?.send(KMSG.signal, { peer: c.sessionId, data: m.data } satisfies SignalMsg);
+    });
     this.onMessage(MSG.emote, (c, e: unknown) => {
       const a = this.avatars.get(c.sessionId);
       if (!a || typeof e !== 'string' || !(EMOTES as readonly string[]).includes(e)) return;

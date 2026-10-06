@@ -474,6 +474,31 @@ export class Character {
     this.propGroup.add(obj);
   }
 
+  private speakIcon: THREE.Sprite | null = null;
+  /** voice chat: show a speaker icon above the head while talking */
+  setSpeaking(on: boolean): void {
+    if (on && !this.speakIcon) {
+      const c = document.createElement('canvas');
+      c.width = c.height = 64;
+      const ctx = c.getContext('2d')!;
+      ctx.fillStyle = 'rgba(47,168,102,0.92)';
+      ctx.beginPath();
+      ctx.arc(32, 32, 30, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.font = '34px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🔊', 32, 34);
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      this.speakIcon = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+      this.speakIcon.scale.setScalar(0.38);
+      this.speakIcon.position.y = 2.55;
+      this.root.add(this.speakIcon);
+    }
+    if (this.speakIcon) this.speakIcon.visible = on;
+  }
+
   setLabelVisible(v: boolean): void {
     if (this.label) this.label.visible = v;
   }

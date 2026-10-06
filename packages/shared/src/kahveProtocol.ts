@@ -23,7 +23,17 @@ export const KMSG = {
   quickSeat: 'quickSeat',
   fillBots: 'fillBots',
   notice: 'notice',
+  voice: 'voice',
+  signal: 'signal',
 } as const;
+
+/** WebRTC signalling relayed by the server between two voice users. */
+export interface SignalMsg {
+  /** recipient (client → server) or sender (server → client) */
+  peer: string;
+  /** SDP offer/answer or ICE candidate */
+  data: { sdp?: { type: string; sdp: string }; ice?: unknown };
+}
 
 /** Lobby listing of a kahvehane room (GET /api/salons). */
 export interface SalonInfo {
@@ -132,6 +142,8 @@ export interface KPlayerView {
   holding: string;
   uses: number;
   spot: number;
+  /** opted into voice chat */
+  voice: boolean;
 }
 
 export interface KTableView {
