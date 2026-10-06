@@ -40,4 +40,5 @@
 - **Perf:** shared prop geometries, lighter chair seats (main kahve mesh 122k → 103k triangles).
 - Verified with Playwright: lobby → quick play → bots → 5 draw/discard turns; reload mid-match keeps the hand; walk to market, buy, smoke; simitçi → bench → eat (seen from a second client); ledge sitting; invite link to a private salon; voice between two browser contexts; phone-landscape lobby/hall.
 - Later in the night: rack arrangement kept across a reload, gull feeding, fishing (server-timed bites, float + line rendering, catch announcements; NPC rods were pointing backwards — rod rotation solved numerically for the 'fish' pose).
+- Spectator mode for running tables (corner camera, live scores panel).
 - 113 tests; build OK; 2.18 MB gzip total, 136 KB before the lobby.

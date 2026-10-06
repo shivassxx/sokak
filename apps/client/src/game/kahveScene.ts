@@ -35,8 +35,13 @@ export interface KahveScene extends World {
   feedGulls(x: number, z: number): void;
   /** waiter brings `item` to a world position; drink stays on the table */
   serve(item: string, to: THREE.Vector3, onTable: { x: number; z: number } | null): void;
-  /** public table state (null = no game); viewerSeat hides that rack and orients the tiles */
-  setTable(table: number, view: TableView | null, viewerSeat: number | null): void;
+  /**
+   * public table state (null = no game); viewerSeat hides that rack and orients the tiles,
+   * refSeat only orients them (a spectator's side)
+   */
+  setTable(table: number, view: TableView | null, viewerSeat: number | null, refSeat?: number): void;
+  /** spectator camera: above and behind `side`, looking down on the whole table */
+  watchView(table: number, side: number): { pos: THREE.Vector3; target: THREE.Vector3; fov: number };
   anchors(table: number): TableAnchors | null;
   /** camera pose for playing at a seat */
   seatView(table: number, seat: number, aspect: number, bottomNdc: number): { pos: THREE.Vector3; target: THREE.Vector3; fov: number };
@@ -141,7 +146,7 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
   // -------------------------------------------------------------- tiles on every table
   const field = new TileField(1800);
   scene.add(field.mesh);
-  const tableState: { view: TableView | null; viewer: number | null }[] = TABLES.map(() => ({ view: null, viewer: null }));
+  const tableState: { view: TableView | null; viewer: number | null; ref: number }[] = TABLES.map(() => ({ view: null, viewer: null, ref: 0 }));
   const anchors: (TableAnchors | null)[] = TABLES.map(() => null);
   const v = new THREE.Vector3();
   let dirty = true;
@@ -164,9 +169,9 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
   const put = (key: string | null, cell: number, p: THREE.Vector3, yaw: number, tilt = 0, scale = 1, from: THREE.Vector3 | null = null) =>
     placements.push({ key, cell, x: p.x, y: p.y, z: p.z, yaw, tilt, scale, from });
 
-  const layoutTable = (t: number, view: TableView, viewer: number | null): TableAnchors => {
+  const layoutTable = (t: number, view: TableView, viewer: number | null, refSeat = 0): TableAnchors => {
     const ctx: OkeyCtx = { okey: view.okey as OkeyCtx['okey'] };
-    const ref = viewer ?? 0;
+    const ref = viewer ?? refSeat;
     const ry = seatYaw(ref);
     const rackOf = (s: number) => tablePoint(t, seatYaw(s), 0, FELT_Y + 0.07, RACK_DIST);
     // racks: hidden tiles standing on the ıstaka (the viewer's own rack is on screen instead)
@@ -267,7 +272,7 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
       bar.rotation.y = yaw;
     });
     tableState.forEach((st, t) => {
-      anchors[t] = st.view ? layoutTable(t, st.view, st.viewer) : null;
+      anchors[t] = st.view ? layoutTable(t, st.view, st.viewer, st.ref) : null;
     });
     // new face-up tiles start at their owner's rack; vanished ones are forgotten
     const live = new Set<string>();
@@ -438,13 +443,19 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
       queue.push({ item, to, onTable });
       if (!current) startNext();
     },
-    setTable(table, view, viewerSeat) {
+    setTable(table, view, viewerSeat, refSeat = 0) {
       const st = tableState[table];
       if (!st) return;
       if (view) setAtlasOkey(view.okey as OkeyCtx['okey']);
       st.view = view;
       st.viewer = viewerSeat;
+      st.ref = refSeat;
       dirty = true;
+    },
+    watchView(table, side) {
+      // from the empty corner to the right of `side`, so no player's head is in the way
+      const yaw = seatYaw(side) + Math.PI / 4;
+      return { pos: tablePoint(table, yaw, 0, TABLE_TOP + 2.0, 1.1), target: tablePoint(table, yaw, 0, TABLE_TOP - 0.1, -0.12), fov: 54 };
     },
     anchors(table) {
       if (dirty) {

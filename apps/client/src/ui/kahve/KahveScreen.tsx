@@ -82,6 +82,10 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   /** the closest thing to interact with: a table, a shop or a seat (bench / stool) */
   const [nearThing, setNearThing] = useState<{ kind: 'table' | 'shop' | 'spot'; i: number } | null>(null);
   const [nearSea, setNearSea] = useState(false);
+  /** spectating a table: which one and from which side */
+  const [watching, setWatching] = useState<{ table: number; side: number } | null>(null);
+  const watchRef = useRef(watching);
+  watchRef.current = watching;
   const myFish = useRef(0);
   const [shopOpen, setShopOpen] = useState<number>(-1);
   const [tablesOpen, setTablesOpen] = useState(false);
@@ -302,9 +306,10 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     const mine = view.players[me];
     const seated = !!mine && mine.table >= 0;
     const mySpot = mine && mine.spot >= 0 ? SIT_SPOTS[mine.spot] : undefined;
-    game.frozen = seated || !!mySpot;
+    game.frozen = seated || !!mySpot || !!watching;
+    game.watch = watching && !seated ? watching : null;
     game.localSeatY = mySpot ? mySpot.h - 0.48 : 0;
-    game.setLabelsVisible(!seated);
+    game.setLabelsVisible(!seated && !watching);
     game.setPose(null, seated || mySpot ? 'sit' : mine?.fish || mine?.holding === 'olta' ? 'fish' : 'none');
     game.setHeld(null, mine?.holding ?? '');
     game.setFishing(null, mine?.fish ?? 0);
@@ -317,9 +322,27 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     // real tiles on every table
     view.tables.forEach((t) => {
       const tv = t.view ? (JSON.parse(t.view) as TableView) : null;
-      game.kahve?.setTable(t.id, tv && t.status !== 'open' ? tv : null, seated && mine.table === t.id ? mine.seat : null);
+      game.kahve?.setTable(t.id, tv && t.status !== 'open' ? tv : null, seated && mine.table === t.id ? mine.seat : null, watching?.table === t.id ? watching.side : 0);
     });
-  }, [game, view, me]);
+  }, [game, view, me, watching]);
+  // stop watching when the match is over or you sit down somewhere
+  useEffect(() => {
+    if (!watching || !view) return;
+    if ((view.players[me]?.table ?? -1) >= 0 || view.tables[watching.table]?.status === 'open') setWatching(null);
+  }, [view, watching, me]);
+  const startWatching = (table: number) => {
+    const pos = game?.localPosition();
+    if (!pos) return;
+    // watch from the side you are standing on
+    let side = 0;
+    let best = Infinity;
+    for (let s = 0; s < 4; s++) {
+      const sp = seatPosition(table, s);
+      const d = Math.hypot(sp.x - pos.x, sp.z - pos.z);
+      if (d < best) (best = d), (side = s);
+    }
+    setWatching({ table, side });
+  };
 
   // voice chat: who to hear (same table, or close by when not playing) and how loud
   useEffect(() => {
@@ -410,9 +433,14 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       if (a === 'throw' && mine?.holding) room.send(KMSG.use);
       if (a !== 'spot') return;
       if (mine && mine.spot >= 0) return room.send(KMSG.stand);
+      if (watchRef.current) return setWatching(null);
       const n = nearThingRef.current;
       if (!n) return;
-      if (n.kind === 'table') room.send(KMSG.sit, { table: n.i });
+      if (n.kind === 'table') {
+        const t = viewRef.current?.tables[n.i];
+        if (t && t.status !== 'open') startWatchRef.current(n.i);
+        else room.send(KMSG.sit, { table: n.i });
+      }
       else if (n.kind === 'spot') room.send(KMSG.sitSpot, { spot: n.i });
       else setShopOpen((o) => (o === n.i ? -1 : n.i));
     });
@@ -420,6 +448,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       const mine = viewRef.current?.players[me];
       const mv = game.input.moveVector();
       if (mine && mine.spot >= 0 && Math.hypot(mv.x, mv.y) > 0.3) room.send(KMSG.stand);
+      if (watchRef.current && Math.hypot(mv.x, mv.y) > 0.3) setWatching(null);
     }, 150);
     return () => {
       offPress();
@@ -428,6 +457,8 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   }, [game, room]); // eslint-disable-line react-hooks/exhaustive-deps
   const nearThingRef = useRef(nearThing);
   nearThingRef.current = nearThing;
+  const startWatchRef = useRef(startWatching);
+  startWatchRef.current = startWatching;
   const nearTableRef = useRef(nearTable);
   nearTableRef.current = nearTable;
 
@@ -495,7 +526,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         )}
       </div>
 
-      {!myTable && (
+      {!myTable && !watching && (
         <div className="panel richest">
           <h3>Kahvenin en zenginleri</h3>
           <ol>
@@ -511,7 +542,25 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       )}
 
       <div className="kahve-bottom">
-        {near && !myTable && (
+        {watching && view && !myTable && (
+          <div className="sit-prompt watch-panel">
+            <span>
+              👀 <b>{watching.table + 1}. masayı izliyorsun</b> · El {view.tables[watching.table]!.handNo}/{view.tables[watching.table]!.hands}
+              {view.tables[watching.table]!.pot > 0 && <> · Kasa {money(view.tables[watching.table]!.pot)}</>}
+              <small className="watch-seats">
+                {[...view.tables[watching.table]!.seats].map((id, s) => (
+                  <span key={s}>
+                    {view.players[id]?.name ?? '—'} <b>{view.tables[watching.table]!.totals[s]}</b>
+                  </span>
+                ))}
+              </small>
+            </span>
+            <button className="btn small" onClick={() => setWatching(null)}>
+              Bırak {!isTouch && <kbd>E</kbd>}
+            </button>
+          </div>
+        )}
+        {near && !myTable && !watching && (
           <div className="sit-prompt">
             <b>{near.id + 1}. masa</b> · {[...near.seats].filter(Boolean).length}/4 · {near.status === 'open' ? (near.bet ? `${near.bet} ₺ bahis` : 'bahissiz') : 'oyun sürüyor'}
             {near.status === 'open' && [...near.seats].some((s) => !s) && (
@@ -519,9 +568,14 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
                 Otur {!isTouch && <kbd>E</kbd>}
               </button>
             )}
+            {near.status !== 'open' && (
+              <button className="btn primary" onClick={() => startWatching(near.id)}>
+                👀 İzle {!isTouch && <kbd>E</kbd>}
+              </button>
+            )}
           </div>
         )}
-        {nearThing?.kind === 'spot' && !myTable && (
+        {nearThing?.kind === 'spot' && !myTable && !watching && (
           <div className="sit-prompt">
             <b>{SIT_SPOTS[nearThing.i]!.label}</b>
             <button className="btn primary" onClick={() => room.send(KMSG.sitSpot, { spot: nearThing.i })}>
@@ -529,7 +583,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             </button>
           </div>
         )}
-        {nearThing?.kind === 'shop' && shopOpen < 0 && (
+        {nearThing?.kind === 'shop' && shopOpen < 0 && !watching && (
           <div className="sit-prompt">
             <b>{SHOPS[nearThing.i]!.id === 'market' ? '🛒 Market' : '🥯 Simitçi'}</b>
             <button className="btn primary" onClick={() => setShopOpen(nearThing.i)}>

@@ -86,6 +86,7 @@ const FLOAT_RED = new THREE.MeshStandardMaterial({ color: 0xe0362c, roughness: 0
 const FLOAT_WHITE = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.4 });
 const FLOAT_LINE = new THREE.LineBasicMaterial({ color: 0xf0f0f0, transparent: true, opacity: 0.75 });
 const _tipW = new THREE.Vector3();
+const _camDir = new THREE.Vector3();
 /** dev/test only: run the game without drawing (multi-client browser tests) */
 const NO_RENDER = import.meta.env.DEV && new URLSearchParams(location.search).has('norender');
 const SMOKE_TEX = (() => {
@@ -145,9 +146,12 @@ export class Game {
   private solidCam: typeof SOLID_CAM_MAHALLE;
   /** seated at an okey table: camera from the seat looking down at the table */
   seat: { table: number; seat: number } | null = null;
+  /** watching a table from beside it (spectator camera) */
+  watch: { table: number; side: number } | null = null;
   /** NDC y of the top of the on-screen rack (the table is framed above it) */
   seatBottom = -0.42;
   private seatLook = new THREE.Vector3();
+  private seatCam = false;
   private focusY: number | null = null;
   private camDistCur: number | null = null;
   /** sitting on a bench / stool: lift the local character by (seat height − chair height) */
@@ -696,8 +700,15 @@ export class Game {
       this.camera.lookAt(this.debugCam.target);
       return;
     }
-    if (this.seat && this.kahve) {
-      const sv = this.kahve.seatView(this.seat.table, this.seat.seat, this.camera.aspect, this.seatBottom);
+    if ((this.seat || this.watch) && this.kahve) {
+      const sv = this.seat
+        ? this.kahve.seatView(this.seat.table, this.seat.seat, this.camera.aspect, this.seatBottom)
+        : this.kahve.watchView(this.watch!.table, this.watch!.side);
+      if (!this.seatCam) {
+        // start the look-at from where the camera already looks, not from the origin
+        this.seatCam = true;
+        this.seatLook.copy(this.camera.position).addScaledVector(this.camera.getWorldDirection(_camDir), 4);
+      }
       const k = 1 - Math.exp(-dt * 6);
       this.camera.position.lerp(sv.pos, k);
       this.seatLook.lerp(sv.target, Math.min(1, k * 1.6));
@@ -708,6 +719,7 @@ export class Game {
       }
       return;
     }
+    this.seatCam = false;
     if (this.frozen && this.body && this.level === 'mahalle') {
       // counting Ebe: face the wall, close
       this.camera.position.set(EBE_COUNT_SPOT.x + 1.2, 2.3, EBE_COUNT_SPOT.z + 3.4);

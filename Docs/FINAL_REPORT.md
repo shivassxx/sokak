@@ -288,6 +288,7 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - **⚡ Hızlı oyna** seni doğrudan boş bir masaya oturtuyor. Önce oyuncu bekleyen masalar dolduruluyor.
 - **Yeni salon aç** ile salon kurabilirsin. İstersen "özel" yapabilirsin: listede görünmez, sadece davet linkiyle girilir.
 - Salonun içinde **🃏 Masalar** listesinden tek tıkla bir masaya oturabilirsin. **🤖 Botlarla hemen başla** boş yerleri botlarla doldurup taşları dağıtıyor.
+- **Masa izleme:** oyun süren bir masaya yaklaşıp **👀 İzle** (E) dersen kamera masanın boş köşesine geçiyor. Taşları, perleri ve puanları seyirci gibi izliyorsun. Yürüyünce ya da E'ye basınca izleme bitiyor.
 - **Kalıcı cüzdan:** hesap yok. Bakiyen cihazına verilen rastgele, isimsiz bir anahtarla sunucuda saklanıyor. Her gün ilk girişte 250 ₺ bonus alıyorsun.
 - **Liderlik tablosu:** lobide o an çevrimiçi en zengin 10 oyuncu, salon adlarıyla birlikte görünüyor.
 - **Sesli sohbet:** isteğe bağlı ve varsayılan olarak kapalı. **🎙️** ile açılıyor ve mikrofon izni istiyor; izin vermezsen sadece dinleyebilirsin.
