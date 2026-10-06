@@ -160,7 +160,8 @@ describe('kahvehane', () => {
     a.room.send(KMSG.buy, { shop: 'simitci', item: 'sigara' });
     a.room.send(KMSG.use);
     await until(() => a.messages.some((m) => m.type === KMSG.used));
-    expect(me(a).uses).toBe(pack.uses - 1);
+    // the state patch follows the broadcast on the next tick
+    await until(() => me(a).uses === pack.uses - 1);
     // bench
     const spot = SIT_SPOTS[0]!;
     room.debugPlace(a.id, spot.x, spot.z + 1);
