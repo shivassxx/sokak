@@ -9,6 +9,8 @@ import {
   MSG,
   QUICK_CHAT_OKEY,
   FISH,
+  levelOf,
+  levelTitle,
   SHOPS,
   SHOP_ITEMS,
   SHOP_REACH,
@@ -87,6 +89,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const watchRef = useRef(watching);
   watchRef.current = watching;
   const myFish = useRef(0);
+  const myLevel = useRef(0);
   const [shopOpen, setShopOpen] = useState<number>(-1);
   const [tablesOpen, setTablesOpen] = useState(false);
   // voice chat (opt-in)
@@ -318,6 +321,14 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       game.bubble(null, 'Vurdu! Çek!');
     }
     myFish.current = mine?.fish ?? 0;
+    if (mine) {
+      const lvl = levelOf(mine.played, mine.won);
+      if (myLevel.current && lvl > myLevel.current) {
+        toastRef.current({ text: `⭐ Seviye atladın: ${lvl} · ${levelTitle(lvl)}!`, kind: 'good' });
+        play('herkes');
+      }
+      myLevel.current = lvl;
+    }
     game.seat = seated ? { table: mine.table, seat: mine.seat } : null;
     // real tiles on every table
     view.tables.forEach((t) => {
@@ -486,6 +497,11 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         </button>
         {reconnecting && <span className="pill warn">Bağlantı koptu, yeniden bağlanılıyor…</span>}
         {myP && <span className="wallet">💰 {money(myP.money)}</span>}
+        {myP && (
+          <span className="pill lvl" title={`${levelTitle(levelOf(myP.played, myP.won))} · ${myP.played} maç, ${myP.won} galibiyet`}>
+            ⭐ {levelOf(myP.played, myP.won)}
+          </span>
+        )}
         <button className="btn small" title="Çaycı" onClick={() => setMenuOpen((o) => !o)}>
           ☕<span className="lbl"> Çaycı!</span>
         </button>

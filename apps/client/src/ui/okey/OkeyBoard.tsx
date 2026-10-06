@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { asPair, asSeries, playFace, sameFace, type OkeyCtx } from '@sokak/okey';
-import { TABLES, seatPosition, type HandResultView, type KPlayerView, type KTableView, type MatchResultView, type Meld, type OkeyAction, type TableView } from '@sokak/shared';
+import { TABLES, levelOf, levelTitle, seatPosition, type HandResultView, type KPlayerView, type KTableView, type MatchResultView, type Meld, type OkeyAction, type TableView } from '@sokak/shared';
 import type { Game } from '../../game/Game';
 import { Tile } from './Tile';
 import { ROW, SLOTS, arrangePairs, arrangeSeries, emptyRack, moveTile, openPlan, rackGroups, syncRack, type Rack } from './rack';
@@ -383,7 +383,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
               <div className="plate-in">
                 <span className="dotc" style={{ background: p?.color ?? '#999' }} />
                 <b>{p?.name ?? '—'}</b>
-                {p?.isBot && <span className="tag bot">bot</span>}
+                {p?.isBot ? <span className="tag bot">bot</span> : p && <span className="tag lvl" title={levelTitle(levelOf(p.played, p.won))}>⭐{levelOf(p.played, p.won)}</span>}
                 {view.opened[s] && <span className="tag open">{view.opened[s] === 'pairs' ? 'çift' : 'açtı'}</span>}
                 {table.handNo > 1 && <span className="score-pill">{table.totals[s]} p</span>}
                 {view.turn === s && <span className="timer">{remaining}</span>}

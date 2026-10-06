@@ -87,6 +87,15 @@ export async function listSalons(): Promise<SalonInfo[]> {
   return (await r.json()) as SalonInfo[];
 }
 
+/** This device's play-money wallet and match record (null on a first visit). */
+export async function getWallet(): Promise<{ money: number; played: number; won: number } | null> {
+  const t = deviceToken();
+  if (!t) return null;
+  const r = await fetch(`${httpEndpoint()}/api/wallet?device=${t}`, { cache: 'no-store' });
+  if (!r.ok) throw new Error('wallet');
+  return (await r.json()) as { money: number; played: number; won: number } | null;
+}
+
 export async function listLeaders(): Promise<LeaderInfo[]> {
   const r = await fetch(`${httpEndpoint()}/api/leaders`, { cache: 'no-store' });
   if (!r.ok) throw new Error('leaders');

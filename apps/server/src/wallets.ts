@@ -11,6 +11,9 @@ export interface Wallet {
   money: number;
   lastBonus: number;
   seen: number;
+  /** finished okey matches and wins (for the level) */
+  played?: number;
+  won?: number;
 }
 
 const KEEP_MS = 60 * 24 * 3600 * 1000;

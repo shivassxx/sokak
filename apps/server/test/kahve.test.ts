@@ -85,6 +85,11 @@ describe('kahvehane', () => {
     expect(result.winners.length).toBeGreaterThan(0);
     const total = [...st(a).players.values()].filter((p: any) => p.table === 1).reduce((s: number, p: any) => s + p.money, 0);
     expect(total).toBe(START_MONEY * 4); // money is conserved
+    // the finished match counts towards the human's level (bots keep no record)
+    await until(() => me(a).played === 1);
+    expect(me(a).won).toBe(result.winners.includes(0) ? 1 : 0);
+    const bot = [...st(a).players.values()].find((p: any) => p.table === 1 && p.isBot) as any;
+    expect(bot.played).toBe(0);
     void room;
     await a.leave();
   }, 70000);
@@ -251,6 +256,10 @@ describe('kahvehane', () => {
     const b = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Cuzdan', device });
     await until(() => !!st(b).players?.get(b.id));
     expect(me(b).money).toBe(START_MONEY - su.price);
+    // the lobby can read this device's wallet, nobody else's
+    const w = await (await fetch(`http://127.0.0.1:${server.port}/api/wallet?device=${device}`)).json();
+    expect(w).toEqual({ money: START_MONEY - su.price, played: 0, won: 0 });
+    expect(await (await fetch(`http://127.0.0.1:${server.port}/api/wallet?device=${'cd'.repeat(16)}`)).json()).toBeNull();
     await b.leave();
   });
 

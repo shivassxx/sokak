@@ -290,6 +290,9 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - Salonun içinde **🃏 Masalar** listesinden tek tıkla bir masaya oturabilirsin. **🤖 Botlarla hemen başla** boş yerleri botlarla doldurup taşları dağıtıyor.
 - **Masa izleme:** oyun süren bir masaya yaklaşıp **👀 İzle** (E) dersen kamera masanın boş köşesine geçiyor. Taşları, perleri ve puanları seyirci gibi izliyorsun. Yürüyünce ya da E'ye basınca izleme bitiyor.
 - **Kalıcı cüzdan:** hesap yok. Bakiyen cihazına verilen rastgele, isimsiz bir anahtarla sunucuda saklanıyor. Her gün ilk girişte 250 ₺ bonus alıyorsun.
+- **Seviye:** bitirdiğin her maç ve her galibiyet seviyeni yükseltiyor. Unvanlar sırasıyla Çaylak, Acemi, Mahalle oyuncusu, Kahve müdavimi, Usta, Okey ağası ve Efsane.
+  - Seviyen salonda ⭐ rozetiyle, masada isim etiketlerinde görünüyor. Seviye atlayınca bildirim geliyor.
+  - Lobide bakiyen, seviyen, oynadığın maç sayısı ve galibiyetlerin yazıyor.
 - **Liderlik tablosu:** lobide o an çevrimiçi en zengin 10 oyuncu, salon adlarıyla birlikte görünüyor.
 - **Sesli sohbet:** isteğe bağlı ve varsayılan olarak kapalı. **🎙️** ile açılıyor ve mikrofon izni istiyor; izin vermezsen sadece dinleyebilirsin.
   - Masadayken masadaki dört kişiyle konuşuyorsun. Dışarıdayken ~14 m içindeki oyuncularla konuşuyorsun ve ses mesafeyle azalıyor.
@@ -305,9 +308,10 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - Liderlik tablosu sadece o an çevrimiçi olanları gösteriyor. Geçmişe dönük sıralama için takma adları saklamak gerekirdi; bunu yapmadım.
 
 **Nasıl test edildi**
-- 113 otomatik test geçiyor. Gece eklenen testler:
+- 113 otomatik test geçiyor (bazıları yeni kontroller içeriyor). Gece eklenen testler:
   - Market alışverişi ve kullanma, bank ve sahil duvarı oturma.
   - Cüzdanın aynı cihazda korunması, hızlı oturma ve botla başlatma.
+  - Maç bitince insan oyuncunun maç/galibiyet sayısının artması (botların artmaması), lobinin sadece kendi cüzdanını okuyabilmesi.
   - Liderlik tablosu, sayfa yenilemeden sonra elin geri gelmesi.
   - Balık tutma: denizden uzakta olta atılamaması, erken çekince kaçması, vurunca çekince balık çıkması, uzaklaşınca oltanın toplanması.
   - Çaycının yol bulması (markete, sahile, çay bahçesine giden rotalar duvar içinden geçmiyor).

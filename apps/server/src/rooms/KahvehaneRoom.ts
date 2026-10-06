@@ -221,11 +221,15 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (device && store) {
       const w = store.get(device);
       const now = Date.now();
-      if (w) p.money = Math.max(0, w.money);
+      if (w) {
+        p.money = Math.max(0, w.money);
+        p.played = Math.min(65535, w.played ?? 0);
+        p.won = Math.min(65535, w.won ?? 0);
+      }
       if (!w || now - w.lastBonus > DAY_MS) {
         if (w) bonus = DAILY_BONUS;
         p.money += bonus;
-        store.set(device, { money: p.money, lastBonus: now, seen: now });
+        store.set(device, { money: p.money, lastBonus: now, seen: now, played: p.played, won: p.won });
       }
     }
     this.state.players.set(p.id, p);
@@ -284,7 +288,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const store = this.cls.wallets;
     if (!a?.device || !p || !store) return;
     const w = store.get(a.device);
-    store.set(a.device, { money: p.money, lastBonus: w?.lastBonus ?? Date.now(), seen: Date.now() });
+    store.set(a.device, { money: p.money, lastBonus: w?.lastBonus ?? Date.now(), seen: Date.now(), played: p.played, won: p.won });
   }
 
   private removePlayer(id: string): void {
@@ -486,6 +490,14 @@ export class KahvehaneRoom extends Room<KahveState> {
       for (const s of winners) {
         const pl = this.state.players.get(t.seats[s]!);
         if (pl) pl.money += share;
+      }
+      // match statistics → level (people only)
+      for (let s = 0; s < 4; s++) {
+        const pl = this.state.players.get(t.seats[s]!);
+        if (!pl || pl.isBot) continue;
+        pl.played = Math.min(65535, pl.played + 1);
+        if (winners.includes(s)) pl.won = Math.min(65535, pl.won + 1);
+        this.saveWallet(pl.id);
       }
       t.lastMatch = JSON.stringify({ totals, winners, pot: t.pot, payout });
       t.pot = 0;

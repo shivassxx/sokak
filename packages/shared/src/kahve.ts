@@ -311,6 +311,23 @@ export const FISH: readonly { id: string; name: string; emoji: string; w: number
 ];
 
 export const START_MONEY = 1000;
+
+/** Level from finished matches and wins: quick at first, slower later. */
+export function levelOf(played: number, won: number): number {
+  return 1 + Math.floor(Math.sqrt((played * 10 + won * 25) / 40));
+}
+const TITLES: [number, string][] = [
+  [18, 'Efsane'],
+  [12, 'Okey ağası'],
+  [8, 'Usta'],
+  [5, 'Kahve müdavimi'],
+  [3, 'Mahalle oyuncusu'],
+  [2, 'Acemi'],
+  [1, 'Çaylak'],
+];
+export function levelTitle(level: number): string {
+  return TITLES.find(([l]) => level >= l)?.[1] ?? 'Çaylak';
+}
 export const BET_OPTIONS = [0, 10, 50, 100, 250] as const;
 export const HAND_OPTIONS = [1, 3, 5] as const;
 /** "Veresiye": a broke player can ask for this once every few minutes */

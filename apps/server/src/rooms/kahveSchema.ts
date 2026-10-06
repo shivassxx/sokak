@@ -21,6 +21,9 @@ export class KPlayer extends Schema {
   @type('boolean') voice = false;
   /** fishing: 0 no line in the water, 1 waiting, 2 a bite — pull now! */
   @type('uint8') fish = 0;
+  /** finished matches / wins (device wallet), the level is derived from them */
+  @type('uint16') played = 0;
+  @type('uint16') won = 0;
 }
 
 export class KTable extends Schema {

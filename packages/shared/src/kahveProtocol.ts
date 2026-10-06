@@ -159,6 +159,9 @@ export interface KPlayerView {
   voice: boolean;
   /** fishing: 0 none, 1 line in the water, 2 a bite */
   fish: number;
+  /** finished matches / wins (kept with the device wallet) */
+  played: number;
+  won: number;
 }
 
 export interface KTableView {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import type { LeaderInfo, SalonInfo } from '@sokak/shared';
-import { listLeaders, listSalons, type KahveJoin } from '../../net/connection';
+import { START_MONEY, levelOf, levelTitle, type LeaderInfo, type SalonInfo } from '@sokak/shared';
+import { getWallet, listLeaders, listSalons, type KahveJoin } from '../../net/connection';
 import type { Prefs } from '../prefs';
 
 interface Props {
@@ -17,6 +17,12 @@ export function KahveLobby({ prefs, busy, error, onJoin, onBack }: Props) {
   const [offline, setOffline] = useState(false);
   const [priv, setPriv] = useState(false);
   const [leaders, setLeaders] = useState<LeaderInfo[]>([]);
+  const [wallet, setWallet] = useState<{ money: number; played: number; won: number } | null | undefined>(undefined);
+  useEffect(() => {
+    getWallet()
+      .then(setWallet)
+      .catch(() => setWallet(undefined));
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -79,6 +85,17 @@ export function KahveLobby({ prefs, busy, error, onJoin, onBack }: Props) {
             <p className="hint">
               Merhaba <b>{prefs.name.trim() || 'misafir'}</b> · Şu an {total} kişi çay içip okey oynuyor
             </p>
+            {wallet !== undefined && (
+              <p className="me-card">
+                {wallet ? (
+                  <>
+                    💰 <b>{wallet.money.toLocaleString('tr-TR')} ₺</b> · ⭐ <b>Seviye {levelOf(wallet.played, wallet.won)}</b> {levelTitle(levelOf(wallet.played, wallet.won))} · {wallet.played} maç, {wallet.won} galibiyet
+                  </>
+                ) : (
+                  <>🎁 İlk gelişin! Cebine {START_MONEY.toLocaleString('tr-TR')} ₺ koyuyoruz. Maç bitirdikçe seviye atlarsın.</>
+                )}
+              </p>
+            )}
           </div>
         </div>
         <div className="lobby-actions">

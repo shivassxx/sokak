@@ -52,6 +52,14 @@ export async function startServer(port: number, opts: {
       res.json([]);
     }
   });
+  // the lobby's "your wallet" line: only whoever holds the device token can ask
+  app.get('/api/wallet', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store');
+    const token = req.query.device;
+    const w = WalletStore.validToken(token) ? wallets.get(token) : null;
+    res.json(w ? { money: w.money, played: w.played ?? 0, won: w.won ?? 0 } : null);
+  });
   // lobby leaderboard: the richest players online right now, public salons only
   app.get('/api/leaders', async (_req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
