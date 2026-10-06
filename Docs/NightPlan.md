@@ -9,7 +9,7 @@ If a session resumes after a limit/compaction: read this file, continue with the
 - [x] Character sometimes gets stuck
 - [x] Quick-chat ("yazılı emote") makes the surroundings go black (post-processing / sprite)
 - [x] Players can walk out of the venue (door gap / world bounds)
-- [ ] Find & fix other bugs found while testing
+- [x] Find & fix other bugs found while testing (kahve camera through walls, phone HUD overflow, overlapping prompts, çaycı through walls, empty rack after reload, seated bodies lifted, missing invite link)
 
 ## Venue & world
 - [x] Modern kıraathane (modern interior, many tables)
@@ -24,4 +24,4 @@ If a session resumes after a limit/compaction: read this file, continue with the
 - [x] Online okey polish (persistent wallet per device ✓, daily bonus ✓, lobby leaderboard of online players ✓)
 
 ## Wrap-up
-- [ ] Tests, build, size, docs (Decisions, Roadmap, SessionLog, FINAL_REPORT in Turkish), push, Turkish report
+- [x] Tests, build, size, docs (Decisions, Roadmap, SessionLog, FINAL_REPORT in Turkish), push, Turkish report

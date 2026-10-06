@@ -1,6 +1,6 @@
 # SOKAK OYUNLARI — Final Raporu
 
-**Tarih:** 6 Ekim 2026 · **Dal:** `claude/quirky-hamilton-c4mnxp` · **Durum:** M0 → M6 tamamlandı, 64 test geçiyor.
+**Tarih:** 6–7 Ekim 2026 · **Dal:** `claude/quirky-hamilton-c4mnxp` · **Durum:** M0 → M6, iki kalite geçişi, Mod 2 (101 Okey) ve gece çalışması tamamlandı; 112 test geçiyor. En yeni değişiklikler en alttaki **"Ek: Gece çalışması"** bölümünde.
 
 Linke tıklayınca saniyeler içinde açılan, telefonda ve bilgisayarda çalışan, çok oyunculu 3D **Saklambaç** hazır. Oda kur, linki gönder, arkadaşların (ya da botlar) gelsin; Ebe duvara dönüp sayar, herkes saklanır, "Gördüm!" denince Ebe Duvarı'na yarış başlar.
 
@@ -240,3 +240,89 @@ Ayrıntılı adımlar: **`Docs/Deploy.md`**. Kısaca:
 **Bilinen sınırlar**
 - Karakter animasyonları koddan üretiliyor; Kenney'nin hazır animasyon dosyaları indirilebilirse daha akıcı olur.
 - Yüksek kalite modu (AO ve bloom) zayıf dizüstü bilgisayarlarda kendiliğinden düşüyor. Telefonlarda kare hızı gerçek cihazda ölçülmeli.
+
+## Ek: Gece çalışması — Üsküdar kıraathanesi, lobi, sesli sohbet
+
+Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.md` dosyasında.
+
+**Bildirdiğin hatalar**
+- **Kamera titremesi:** kamera artık karakteri yatayda birebir takip ediyor. Sadece yükseklik (basamak, kaldırım) yumuşatılıyor. Bu yüzden yürürken karakter ekranda sallanmıyor.
+- **Karakterin takılı kalması:** bir engelin içine giren gövde artık en kısa yoldan dışarı itiliyor. Önceden geriye itiliyor ve sıkışıyordu. Bunun için test de eklendi.
+- **Yazılı emote atınca etrafın kararması:** sorun konuşma balonlarının etrafında oluşan gölge (AO) halesiydi. Balonlar ve isim etiketleri artık bu gölgeye dahil edilmiyor.
+- **Mekânın dışına çıkılması:** harita kenarları kapatıldı. Denize atlamayı önlemek için korkuluğun üstüne görünmez bir duvar konuldu. Kamera da artık ince duvarlardan, vitrin camından ve kapı üstünden dışarı geçmiyor.
+
+**Gece test ederken bulup düzelttiğim hatalar**
+- Oyun ortasında sayfa yenilenince masaya geri dönülüyordu ama ıstaka boş geliyordu. Artık taşlar geri geliyor.
+- Özel salonun davet linkini almanın bir yolu yoktu. Kahvede **🔗 Davet et** düğmesi eklendi: telefonda paylaşma menüsünü açıyor, bilgisayarda linki kopyalıyor.
+- Çaycı markete veya sahile çay götürürken duvarların içinden geçiyordu. Artık engellerin etrafından dolaşan bir yol buluyor.
+- Telefonda yatay ekranda üst çubuk taşıyordu. Masadayken üstteki düğmeler ipucu satırının altında kalıyordu. "Otur" ve "Alışveriş" yazıları elindeki eşyanın çubuğuyla üst üste biniyordu. Üçü de düzeltildi.
+- Bankta veya duvarda otururken karakter havaya kalkabiliyordu. Bu da düzeltildi.
+
+**Modern kıraathane**
+- Beton karo zemin, tuğla duvar, meşe ve siyah çelik mobilya, sarkıt lambalar var. Çay ocağı ve tavla köşesi korundu.
+- İçeride 18 masa var. Cam korkuluklu terasta 4 masa daha var, toplam 22 okey masası.
+- Bir salona 60 kişiye kadar girebiliyor.
+
+**Dışarısı: Üsküdar sahili**
+- Kıraathaneden çıkınca önce teras, sonra arabaların park ettiği sokak geliyor.
+- Sokaktan sonra Salacak tarzı sahil var: çınar ağaçları, banklar, simitçi arabası, tabureli çay bahçesi, olta atan balıkçılar ve vapur iskelesi.
+- Denizin karşısında **Kız Kulesi** duruyor. Önünden vapur geçiyor, martılar uçuyor.
+- Ufukta Tarihi Yarımada'nın silueti görünüyor: Ayasofya, Sultanahmet, Topkapı, Süleymaniye ve Galata Kulesi. Uzaktan da seçilebilsin diye biraz büyük çizildi.
+- Arkada renkli Üsküdar evleri ve tepede bir cami var. Deniz animasyonlu, üstünde güneş parıltısı var.
+- Sahilde bir bölümde korkuluk yok, alçak taş duvar var. Buraya oturup bacaklarını denize sarkıtabilir, Kız Kulesi'ne karşı çay içebilirsin.
+
+**Market ve dışarıdaki sosyal aktiviteler**
+- Kıraathanenin yanında **Bakkal Hasan** var. Sigara, su, gazoz, çekirdek, çikolata, dondurma ve gazete satıyor. Simitçi Cemal ise simit, çay ve su satıyor.
+- Aldığın şey elinde duruyor ve **Q** ile kullanıyorsun: sigara yakıp duman üflüyorsun, simit yiyorsun, gazoz içiyorsun, gazete okuyorsun. Diğer oyuncular da bunu görüyor.
+- Sigara tamamen sanal ve oyun parasıyla alınıyor. Oyunda hiçbir avantaj sağlamıyor ve üstünde "Sigara içmek sağlığa zararlıdır" uyarısı var.
+- Banklara, taburelere ve sahil duvarına **E** ile oturabilirsin. Emote, hazır sohbet cümleleri ("Sahile inelim mi?", "Manzaraya bak!") ve çay ısmarlama dışarıda da çalışıyor. Çaycı siparişi nerede olursan ol getiriyor.
+
+**Online oyun özellikleri**
+- **Lobi:** salonlar Üsküdar semtlerinin adını taşıyor (Salacak, Kuzguncuk, Çengelköy…). Listede her salonun kaç kişi olduğu, kaç masada oyun sürdüğü ve kaç masanın oyuncu beklediği görünüyor.
+- **⚡ Hızlı oyna** seni doğrudan boş bir masaya oturtuyor. Önce oyuncu bekleyen masalar dolduruluyor.
+- **Yeni salon aç** ile salon kurabilirsin. İstersen "özel" yapabilirsin: listede görünmez, sadece davet linkiyle girilir.
+- Salonun içinde **🃏 Masalar** listesinden tek tıkla bir masaya oturabilirsin. **🤖 Botlarla hemen başla** boş yerleri botlarla doldurup taşları dağıtıyor.
+- **Kalıcı cüzdan:** hesap yok. Bakiyen cihazına verilen rastgele, isimsiz bir anahtarla sunucuda saklanıyor. Her gün ilk girişte 250 ₺ bonus alıyorsun.
+- **Liderlik tablosu:** lobide o an çevrimiçi en zengin 10 oyuncu, salon adlarıyla birlikte görünüyor.
+- **Sesli sohbet:** isteğe bağlı ve varsayılan olarak kapalı. **🎙️** ile açılıyor ve mikrofon izni istiyor; izin vermezsen sadece dinleyebilirsin.
+  - Masadayken masadaki dört kişiyle konuşuyorsun. Dışarıdayken ~14 m içindeki oyuncularla konuşuyorsun ve ses mesafeyle azalıyor.
+  - İstediğin kişiyi tek tek susturabilir, kendi mikrofonunu kapatabilirsin. Konuşan kişinin üstünde simge beliriyor.
+  - Ses, oyuncular arasında doğrudan (WebRTC) gidiyor. Sunucudan geçmiyor ve hiçbir yerde kaydedilmiyor.
+
+**Senin yerine verdiğim kararlar (ayrıntı `Docs/Decisions.md`)**
+- "Küçük mapimizi Üsküdar'a benzetelim" isteğini kıraathanenin dışındaki okey dünyası olarak yorumladım. Saklambaç mahallesine dokunmadım.
+- Sesli sohbet ve sigara, CLAUDE.md'deki çocuk güvenliği kurallarına aykırıydı ama sen açıkça istediğin için ekledim. İkisi için de önlem aldım:
+  - Sesli sohbet isteğe bağlı, susturulabiliyor ve kayıt tutulmuyor.
+  - Sigara sanal, uyarılı ve avantajsız.
+  - Oyunu küçük yaştakiler oynayacaksa ikisi de tek satırla kapatılabilir.
+- Liderlik tablosu sadece o an çevrimiçi olanları gösteriyor. Geçmişe dönük sıralama için takma adları saklamak gerekirdi; bunu yapmadım.
+
+**Nasıl test edildi**
+- 112 otomatik test geçiyor. Gece eklenen testler:
+  - Market alışverişi ve kullanma, bank ve sahil duvarı oturma.
+  - Cüzdanın aynı cihazda korunması, hızlı oturma ve botla başlatma.
+  - Liderlik tablosu, sayfa yenilemeden sonra elin geri gelmesi.
+  - Çaycının yol bulması (markete, sahile, çay bahçesine giden rotalar duvar içinden geçmiyor).
+- Playwright ile tarayıcıda denenenler:
+  - Lobi → hızlı oyna → botlar → 5 tur taş çekip atma.
+  - Oyun ortasında sayfayı yenileme.
+  - Markete yürüyüp sigara alma ve yakma.
+  - Simitçiden simit alıp banka oturma; ikinci bir oyuncunun ekranından bunun görünmesi.
+  - Sahil duvarına oturma, davet linkiyle özel salona girme.
+  - İki ayrı tarayıcı arasında sesli sohbet.
+  - Telefon boyutunda yatay ekran.
+- Toplam indirme 2,18 MB (gzip), lobiyi göstermek için gereken 136 KB.
+
+**Bilinen sınırlar**
+- **Sesli sohbet:** bazı mobil ağlarda (sıkı NAT) bağlantı kurulamayabilir. Bunun için sunucuda bir TURN sunucusu kurulmalı; adımlar `Docs/Deploy.md` dosyasında. Bu iş hesap ve sunucu gerektirdiği için sana bıraktım.
+- **Telefonda mikrofon:** tarayıcılar mikrofonu sadece HTTPS'te veriyor. Aynı Wi-Fi'de `http://192.168…` adresiyle denerken telefonda sadece dinleyebilirsin. Gerçek sunucuda (Caddy ile HTTPS) mikrofon da çalışır.
+- **Cüzdan dosyası:** bakiyeler `data/wallets.json` dosyasında. Sunucuyu yeniden kurarken bu klasörü koru.
+- **Gerçek cihaz testi:** gerçek telefonda ses ve kare hızı henüz ölçülmedi.
+
+**Önerilen sonraki adımlar**
+- İlk iş olarak VDS'e kurulum yap ve TURN sunucusunu ayarla.
+- Istaka dizilişin sayfa yenilenince sıfırlanıyor; bunun saklanması iyi olur.
+- Kalıcı haftalık liderlik tablosu eklenebilir; bunun için takma ad saklamak gerekir.
+- Sahilde martıya simit atma, vapura binme gibi mini etkinlikler eklenebilir.
+- Saklambaç için de Üsküdar temalı ikinci bir mahalle yapılabilir.
+

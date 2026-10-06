@@ -14,6 +14,12 @@ packages/okey   101 Okey rules (pure) + meld search + okey bot
 - `KahvehaneRoom` (public, `joinOrCreate('kahvehane')`): avatar movement uses the same input/snapshot protocol with `KAHVE_WORLD` collisions. Schema: players (look, money, table, seat) and 6 tables (status, bet, hands, seats, totals, pot, turn deadline, JSON public view, last hand/match results).
 - One `OkeyGame` per playing table. Hands are private (`hand` message to the owner only); everything else is in the table's JSON view. Bots act on a delay; humans auto-play when the 30 s timer runs out.
 - Client: `KahveScreen` (lazy chunk) drives `Game('kahve', buildKahve)`; the okey board is HTML/CSS over the 3D scene (seat camera).
+- Salons: every `KahvehaneRoom` is a salon (name from a list of Üsküdar neighbourhoods, up to 60 players, 22 tables). Room metadata `{name, private, playing, waiting, humans, top}` feeds `GET /api/salons` (public salons) and `GET /api/leaders` (richest online players). Join options: `quick` (seat at the best table), `private`, `device` (wallet token).
+- Wallets: `WalletStore` (`apps/server/src/wallets.ts`) maps an anonymous device token → balance + last daily bonus, JSON file (`WALLET_FILE`), debounced saves.
+- Outside world: `SHOPS`/`SHOP_ITEMS` (buy → `holding`/`uses` in the schema, `use` broadcasts `used` for the animation), `SIT_SPOTS` (benches, stools, ledge; the server freezes the body while `spot ≥ 0`, the client skips local physics while seated).
+- Voice: `net/voice.ts` (perfect-negotiation WebRTC mesh, WebAudio gain per peer); the client decides who to connect (same table / within 14 m), the server relays `signal` only between players with `voice = true`.
+- `resync`: the client sends it once its message handlers are wired; the server answers with the private hand (messages sent before that, e.g. right after a reconnect, are dropped).
+- NPCs: `game/navGrid.ts` (A* over the kahve colliders) plans the çaycı's deliveries.
 
 ## Data flow
 1. **Client → server:** one `i` (input) message per 50 ms simulation step: `{seq, mx, mz, jump, crouch, yaw}` in world space. Plus `spot`, `emote`, `chat` (preset index), `start`, `addBot`, `removeBot`.

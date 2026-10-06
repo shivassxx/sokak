@@ -15,3 +15,11 @@ Ideas that are out of scope for the current milestones.
 - Upgrade to Colyseus 0.18 / TypeScript 7 / Vitest 5 once stable in this stack.
 - Redis presence for multi-process scaling.
 - Reconnect for the host role switching back when the original host returns.
+
+## Kahvehane / 101 Okey (after the night session)
+- Remember the player's ıstaka arrangement across a reload (sessionStorage per salon + table).
+- Persistent weekly leaderboard (needs storing nicknames; decide on privacy first).
+- Sahil mini activities: feed the gulls with simit, take the vapur to Karaköy (second map), fishing with the amcas.
+- TURN relay for voice chat on the VDS (coturn) and a real-phone voice/fps test.
+- Üsküdar-themed second mahalle for Saklambaç.
+- Partner (eşli) 101 and rising opening threshold as table options.
