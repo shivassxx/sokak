@@ -45,6 +45,8 @@ export type KahveKind =
   | 'marketShelf'
   | 'fridge'
   | 'marketCounter'
+  | 'freezer'
+  | 'crates'
   | 'cart'
   | 'pier'
   | 'lamp'
@@ -157,6 +159,10 @@ span('marketShelf', 22.6, 28.6, -10.8, -10.0, 1.9);
 span('marketShelf', 17.0, 21.0, -11.6, -10.8, 1.9);
 span('fridge', 29.0, 29.7, -13.4, -1.4, 2.1);
 span('fridge', 16.3, 17.0, -9.6, -6.0, 2.1);
+// ice-cream chest freezer by the window, fruit & vegetable crates either side of the door
+span('freezer', 16.35, 17.35, -2.3, -0.65, 0.9);
+span('crates', 17.0, 20.8, 0.3, 1.3, 0.95);
+span('crates', 25.2, 29.0, 0.3, 1.3, 0.95);
 
 /** where you shop: stand here (within SHOP_REACH) */
 export interface Shop {

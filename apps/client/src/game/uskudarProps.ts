@@ -14,20 +14,23 @@ import type { Foliage } from './foliage';
 const IRON = 0x1f2326;
 const HOUSE_COLORS = [0xc98f5e, 0x9c3f32, 0xe3c58e, 0x8fb0b8, 0xd8a3a0, 0xb7c49a, 0xe9dcc0];
 
-/** A row of old wooden houses along a street-facing line (facade at z, facing +z or -z). */
-export function houseRow(b: Builder, x0: number, x1: number, z: number, facing: 1 | -1, seed = 1, tall = 0): void {
+/**
+ * A row of old wooden houses along a street-facing line (facade at z, facing +z or -z).
+ * `far` rows (only ever seen from a distance) get plain windows to save triangles.
+ */
+export function houseRow(b: Builder, x0: number, x1: number, z: number, facing: 1 | -1, seed = 1, tall = 0, far = false): void {
   let x = x0;
   let i = 0;
   while (x < x1 - 2) {
     const w = Math.min(x1 - x, 6 + hash(seed * 31 + i) * 4);
     const floors = 2 + Math.floor(hash(seed * 17 + i) * 2) + tall;
-    house(b, x + w / 2, z, w - 0.2, floors, HOUSE_COLORS[(seed * 3 + i) % HOUSE_COLORS.length]!, facing, seed * 100 + i);
+    house(b, x + w / 2, z, w - 0.2, floors, HOUSE_COLORS[(seed * 3 + i) % HOUSE_COLORS.length]!, facing, seed * 100 + i, far);
     x += w;
     i++;
   }
 }
 
-function house(b: Builder, cx: number, zFace: number, w: number, floors: number, color: number, facing: 1 | -1, seed: number): void {
+function house(b: Builder, cx: number, zFace: number, w: number, floors: number, color: number, facing: 1 | -1, seed: number, far: boolean): void {
   const fh = 3.1;
   const depth = 8;
   const zc = zFace - (facing * depth) / 2;
@@ -48,7 +51,11 @@ function house(b: Builder, cx: number, zFace: number, w: number, floors: number,
   b.pat = PAT.roof;
   b.add(roof, 0xa24a32, cx, fh * floors + 1.0, zc);
   b.pat = PAT.none;
-  // windows: white frames + dark panes, shutters on some
+  // trim: corner boards and floor bands on the wooden storeys
+  const TRIM = 0x6b4a33;
+  for (const s of [-1, 1]) b.box(cx + s * (w / 2 - 0.07), fh, zFace + facing * 0.03, 0.14, fh * (floors - 1), 0.08, TRIM);
+  for (let f = 1; f < floors; f++) b.box(cx, f * fh - 0.07, zFace + facing * 0.03, w, 0.14, 0.08, TRIM);
+  // windows: framed sashes, glossy glass or a lit room, shutters and flower boxes on some
   const zw = zFace + facing * 0.02;
   for (let f = 0; f < floors; f++) {
     const y = f * fh + 1.0;
@@ -58,17 +65,60 @@ function house(b: Builder, cx: number, zFace: number, w: number, floors: number,
       const onCumba = f >= 1 && Math.abs(x - cx) < cumbaW / 2 - 0.3;
       const zz = onCumba ? zFace + facing * 0.92 : zw;
       if (f === 0 && k === Math.floor(n / 2)) {
-        // the door
-        b.box(x, 0, zz, 1.1, 2.2, 0.06, 0x5a3420);
+        // the door: panelled, under a little hood, on a step
+        b.box(x, 0, zz, 1.3, 2.4, 0.06, 0xf2ece0);
+        b.box(x, 0, zz + facing * 0.03, 1.1, 2.25, 0.04, 0x5a3420);
+        for (const dy of [0.35, 1.35]) b.box(x, dy, zz + facing * 0.055, 0.8, 0.7, 0.02, 0x4a2a18);
+        b.box(x, 2.45, zz + facing * 0.3, 1.6, 0.08, 0.6, 0x5a3a28);
+        b.box(x, 0, zz + facing * 0.25, 1.5, 0.12, 0.5, 0xb9ab95);
         continue;
       }
-      b.box(x, y, zz, 0.9, 1.35, 0.06, 0xf2ece0);
       const lit = hash(seed * 7 + f * 13 + k) > 0.55;
-      b.box(x, y + 0.08, zz + facing * 0.02, 0.72, 1.18, 0.04, lit ? 0x9a7444 : 0x3b4250, lit ? 'glow' : b.bucket);
-      if (hash(seed + k * 3 + f) > 0.6) for (const s of [-1, 1]) b.box(x + s * 0.62, y, zz, 0.32, 1.35, 0.05, 0x2f5d3a);
+      if (far) {
+        b.box(x, y, zz, 0.9, 1.35, 0.06, 0xf2ece0);
+        b.box(x, y + 0.08, zz + facing * 0.02, 0.72, 1.18, 0.04, lit ? 0x9a7444 : 0x3b4250, lit ? 'glow' : b.bucket);
+        continue;
+      }
+      const sh = hash(seed + k * 3 + f) > 0.6 ? SHUTTERS[Math.floor(hash(seed + k) * SHUTTERS.length)]! : undefined;
+      facadeWindow(b, x, y, zz, facing, 0.86, 1.3, lit, sh, f > 0 && hash(seed * 3 + k + f * 5) > 0.7);
     }
   }
   b.pat = pat;
+}
+
+const SHUTTERS = [0x2f5d3a, 0x3d6f8a, 0x7a3b28, 0x5b6f7d];
+
+/**
+ * A sash window on a facade facing ±z (y = bottom of the frame): white frame, glossy glass
+ * (the 'cars' bucket = clearcoat) or a warmly lit room, mullion and transom, a stone sill
+ * and a hood; optional louvred-look shutters and a flower box.
+ */
+export function facadeWindow(b: Builder, x: number, y: number, z: number, facing: 1 | -1, w: number, h: number, lit: boolean, shutters?: number, flowers = false): void {
+  const o = (d: number) => z + facing * d;
+  const pat = b.pat;
+  const bucket = b.bucket;
+  b.pat = PAT.none;
+  b.bucket = 'detail';
+  b.box(x, y - 0.05, o(0), w + 0.16, h + 0.1, 0.06, 0xf2ece0);
+  b.box(x, y + 0.03, o(0.035), w - 0.08, h - 0.08, 0.03, lit ? (hash(x * 3 + y) < 0.5 ? 0x9a7444 : 0x8c6038) : 0x26303a, lit ? 'glow' : 'cars');
+  b.box(x, y + 0.03, o(0.055), 0.05, h - 0.08, 0.03, 0xf2ece0);
+  b.box(x, y + h * 0.66, o(0.055), w - 0.08, 0.05, 0.03, 0xf2ece0);
+  b.box(x, y - 0.13, o(0.08), w + 0.3, 0.07, 0.18, 0xe6dccb);
+  b.box(x, y + h + 0.02, o(0.06), w + 0.34, 0.09, 0.14, 0xe6dccb);
+  if (shutters !== undefined) {
+    const dark = new THREE.Color(shutters).multiplyScalar(0.72).getHex();
+    for (const s of [-1, 1]) {
+      const sx = x + s * (w / 2 + 0.24);
+      b.box(sx, y - 0.03, o(0.03), 0.4, h + 0.04, 0.04, shutters);
+      for (let k = 0; k < 4; k++) b.box(sx, y + 0.08 + k * ((h - 0.16) / 4), o(0.055), 0.32, 0.05, 0.02, dark);
+    }
+  }
+  if (flowers) {
+    b.box(x, y - 0.1, o(0.2), w, 0.16, 0.2, 0x8a4b2f);
+    for (let k = 0; k < 4; k++) b.blob(x - w / 2 + 0.14 + (k * (w - 0.28)) / 3, y + 0.1, o(0.2), 0.1, k % 2 ? 0xd8473b : 0x4f8a3a, 0.8, 0, 'foliage');
+  }
+  b.pat = pat;
+  b.bucket = bucket;
 }
 
 /** A plane tree (çınar) in a round stone planter: mottled trunk, limbs and leaf-card crowns. */

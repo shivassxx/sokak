@@ -19,10 +19,11 @@ import { Builder, canvasTex, decal, hash } from './world';
 import { PAT, patternize } from './materials';
 import { STEEL, LIGHT_OAK, TABLE_TOP, feltTexture, modernChair, modernOkeyTable, parasol, patioHeater, samovar, caydanlik, bentwoodChair } from './kahveProps';
 import { vapurHorn } from './audio';
-import { classicLamp, gull, hillMosque, houseRow, iskele, kizKulesi, limb, parkBench, parkedCar, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
+import { classicLamp, facadeWindow, gull, hillMosque, houseRow, iskele, kizKulesi, limb, parkBench, parkedCar, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
 import type { Quality } from './postfx';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Foliage } from './foliage';
+import { marketFitout } from './marketProps';
 
 /**
  * Static world of the okey mode: the modern kıraathane (hall + terrace), the
@@ -97,7 +98,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       [-3, 3.9, -12, 9],
       [7, 3.9, -12, 9],
       [-3, 3.9, -21, 5],
-      [23, 3.5, -7, 6],
+      [23, 3.5, -7, 7],
     ] as const) {
       const l = new THREE.PointLight(0xffc98f, i, 15, 1.5);
       l.position.set(x, y, z);
@@ -185,12 +186,14 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   b.pat = PAT.plaster;
   b.box(cx, H + 0.3, cz - 0.6, HALL.x1 - HALL.x0 + 2 * T, 7, HALL.z1 - HALL.z0 + 0.8, 0xc4ab8c);
   b.pat = PAT.none;
+  // a moulded cornice under the roof and a band between the floors
+  b.box(cx, H + 7.05, 0.0, HALL.x1 - HALL.x0 + 2 * T + 0.3, 0.12, 0.6, 0xd8ccb8);
+  b.box(cx, H + 7.17, 0.05, HALL.x1 - HALL.x0 + 2 * T + 0.5, 0.18, 0.7, 0xe6dccb);
+  b.box(cx, H + 3.6, 0.0, HALL.x1 - HALL.x0 + 2 * T, 0.14, 0.5, 0xd8ccb8);
   for (let fl = 0; fl < 2; fl++)
     for (let x = HALL.x0 + 1.5; x < HALL.x1; x += 3) {
       const y = H + 1.3 + fl * 3.2;
-      b.box(x, y, 0.22, 1.3, 1.6, 0.06, 0xf2ece0);
-      const lit = hash(x * 3 + fl) > 0.5;
-      b.box(x, y + 0.1, 0.26, 1.1, 1.4, 0.04, lit ? 0x8a6a40 : 0x3b4250, lit ? 'glow' : 'main');
+      facadeWindow(b, x, y, 0.2, 1, 1.15, 1.5, hash(x * 3 + fl) > 0.62, fl === 1 && hash(x * 5) > 0.5 ? 0x3d6f8a : undefined);
       if (fl === 0 && hash(x) > 0.4) {
         b.box(x, y - 0.25, 0.9, 1.9, 0.12, 1.2, 0xbfb6a6);
         for (let k = 0; k < 5; k++) b.box(x - 0.9 + k * 0.45, y - 0.13, 1.45, 0.04, 0.9, 0.04, IRONISH);
@@ -381,40 +384,18 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   b.box((M.x0 + M.x1) / 2, 3.2, 0.06, M.x1 - M.x0, 0.8, 0.25, 0x1e7a46);
   // striped awning
   for (let k = 0; k < 14; k++) b.add(new THREE.BoxGeometry(1.0, 0.04, 1.6), k % 2 ? 0xffffff : 0x1e7a46, M.x0 + 0.5 + k, 3.0, 0.75, -0.35, 0, 0);
-  // counter, shelves with goods, fridges with glowing insides
-  for (const o of KAHVE_OBJECTS) {
-    if (o.kind === 'marketCounter') {
-      b.box(o.x, 0, o.z, o.w, o.h, o.d, 0x8a6142);
-      b.box(o.x, o.h, o.z, o.w + 0.05, 0.04, o.d + 0.05, 0xece6db);
-      b.box(o.x - 0.8, o.h + 0.04, o.z, 0.4, 0.25, 0.32, 0x2b2b2b);
-      // cigarette wall behind the counter
-      for (let k = 0; k < 40; k++) b.box(o.x - 1.4 + (k % 10) * 0.3, 1.3 + Math.floor(k / 10) * 0.28, o.z - 1.55, 0.24, 0.2, 0.08, [0xf5f5f5, 0xd8473b, 0x1d4f91, 0xf2c94c, 0x2e8b57][(k * 7) % 5]!);
-      b.box(o.x, 1.2, o.z - 1.62, 3.2, 1.2, 0.06, 0x3a3c40);
-    } else if (o.kind === 'marketShelf') {
-      b.box(o.x, 0, o.z, o.w, o.h, o.d, 0xd9dcdf);
-      for (let lvl = 0; lvl < 4; lvl++)
-        for (let k = 0; k < Math.floor(o.w / 0.22); k++)
-          for (const s of [-1, 1]) {
-            const c = [0xd8473b, 0xf2c94c, 0x3f8f5a, 0x2f6fb0, 0xe67e22, 0x9b59b6, 0xf4f1e8][(k * 3 + lvl * 5 + (s > 0 ? 1 : 0)) % 7]!;
-            b.box(o.x - o.w / 2 + 0.14 + k * 0.22, 0.25 + lvl * 0.42, o.z + s * (o.d / 2 + 0.06), 0.16, 0.26, 0.12, c);
-          }
-    } else if (o.kind === 'fridge') {
-      b.box(o.x, 0, o.z, o.w, o.h, o.d, 0xeef0f2);
-      const along = o.d > o.w;
-      const fx = along ? o.x + (o.x > 23 ? -o.w / 2 - 0.01 : o.w / 2 + 0.01) : o.x;
-      b.box(fx, 0.25, o.z, along ? 0.02 : o.w - 0.1, o.h - 0.4, along ? o.d - 0.1 : 0.02, 0xdff3ff, 'glow');
-    }
-  }
+  // the shop's fit-out: gondolas with stock, coolers, counter, cigarette cabinet, freezer, crates
+  marketFitout(b, M, KAHVE_OBJECTS, glassPanes);
 
   // -------------------------------------------------------------- neighbours, hill, mosque
   houseRow(b, -KAHVE_HALF, HALL.x0 - T, TERRACE.z1 + 0.1, 1, 3, 1);
   houseRow(b, M.x1, KAHVE_HALF, TERRACE.z1 + 0.1, 1, 5, 1);
-  houseRow(b, -80, 70, -32, 1, 7, 2);
+  houseRow(b, -80, 70, -32, 1, 7, 2, true);
   b.pat = PAT.grass;
   b.add(new THREE.SphereGeometry(80, 24, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0x6f7d4a, 0, -52, -120);
   b.pat = PAT.none;
   hillMosque(b, -20, 18, -75, 1.0);
-  houseRow(b, -110, 90, -55, 1, 9, 2);
+  houseRow(b, -110, 90, -55, 1, 9, 2, true);
 
   // -------------------------------------------------------------- street & sahil furniture
   const trees = new Foliage();
@@ -475,6 +456,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     scene.add(mesh);
   };
   addMesh(b.build('main'), mainMat, true, true);
+  addMesh(b.build('detail'), mainMat, false, true);
   addMesh(b.build('ground'), groundMat, false, true);
   addMesh(b.build('foliage'), foliageMat, true, true);
   if (!trees.empty) scene.add(trees.build('plane'));
@@ -520,7 +502,31 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   glowDecal(neon('SOKAK KIRAATHANESİ', '#ffd27a', 1024, 128), cx, 4.0, 0.22, 9, 1.1);
   glowDecal(neon('ÇAY', '#ff6fb5'), -1, 3.3, HALL.z0 + 0.05, 2.2, 0.7);
   glowDecal(neon('OKEY · TAVLA', '#7fe3ff', 1024, 160), HALL.x0 + 0.08, 3.4, -12, 4.4, 0.7, Math.PI / 2);
-  glowDecal(neon('MARKET', '#ffffff', 512, 128), (M.x0 + M.x1) / 2, 3.6, 0.2, 5, 1.1);
+  // the shop sign: a lit box sign, white letters on green; small signs inside
+  const shopSign = canvasTex(1024, 160, (ctx) => {
+    ctx.fillStyle = '#1e7a46';
+    ctx.fillRect(0, 0, 1024, 160);
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 112px "Baloo 2", sans-serif';
+    ctx.fillText('HASAN MARKET', 512, 88);
+  });
+  glowDecal(shopSign, (M.x0 + M.x1) / 2, 3.6, 0.2, 5.6, 0.82).material.color.setScalar(0.62);
+  const smallSign = (text: string, bg: string, fg: string, w = 512, h = 128) =>
+    canvasTex(w, h, (ctx) => {
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = fg;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `800 ${Math.floor(h * 0.5)}px "Baloo 2", sans-serif`;
+      ctx.fillText(text, w / 2, h * 0.55);
+    });
+  const fz = KAHVE_OBJECTS.find((o) => o.kind === 'freezer');
+  if (fz) decal(scene, smallSign('DONDURMA', '#2f6fb0', '#ffffff'), fz.x + fz.w / 2 - 0.075, fz.h + 0.66, fz.z, 0.58, 0.3, Math.PI / 2);
+  const mc = KAHVE_OBJECTS.find((o) => o.kind === 'marketCounter');
+  if (mc) decal(scene, smallSign('18 YAŞ ALTINA TÜTÜN SATILMAZ', '#ffffff', '#c0262d', 1024, 96), mc.x, 2.62, mc.z - 1.55 - 0.31, 1.6, 0.15);
   // "SİMİT" on both long sides of the simitçi's cart
   const cart = KAHVE_OBJECTS.find((o) => o.kind === 'cart');
   if (cart) {
