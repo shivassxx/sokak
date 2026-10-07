@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {
   HALL,
   HALL_DOOR,
@@ -20,7 +19,7 @@ import { Builder, canvasTex, decal, hash } from './world';
 import { PAT, patternize } from './materials';
 import { STEEL, LIGHT_OAK, TABLE_TOP, feltTexture, modernChair, modernOkeyTable, parasol, patioHeater, samovar, caydanlik, bentwoodChair } from './kahveProps';
 import { vapurHorn } from './audio';
-import { classicLamp, gull, hillMosque, houseRow, iskele, kizKulesi, limb, parkBench, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
+import { classicLamp, gull, hillMosque, houseRow, iskele, kizKulesi, limb, parkBench, parkedCar, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
 import type { Quality } from './postfx';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Foliage } from './foliage';
@@ -424,6 +423,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     else if (o.kind === 'planter' && o.z > 18) planeTree(b, o.x, o.z, 1, trees);
     else if (o.kind === 'bench') parkBench(b, o.x, o.z, 1);
     else if (o.kind === 'cart') simitCart(b, o.x, o.z, glassPanes);
+    else if (o.kind === 'car') parkedCar(b, o.x, o.z, o.tint! % 2 ? Math.PI : 0, o.tint ?? 0);
     else if (o.kind === 'pier') iskele(b, o.x - o.w / 2, o.x + o.w / 2, o.z - o.d / 2, o.z + o.d / 2);
     else if (o.kind === 'lowTable') {
       b.pat = PAT.wood;
@@ -480,7 +480,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   if (!trees.empty) scene.add(trees.build('plane'));
   if (!plants.empty) scene.add(plants.build('small'));
   addMesh(b.build('glow'), glowMat, false, false);
-  addMesh(b.build('cars'), mainMat, false, true);
+  // car paint: glossy clearcoat over the vertex colour (windows are dark paint here too)
+  addMesh(b.build('cars'), new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.32, metalness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }), true, true);
   // varnished furniture wood: same patterns, plus a clear lacquer coat
   const varnishMat = patternize(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.48, clearcoat: 0.6, clearcoatRoughness: 0.22 }), 0.18);
   addMesh(b.build('varnish'), varnishMat, true, true);
@@ -554,8 +555,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       });
     const px0 = pier.x - pier.w / 2;
     const pz0 = pier.z - pier.d / 2;
-    decal(scene, board('ÜSKÜDAR', 'VAPUR İSKELESİ'), px0 - 0.07, 3.95, pier.z, 6.4, 1.2, -Math.PI / 2);
-    decal(scene, board('ÜSKÜDAR', 'KARAKÖY · EMİNÖNÜ · BEŞİKTAŞ'), pier.x, 4.35, pz0 - 0.07, 6.4, 1.2, Math.PI);
+    decal(scene, board('ÜSKÜDAR', 'VAPUR İSKELESİ'), px0 - 0.17, 4.35, pier.z, 5.2, 0.97, -Math.PI / 2);
+    decal(scene, board('ÜSKÜDAR', 'KARAKÖY · EMİNÖNÜ · BEŞİKTAŞ'), pier.x, 4.3, pz0 - 0.17, 5.4, 1.0, Math.PI);
     const clock = canvasTex(256, 256, (ctx) => {
       ctx.fillStyle = '#f6f1e4';
       ctx.beginPath();
@@ -581,7 +582,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       ctx.lineTo(128 + Math.sin(1.9) * 86, 128 - Math.cos(1.9) * 86);
       ctx.stroke();
     });
-    decal(scene, clock, px0 - 0.07, 4.85, pier.z, 0.7, 0.7, -Math.PI / 2);
+    // the clock sits on the roof lantern, facing the promenade
+    decal(scene, clock, pier.x - 0.62, 8.25, pier.z, 0.72, 0.72, -Math.PI / 2);
   }
   const poster = (kind: 0 | 1) =>
     canvasTex(360, 480, (ctx) => {
@@ -781,26 +783,6 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   const piecePos = (d: NonNullable<(typeof gulls)[number]['dive']>, s: number, out: THREE.Vector3) =>
     out.lerpVectors(d.hand, d.land, s).setY(d.hand.y + (d.land.y - d.hand.y) * s + Math.sin(Math.PI * s) * 3);
   const tmpG = new THREE.Vector3();
-
-  // parked cars from the Kenney kit
-  const cars = KAHVE_OBJECTS.filter((o) => o.kind === 'car');
-  void new GLTFLoader()
-    .loadAsync(`${import.meta.env.BASE_URL}models/vehicle-truck-red.glb`)
-    .then((g) => {
-      cars.forEach((o, i) => {
-        const m = g.scene.clone(true);
-        const box = new THREE.Box3().setFromObject(m);
-        const size = box.getSize(new THREE.Vector3());
-        const s = o.w / Math.max(size.x, size.z);
-        m.scale.setScalar(s);
-        m.rotation.y = size.x >= size.z ? 0 : Math.PI / 2;
-        m.position.set(o.x, 0, o.z);
-        if (i % 2) m.rotation.y += Math.PI;
-        m.traverse((c) => ((c as THREE.Mesh).castShadow = true));
-        scene.add(m);
-      });
-    })
-    .catch(() => {});
 
   let t = 0;
   let tvT = 0;

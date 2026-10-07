@@ -211,38 +211,174 @@ export function simitCart(b: Builder, x: number, z: number, glass?: THREE.Buffer
   b.add(new THREE.CylinderGeometry(0.022, 0.022, 0.66, 8), 0x2a2a2a, x + 1.12, 0.97, z, Math.PI / 2, 0, 0);
 }
 
-/** Üsküdar iskele: a pitched-roof pier hall with arches, clock and sign. */
+/** Parked car styles: white "Doğan", yellow İstanbul taxi, blue "Şahin", red sedan. */
+const CAR_PAINT = [0xeeeeea, 0xf2c12e, 0x2f5f9e, 0x9e2b25];
+
+/**
+ * A parked 1990s Turkish-street sedan (generic three-box shape, no brand): side profile
+ * extruded across the car with rounded edges, a dark glass greenhouse under a painted roof,
+ * bumpers, lamps, plates, mirrors and wheels with silver rims. Paint goes in the 'cars'
+ * bucket (glossy clearcoat), tyres and trim in 'main'. Long axis along x (ry turns it).
+ */
+export function parkedCar(b: Builder, x: number, z: number, ry: number, tint: number): void {
+  const paint = CAR_PAINT[tint % CAR_PAINT.length]!;
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), ry);
+  const place = (g: THREE.BufferGeometry, color: number, lx: number, ly: number, lz: number, bucket: 'cars' | 'main') => {
+    m.compose(new THREE.Vector3(lx, ly, lz).applyQuaternion(q).add(new THREE.Vector3(x, 0, z)), q, new THREE.Vector3(1, 1, 1));
+    b.addMatrix(g, color, m, bucket);
+  };
+  const W = 1.7;
+  // lower body: bumper line to the waist, wheel arches cut out of the sill
+  const body = new THREE.Shape();
+  body.moveTo(2.1, 0.3);
+  body.lineTo(1.7, 0.3);
+  body.absarc(1.3, 0.33, 0.4, 0, Math.PI, false);
+  body.lineTo(-0.9, 0.3);
+  body.absarc(-1.3, 0.33, 0.4, 0, Math.PI, false);
+  body.lineTo(-2.08, 0.3);
+  body.lineTo(-2.12, 0.72);
+  body.lineTo(-2.04, 0.96);
+  body.lineTo(-1.32, 1.0);
+  body.lineTo(1.0, 0.99);
+  body.lineTo(2.0, 0.88);
+  body.lineTo(2.13, 0.62);
+  body.closePath();
+  const ext = (sh: THREE.Shape, depth: number, bevel: number) => {
+    const g = new THREE.ExtrudeGeometry(sh, { depth: depth - bevel * 2, bevelEnabled: true, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 2, curveSegments: 8 });
+    g.translate(0, 0, -(depth - bevel * 2) / 2);
+    return g;
+  };
+  place(ext(body, W, 0.07), paint, 0, 0, 0, 'cars');
+  // greenhouse: dark glass, narrower than the body, under a painted roof
+  const cabin = new THREE.Shape();
+  cabin.moveTo(-1.36, 0.98);
+  cabin.lineTo(-0.98, 1.36);
+  cabin.lineTo(0.42, 1.38);
+  cabin.lineTo(1.04, 0.98);
+  cabin.closePath();
+  place(ext(cabin, W - 0.22, 0.05), 0x1b232b, 0, 0, 0, 'cars');
+  const roof = new THREE.Shape();
+  roof.moveTo(-0.92, 1.35);
+  roof.lineTo(0.38, 1.37);
+  roof.lineTo(0.42, 1.41);
+  roof.lineTo(-0.9, 1.4);
+  roof.closePath();
+  place(ext(roof, W - 0.2, 0.03), paint, 0, 0, 0, 'cars');
+  // pillars between the side windows
+  for (const s of [-1, 1]) place(new THREE.BoxGeometry(0.08, 0.4, 0.04), paint, -0.12, 1.17, s * (W / 2 - 0.12), 'cars');
+  // bumpers, grille, lamps, plates
+  for (const sx of [-1, 1]) {
+    place(new THREE.BoxGeometry(0.12, 0.2, W + 0.04), 0x2b2d30, sx * 2.12, 0.4, 0, 'main');
+    place(new THREE.BoxGeometry(0.03, 0.12, 0.5), 0xf4f4f4, sx * 2.19, 0.43, 0, 'main');
+    for (const sz of [-1, 1]) place(new THREE.BoxGeometry(0.04, 0.13, 0.36), sx > 0 ? 0xe9eef2 : 0xb3241c, sx * 2.11, 0.7, sz * 0.58, 'cars');
+  }
+  place(new THREE.BoxGeometry(0.04, 0.14, 0.62), 0x1c1d1f, 2.12, 0.7, 0, 'main');
+  for (const s of [-1, 1]) place(new THREE.BoxGeometry(0.12, 0.08, 0.1), paint, 0.92, 1.02, s * (W / 2 + 0.06), 'cars');
+  // wheels: tyre, silver rim, dark hub
+  for (const sx of [-1, 1])
+    for (const sz of [-1, 1]) {
+      const tyre = new THREE.CylinderGeometry(0.31, 0.31, 0.2, 18);
+      tyre.rotateX(Math.PI / 2);
+      place(tyre, 0x1a1a1a, sx * 1.3, 0.31, sz * (W / 2 - 0.13), 'main');
+      const rim = new THREE.CylinderGeometry(0.19, 0.19, 0.21, 14);
+      rim.rotateX(Math.PI / 2);
+      place(rim, 0xc8ccd0, sx * 1.3, 0.31, sz * (W / 2 - 0.125), 'cars');
+    }
+  if (paint === 0xf2c12e) {
+    // TAKSİ roof light
+    place(new THREE.BoxGeometry(0.22, 0.13, 0.55), 0xf6f2e2, -0.3, 1.47, 0, 'cars');
+  }
+}
+
+/**
+ * Üsküdar iskele: a historic pier hall — stone plinth, plastered walls with pilasters and a
+ * string course, arched openings with light stone surrounds and keystones, glazed windows
+ * with mullions, an upper row of windows, a moulded cornice, eaves on brackets and a hipped
+ * lead roof. The boarding gates face the sea (+z), the waiting-hall door the promenade (−x).
+ */
 export function iskele(b: Builder, x0: number, x1: number, z0: number, z1: number): void {
   const cx = (x0 + x1) / 2;
   const cz = (z0 + z1) / 2;
   const w = x1 - x0;
   const d = z1 - z0;
+  const H = 5.2;
+  const WALL = 0xeadfc8;
+  const TRIM = 0xf7f1e3;
+  const GLASS = 0x34404c;
+  b.pat = PAT.stone;
+  b.box(cx, 0, cz, w + 0.3, 0.6, d + 0.3, 0xb7ab95);
   b.pat = PAT.plaster;
-  b.box(cx, 0, cz, w, 5.2, d, 0xe8dcc4);
+  b.box(cx, 0.6, cz, w, H - 0.6, d, WALL);
   b.pat = PAT.none;
-  for (let k = 0; k < 5; k++) {
-    const x = x0 + 1.6 + k * ((w - 3.2) / 4);
-    b.box(x, 0, z0 - 0.02, 1.6, 3.4, 0.08, 0x3b4250);
-    b.add(new THREE.CylinderGeometry(0.8, 0.8, 0.08, 14, 1, false, 0, Math.PI), 0x3b4250, x, 3.4, z0 - 0.02, Math.PI / 2, 0, Math.PI / 2);
-  }
-  // the promenade side: tall arched windows and a door under the name board
-  for (let k = 0; k < 4; k++) {
-    const z = z0 + 2.4 + k * ((d - 4.8) / 3);
-    if (k === 1) {
-      b.box(x0 - 0.03, 0, z, 0.08, 2.9, 1.8, 0x2a3036);
-      b.box(x0 - 0.05, 2.9, z, 0.1, 0.12, 2.0, 0xd9cdb4);
-    } else {
-      b.box(x0 - 0.03, 0.9, z, 0.08, 2.1, 1.3, 0x3b4250);
-      b.add(new THREE.CylinderGeometry(0.65, 0.65, 0.08, 14, 1, false, 0, Math.PI), 0x3b4250, x0 - 0.03, 3.0, z, 0, 0, Math.PI / 2);
+  // an opening on a facade: `along` is the facade direction, `out` its outward normal
+  type Face = { o: THREE.Vector3; along: THREE.Vector3; out: THREE.Vector3; ry: number };
+  const faces: Record<'n' | 's' | 'w' | 'e', Face> = {
+    n: { o: new THREE.Vector3(cx, 0, z0), along: new THREE.Vector3(1, 0, 0), out: new THREE.Vector3(0, 0, -1), ry: 0 },
+    s: { o: new THREE.Vector3(cx, 0, z1), along: new THREE.Vector3(1, 0, 0), out: new THREE.Vector3(0, 0, 1), ry: 0 },
+    w: { o: new THREE.Vector3(x0, 0, cz), along: new THREE.Vector3(0, 0, 1), out: new THREE.Vector3(-1, 0, 0), ry: Math.PI / 2 },
+    e: { o: new THREE.Vector3(x1, 0, cz), along: new THREE.Vector3(0, 0, 1), out: new THREE.Vector3(1, 0, 0), ry: Math.PI / 2 },
+  };
+  const at = (f: Face, t: number, y: number, o: number) => f.o.clone().addScaledVector(f.along, t).addScaledVector(f.out, o).setY(y);
+  const slab = (f: Face, t: number, y: number, o: number, wa: number, h: number, th: number, color: number) => {
+    const p = at(f, t, y, o);
+    b.box(p.x, p.y, p.z, f.ry ? th : wa, h, f.ry ? wa : th, color);
+  };
+  const arch = (f: Face, t: number, y: number, o: number, r: number, color: number) => {
+    const p = at(f, t, y, o);
+    if (f.ry) b.add(new THREE.CylinderGeometry(r, r, 0.08, 16, 1, false, 0, Math.PI), color, p.x, p.y, p.z, 0, 0, Math.PI / 2);
+    else b.add(new THREE.CylinderGeometry(r, r, 0.08, 16, 1, false, 0, Math.PI), color, p.x, p.y, p.z, Math.PI / 2, Math.PI / 2, 0);
+  };
+  /** a tall arched opening: stone surround + keystone, dark glazing or a door, mullions */
+  const opening = (f: Face, t: number, wd: number, sill: number, top: number, door: boolean) => {
+    slab(f, t, sill - 0.12, 0.04, wd + 0.36, top - sill + 0.12, 0.06, TRIM);
+    arch(f, t, top, 0.05, wd / 2 + 0.18, TRIM);
+    slab(f, t, top + wd / 2 + 0.05, 0.08, 0.22, 0.3, 0.08, 0xd8ccb2);
+    slab(f, t, sill, 0.07, wd, top - sill, 0.06, door ? 0x3a2a20 : GLASS);
+    arch(f, t, top, 0.08, wd / 2, door ? 0x3a2a20 : GLASS);
+    if (!door) {
+      slab(f, t, sill, 0.11, 0.06, top - sill + wd / 2 - 0.05, 0.03, TRIM);
+      slab(f, t, sill + (top - sill) * 0.55, 0.11, wd, 0.05, 0.03, TRIM);
+    } else slab(f, t, sill + (top - sill) / 2, 0.11, 0.05, top - sill, 0.03, 0x241a14);
+    slab(f, t, sill - 0.16, 0.12, wd + 0.5, 0.08, 0.14, 0xd8ccb2);
+  };
+  const upper = (f: Face, t: number) => {
+    slab(f, t, 4.05, 0.04, 0.9, 0.85, 0.06, TRIM);
+    slab(f, t, 4.12, 0.07, 0.7, 0.7, 0.06, GLASS);
+    slab(f, t, 4.12, 0.11, 0.05, 0.7, 0.03, TRIM);
+  };
+  const pilaster = (f: Face, t: number) => slab(f, t, 0.6, 0.06, 0.42, H - 0.6, 0.12, TRIM);
+  for (const key of ['n', 's', 'w', 'e'] as const) {
+    const f = faces[key];
+    const len = key === 'n' || key === 's' ? w : d;
+    const n = 4;
+    const step = (len - 2) / n;
+    for (let k = 0; k <= n; k++) pilaster(f, -len / 2 + 1 + k * step);
+    for (let k = 0; k < n; k++) {
+      const t = -len / 2 + 1 + (k + 0.5) * step;
+      // boarding gates to the sea are tall doors; the promenade side has the hall door
+      const door = key === 's' || (key === 'w' && k === 1) || (key === 'n' && k === 3);
+      opening(f, t, door ? 1.7 : 1.3, door ? 0.6 : 1.1, 3.0, door);
+      // the name boards hang over the middle of the street and promenade sides
+      if (!((key === 'w' || key === 'n') && (k === 1 || k === 2))) upper(f, t);
     }
+    // string course and cornice
+    slab(f, 0, 3.85, 0.05, len + 0.1, 0.12, 0.12, TRIM);
+    slab(f, 0, H - 0.35, 0.06, len + 0.14, 0.18, 0.14, TRIM);
+    slab(f, 0, H - 0.17, 0.12, len + 0.3, 0.17, 0.26, TRIM);
+    // eave brackets
+    for (let t = -len / 2 + 0.6; t <= len / 2 - 0.5; t += 1.1) slab(f, t, H - 0.02, 0.32, 0.12, 0.14, 0.42, 0xd8ccb2);
   }
-  b.box(cx, 5.2, cz, w + 0.8, 0.3, d + 0.8, 0x5a6b70);
-  const roof = new THREE.CylinderGeometry(0.01, d * 0.62, 2.6, 4, 1);
+  b.box(cx, H, cz, w + 1.2, 0.16, d + 1.2, 0x5f6e74);
+  const roof = new THREE.CylinderGeometry(0.01, (d + 1.1) * 0.7071, 2.6, 4, 1);
   roof.rotateY(Math.PI / 4);
-  roof.scale(w / d, 1, 1);
+  roof.scale((w + 1.1) / (d + 1.1), 1, 1);
   b.pat = PAT.roof;
-  b.add(roof, 0x6d7f86, cx, 6.8, cz);
+  b.add(roof, 0x6d7f86, cx, H + 1.46, cz);
   b.pat = PAT.none;
+  // a small lantern on the ridge with the flag pole
+  b.box(cx, H + 2.6, cz, 1.2, 0.9, 1.2, TRIM);
+  b.add(new THREE.ConeGeometry(0.95, 0.7, 4), 0x5f6e74, cx, H + 3.85, cz, 0, Math.PI / 4, 0);
 }
 
 // ------------------------------------------------------------------ Kız Kulesi
