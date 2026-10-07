@@ -87,6 +87,12 @@ span('glass', HALL_DOOR.x + HALL_DOOR.w / 2, HALL.x1 + T, -0.15, 0.15, HALL.h, {
 // çay ocağı counter and the shelves behind it
 span('counter', -9, 3, -21.6, -20.4, 1.1);
 span('shelf', -9, 3, HALL.z0 + 0.05, HALL.z0 + 0.5, 2.8, { solid: false });
+/**
+ * The big TV: a 3 m (≈135") wall-mounted screen on the brick wall west of the çay ocağı,
+ * facing the okey rows; staff-started derbies are watched here.
+ */
+export const MAIN_TV = { x: -14.5, z: HALL.z0 + 0.06, y: 1.65, w: 3.0, h: 1.69 } as const;
+box('tv', MAIN_TV.x, MAIN_TV.z, MAIN_TV.w, 0.12, MAIN_TV.h, { y: MAIN_TV.y, solid: false });
 // TVs and big plants in the entrance lounge
 box('tv', -14, HALL.z1 - 0.3, 2.4, 0.2, 1.4, { y: 2.2, solid: false });
 box('tv', 8, HALL.z1 - 0.3, 2.4, 0.2, 1.4, { y: 2.2, solid: false });
@@ -403,4 +409,4 @@ export const FALSE_ACCUSE_FINE = 20;
 export const TURN_SECONDS = 30;
 export const MAX_KAHVE_PLAYERS = 60;
 
-export const QUICK_CHAT_OKEY = ['Çaylar benden!', 'Hadi oyna!', 'Okey bende!', 'Bu el benim!', 'Hile var!', 'Bir el daha!', 'Eyvallah!', 'Sahile inelim mi?', 'Manzaraya bak!', 'Rastgele! 🎣', 'Simit alan var mı?', 'Hadi bir çay daha!'] as const;
+export const QUICK_CHAT_OKEY = ['Çaylar benden!', 'Hadi oyna!', 'Okey bende!', 'Bu el benim!', 'Hile var!', 'Bir el daha!', 'Eyvallah!', 'Sahile inelim mi?', 'Manzaraya bak!', 'Rastgele! 🎣', 'Simit alan var mı?', 'Hadi bir çay daha!', 'Gooool! ⚽', 'Hakem nerede?!'] as const;

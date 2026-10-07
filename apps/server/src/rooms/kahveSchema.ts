@@ -82,4 +82,6 @@ export class KahveState extends Schema {
   @type({ map: KPlayer }) players = new MapSchema<KPlayer>();
   @type([KTable]) tables = new ArraySchema<KTable>();
   @type([TTable]) tavla = new ArraySchema<TTable>();
+  /** JSON TvBroadcast of the shared kıraathane TV, '' = normal programme */
+  @type('string') tv = '';
 }

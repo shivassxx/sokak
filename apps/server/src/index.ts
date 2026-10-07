@@ -18,6 +18,13 @@ const s = await startServer(port, {
   kahve: fast ? { timing: { turn: 12000, between: 3000, result: 4000 } } : undefined,
 });
 console.log(`[sokak] server listening on :${s.port}`);
+// local screenshot / browser testing only: put a derby on the TV right away
+// (SOKAK_DEV_TV_SEED picks the match, SOKAK_DEV_TV_AT jumps that many ms into it)
+if (process.env.SOKAK_DEV_TV === '1' && !prod) {
+  const b = s.tv.start('sarikirmizi', 'sarilacivert', 'dev');
+  if (b && process.env.SOKAK_DEV_TV_SEED) b.seed = Number(process.env.SOKAK_DEV_TV_SEED) >>> 0;
+  if (b) b.startedAt -= Number(process.env.SOKAK_DEV_TV_AT ?? 0) || 0;
+}
 
 const shutdown = async () => {
   console.log('[sokak] shutting down…');

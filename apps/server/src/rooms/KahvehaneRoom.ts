@@ -76,6 +76,7 @@ import {
   type TavlaGameResultView,
   type TavlaMatchResultView,
   type TeleportMsg,
+  type TvBroadcast,
   type UsedMsg,
 } from '@sokak/shared';
 import { OkeyGame, botAction, type OkeyEvent, type Result } from '@sokak/okey';
@@ -179,6 +180,7 @@ export class KahvehaneRoom extends Room<KahveState> {
   static salonNames = ['Salacak', 'Kuzguncuk', 'Çengelköy', 'Doğancılar', 'Ahmediye', 'Bağlarbaşı', 'Validebağ', 'Altunizade', 'Beylerbeyi', 'Kandilli'];
   static salonCounter = 0;
   private meta: SalonMeta = { name: '', private: false, playing: 0, waiting: 0, humans: 0 };
+  private tvUnsub: (() => void) | null = null;
 
   override onCreate(options: JoinOptions = {}): void {
     this.roomId = generateRoomId();
@@ -265,8 +267,22 @@ export class KahvehaneRoom extends Room<KahveState> {
       a.lastChatAt = now;
       this.broadcast(MSG.chat, { id: c.sessionId, q } as ChatMsg);
     });
+    // the shared TV: mirror the current broadcast so late joiners get it; clients simulate the rest
+    const tv = this.cls.tv;
+    if (tv) {
+      const mirror = (b: TvBroadcast | null) => {
+        this.state.tv = b ? JSON.stringify(b) : '';
+      };
+      mirror(tv.current());
+      this.tvUnsub = tv.subscribe(mirror);
+    }
     this.setPatchRate(TICK_MS);
     this.setSimulationInterval(() => this.tick(), TICK_MS);
+  }
+
+  override onDispose(): void {
+    this.tvUnsub?.();
+    this.tvUnsub = null;
   }
 
   // ------------------------------------------------------------ players

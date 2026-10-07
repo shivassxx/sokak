@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, REGULAR_SEATS, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, tavlaSeatPosition, VAPUR_DECK_Y, type TableView } from '@sokak/shared';
+import { CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, REGULAR_SEATS, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, tavlaSeatPosition, VAPUR_DECK_Y, type TableView, type TvBroadcast } from '@sokak/shared';
 import type { TavlaView } from '@sokak/tavla';
 import { BOARD_Y, TavlaPieces } from './tavlaBoard';
 import type { OkeyCtx } from '@sokak/okey';
@@ -35,8 +35,12 @@ export interface KahveScene extends World {
   follow(x: number, z: number): void;
   /** throw a piece of simit to the gulls from (x, z); y = feet height (the vapur's deck) */
   feedGulls(x: number, z: number, y?: number): void;
-  /** server clock for the shared vapur timeline */
+  /** server clock for the shared vapur timeline and the TV */
   setClock(clock: () => number): void;
+  /** the derby on the kıraathane TVs (null = normal programme) */
+  setTv(b: TvBroadcast | null): void;
+  /** a goal on the TV: the regulars jump up and the çaycı waves */
+  tvGoal(): void;
   /** waiter brings `item` to a world position; drink stays on the table */
   serve(item: string, to: THREE.Vector3, onTable: { x: number; z: number } | null): void;
   /**
@@ -357,10 +361,13 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
   };
   // the regulars on their chairs along the side walls: prayer beads, a bald one, the paper reader, the dozer
   const [r0, r1, r2, r3] = REGULAR_SEATS as [(typeof REGULAR_SEATS)[number], (typeof REGULAR_SEATS)[number], (typeof REGULAR_SEATS)[number], (typeof REGULAR_SEATS)[number]];
-  addRegular(r0.x, 0, r0.z, r0.yaw, 'sitThink', { color: '#7b6a58', skin: 1, hat: 1 }, { grey: true, shirtStyle: 3, tespih: true });
-  addRegular(r1.x, 0, r1.z, r1.yaw, 'sit', { color: '#3f5f7a', skin: 2, hat: 0 }, { bald: true, shirtStyle: 2 });
+  const amca0 = addRegular(r0.x, 0, r0.z, r0.yaw, 'sitThink', { color: '#7b6a58', skin: 1, hat: 1 }, { grey: true, shirtStyle: 3, tespih: true });
+  const amca1 = addRegular(r1.x, 0, r1.z, r1.yaw, 'sit', { color: '#3f5f7a', skin: 2, hat: 0 }, { bald: true, shirtStyle: 2 });
   const reader = addRegular(r2.x, 0, r2.z, r2.yaw, 'read', { color: '#d9d2c0', skin: 0, hat: 0 }, { glasses: true, grey: true, shirtStyle: 3, vest: '#4a4a4a' });
-  addRegular(r3.x, 0, r3.z, r3.yaw, 'doze', { color: '#8a5a3a', skin: 3, hat: 1 }, { shirtStyle: 3 });
+  const amca3 = addRegular(r3.x, 0, r3.z, r3.yaw, 'doze', { color: '#8a5a3a', skin: 3, hat: 1 }, { shirtStyle: 3 });
+  /** goal reactions: the hall's regulars jump up for a few seconds, then sit back in their old pose */
+  const cheers: { ch: Character; pose: Character['pose']; at: number; until: number }[] = [];
+  const hallRegulars = [amca0, amca1, reader, amca3];
   // fishermen at the sea railing
   for (const [x, c] of [
     [-24, '#4a5a3a'],
@@ -479,6 +486,18 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     setClock(clock) {
       world.setClock(clock);
     },
+    setTv(b) {
+      world.setTv(b);
+    },
+    tvGoal() {
+      for (const ch of hallRegulars) {
+        if (cheers.some((c) => c.ch === ch)) continue;
+        const at = Math.random() * 0.6;
+        cheers.push({ ch, pose: ch.pose, at, until: at + 3 + Math.random() * 1.5 });
+      }
+      // the çaycı waves along when he is behind the counter
+      if (!route.length) cayci.playEmote('wave');
+    },
     serve(item, to, onTable) {
       queue.push({ item, to, onTable });
       if (!current) startNext();
@@ -547,7 +566,16 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
       // the sahil strollers scare the pigeons too
       for (const w of walkers) movers.push({ x: w.ch.root.position.x, z: w.ch.root.position.z, speed: 1.2 });
       world.update(dt, movers);
-      // regulars
+      // regulars (and the hall's cheering on a goal)
+      for (let i = cheers.length - 1; i >= 0; i--) {
+        const c = cheers[i]!;
+        c.at -= dt;
+        c.until -= dt;
+        if (c.until <= 0) {
+          c.ch.pose = c.pose;
+          cheers.splice(i, 1);
+        } else if (c.at <= 0) c.ch.pose = 'celebrate';
+      }
       for (const r of regulars) {
         r.ch.animate(dt, 0, false, false);
       }

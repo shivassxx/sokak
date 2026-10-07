@@ -46,9 +46,13 @@ import {
   type SnapshotMsg,
   type TableView,
   type TeleportMsg,
+  type TvBroadcast,
+  HALL,
+  tvMatchAt,
+  tvTeam,
 } from '@sokak/shared';
 import type { Game } from '../../game/Game';
-import { footsteps, gullCry, play, seaside } from '../../game/audio';
+import { footsteps, goalRoar, gullCry, play, seaside } from '../../game/audio';
 import { useToasts } from '../toasts';
 import { Social } from '../Social';
 import { TouchControls, isTouch } from '../TouchControls';
@@ -519,6 +523,53 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     setVoicePanel(true);
     pushToast({ text: vc.hasMic ? '🎙️ Sesli sohbet açık. Masandakiler ve yanındakiler seni duyar.' : '🎧 Mikrofon izni yok: sadece dinliyorsun.', kind: 'info' });
   };
+
+  // the kıraathane TV: staff-started derbies, simulated from the broadcast at server time
+  const tvJson = view?.tv ?? '';
+  useEffect(() => {
+    if (!game) return;
+    let b: TvBroadcast | null = null;
+    try {
+      b = tvJson ? (JSON.parse(tvJson) as TvBroadcast) : null;
+    } catch {
+      b = null;
+    }
+    game.kahve?.setTv(b);
+    if (!b) return;
+    const home = tvTeam(b.home);
+    const away = tvTeam(b.away);
+    if (!home || !away) return;
+    // events already on the clock when we tuned in do not cheer again
+    let seen = -1;
+    const check = () => {
+      const s = tvMatchAt(b!, game.serverNow());
+      if (s.done) return;
+      const fresh = seen < 0 ? [] : s.events.slice(seen);
+      seen = s.events.length;
+      if (!fresh.length) return;
+      const pos = game.localPosition();
+      const mine = viewRef.current?.players[me];
+      const inHall = !!pos && !game.isAboard() && pos.x > HALL.x0 && pos.x < HALL.x1 && pos.z > HALL.z0 && pos.z < HALL.z1;
+      // seated players look at their table, not at the TV
+      const seesTv = inHall && !!mine && mine.table < 0 && mine.tavla < 0 && !watchRef.current;
+      const bug = `${home.short} ${s.score[0]}–${s.score[1]} ${away.short}`;
+      for (const e of fresh) {
+        if (e.kind === 'goal') {
+          game.kahve?.tvGoal();
+          goalRoar(inHall ? 0.8 : 0.25);
+          if (!seesTv) toastRef.current({ text: `📺 GOOOL! ${e.player} · Derbi: ${bug} (${Math.min(e.minute, 90)}')`, kind: 'good' });
+        } else if (e.kind === 'kickoff' && e.minute <= 1) toastRef.current({ text: `📺 Derbi başladı: ${home.name} – ${away.name}! Kıraathanenin büyük ekranında.`, kind: 'info' });
+        else if (e.kind === 'half' && !seesTv) toastRef.current({ text: `📺 Derbi devre arası: ${bug}`, kind: 'info' });
+        else if (e.kind === 'full') toastRef.current({ text: `📺 Derbi bitti: ${bug}`, kind: 'info' });
+        else if (e.kind === 'red' && !seesTv) toastRef.current({ text: `📺 Derbide kırmızı kart: ${e.player}!`, kind: 'bad' });
+      }
+    };
+    check();
+    // first check only records what already happened; a match that starts as we join still says hello
+    if (tvMatchAt(b, game.serverNow()).minute <= 1) seen = 0;
+    const iv = setInterval(check, 400);
+    return () => clearInterval(iv);
+  }, [game, tvJson, me]);
 
   // the nearest interactable (table, shop, free seat) for the prompt and the E key
   useEffect(() => {
