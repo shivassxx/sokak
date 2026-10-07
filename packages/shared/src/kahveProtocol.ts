@@ -36,7 +36,21 @@ export const KMSG = {
   tavla: 'tavla',
   /** tavla event relayed to everybody (TavlaEventMsg) */
   tavlaEvent: 'tavlaEvent',
+  /** server → everybody: staff announcement banner text ("📢 Duyuru: …") */
+  announce: 'announce',
 } as const;
+
+/** Close codes when staff remove a player (client shows a Turkish notice instead of reconnecting). */
+export const STAFF_KICK_CODE = 4101;
+export const STAFF_CLOSE_CODE = 4102;
+
+/** Admin panel: one salon with its players (GET /api/admin/salons). Never carries device tokens. */
+export interface StaffSalonInfo {
+  roomId: string;
+  name: string;
+  private: boolean;
+  players: { sessionId: string; name: string; money: number; isBot: boolean; connected: boolean; table: number }[];
+}
 
 /** Client → server tavla actions. `from` 24 = the bar, `to` 25 = bearing off. */
 export type TavlaAction = { t: 'roll' } | { t: 'move'; from: number; to: number } | { t: 'undo' } | { t: 'end' };

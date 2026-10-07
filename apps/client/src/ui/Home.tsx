@@ -118,6 +118,9 @@ export function Home({ invite, busy, error, onStart }: Props) {
         </div>
       </div>
       <p className="fineprint">Hesap yok, kayıt yok. Sadece bir takma ad. Oyun parası gerçek değildir. Telefonda ve bilgisayarda oynanır.</p>
+      <a className="staff-link" href="/admin">
+        Yetkili girişi
+      </a>
     </div>
   );
 }

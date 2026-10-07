@@ -9,12 +9,15 @@ import { KahvehaneRoom } from './rooms/KahvehaneRoom';
 import { Analytics } from './analytics';
 import { WalletStore } from './wallets';
 import { TvChannel } from './tv';
+import { StaffStore } from './staff';
+import { adminRouter } from './admin';
 
 export interface StartedServer {
   port: number;
   analytics: Analytics;
   wallets: WalletStore;
   tv: TvChannel;
+  staff: StaffStore;
   gameServer: Server;
   close(): Promise<void>;
 }
@@ -25,6 +28,10 @@ export async function startServer(port: number, opts: {
     analyticsFile?: string | null;
     statsToken?: string;
     walletFile?: string | null;
+    /** staff accounts (admin panel); null = in memory */
+    staffFile?: string | null;
+    /** applied to the owner account at startup when set */
+    ownerPassword?: string;
     /** clock of the wallet store (weekly leaderboard), injectable for tests */
     now?: () => number;
     kahve?: { timing?: Partial<typeof KahvehaneRoom.timing>; rng?: () => number; vapurNow?: () => number };
@@ -34,6 +41,9 @@ export async function startServer(port: number, opts: {
   const analytics = new Analytics(opts.analyticsFile ?? null);
   const wallets = new WalletStore(opts.walletFile ?? null, { now: opts.now });
   const tv = new TvChannel();
+  const staff = new StaffStore(opts.staffFile ?? null, { ownerPassword: opts.ownerPassword });
+  // behind Caddy (private docker network): real client IP and X-Forwarded-Proto
+  app.set('trust proxy', 'loopback, linklocal, uniquelocal');
   app.get('/health', (_req, res) => {
     res.json({ ok: true });
   });
@@ -87,6 +97,8 @@ export async function startServer(port: number, opts: {
     const device = WalletStore.validToken(req.query.device) ? req.query.device : undefined;
     res.json(wallets.weekly(req.query.week === 'last' ? 'last' : 'current', device));
   });
+  // staff admin panel API (same-origin, cookie or Bearer session)
+  app.use('/api/admin', adminRouter({ staff, tv, analytics }));
   // aggregate counts only; protected by a token when STATS_TOKEN is set
   app.get('/stats', (req, res) => {
     if (opts.statsToken && req.query.token !== opts.statsToken) {
@@ -147,6 +159,7 @@ export async function startServer(port: number, opts: {
     analytics,
     wallets,
     tv,
+    staff,
     gameServer,
     close: () => gameServer.gracefullyShutdown(false),
   };

@@ -50,6 +50,7 @@ import {
 import type { Game } from '../../game/Game';
 import { footsteps, gullCry, play, seaside } from '../../game/audio';
 import { useToasts } from '../toasts';
+import { AnnounceBanner } from './AnnounceBanner';
 import { Social } from '../Social';
 import { TouchControls, isTouch } from '../TouchControls';
 import { OkeyBoard } from '../okey/OkeyBoard';
@@ -1214,6 +1215,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         </div>
       )}
 
+      <AnnounceBanner room={room} />
       <div className="toasts">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind ?? ''}`}>

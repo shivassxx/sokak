@@ -15,6 +15,8 @@ const s = await startServer(port, {
   analyticsFile: process.env.ANALYTICS_FILE ?? (prod ? path.resolve('data/analytics.jsonl') : null),
   statsToken: process.env.STATS_TOKEN,
   walletFile: process.env.WALLET_FILE ?? path.resolve('data/wallets.json'),
+  staffFile: process.env.STAFF_FILE ?? path.resolve('data/staff.json'),
+  ownerPassword: process.env.SOKAK_OWNER_PASSWORD || undefined,
   kahve: fast ? { timing: { turn: 12000, between: 3000, result: 4000 } } : undefined,
 });
 console.log(`[sokak] server listening on :${s.port}`);
