@@ -42,6 +42,7 @@
 - Later in the night: rack arrangement kept across a reload, gull feeding, fishing (server-timed bites, float + line rendering, catch announcements; NPC rods were pointing backwards — rod rotation solved numerically for the 'fish' pose).
 - 101 rule "göstergeyi göster" (−101 on your first turn with the twin), bots use it, UI button + toast, 2 rules tests.
 - Spectator mode for running tables (corner camera, live scores panel).
+- Strollers on the sahil (2 on low quality, 5 otherwise).
 - Pier: name boards, clock, windows; a vapur calls at the pier every ~3 min (Bezier approach/departure, synthesized horn).
 - Kahve sounds: footsteps, synthesized surf by distance to the sea, gull cries (also when feeding them).
 - Levels from finished matches/wins (device wallet), lobby profile line, ⭐ badge in the HUD and on okey name plates, level-up toast.

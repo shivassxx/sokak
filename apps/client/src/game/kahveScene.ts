@@ -3,7 +3,7 @@ import { CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, SEA_Z, SHOPS, TABLES, TAVLA_TA
 import type { OkeyCtx } from '@sokak/okey';
 import { canvasTex, type Mover, type World } from './world';
 import { Character } from './character';
-import { fishingRod } from './items';
+import { fishingRod, itemModel } from './items';
 import { RACK_DIST, TABLE_TOP } from './kahveProps';
 import { buildKahveWorld } from './kahveWorld';
 import { NavGrid } from './navGrid';
@@ -125,6 +125,10 @@ interface Delivery {
   to: THREE.Vector3;
   onTable: { x: number; z: number } | null;
 }
+
+/** walking lanes on the sahil: between the planters and the benches, and between the benches and the railing */
+const PROMENADE_LANE_A = 24.8;
+const PROMENADE_LANE_B = 29.8;
 
 // ------------------------------------------------------------------ table tile layout
 /** seat-frame (table centre, seat yaw) → world */
@@ -372,6 +376,26 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
       }),
     }),
   );
+  // strollers on the sahil: up and down two lanes, a few with a simit or a çay in hand
+  const walkers: { ch: Character; x0: number; x1: number; dir: number; speed: number; pause: number }[] = [];
+  const STROLL: { z: number; x0: number; x1: number; look: { color: string; hat: number; hair: number; skin: number }; extra: Record<string, unknown>; item?: string }[] = [
+    { z: PROMENADE_LANE_A, x0: -44, x1: 28, look: { color: '#c0392b', hat: 0, hair: 2, skin: 1 }, extra: { moustache: false, shirtStyle: 1 }, item: 'simit' },
+    { z: PROMENADE_LANE_B, x0: -28, x1: 26, look: { color: '#2f6fb0', hat: 0, hair: 1, skin: 0 }, extra: { moustache: true, shirtStyle: 2, glasses: true }, item: 'cay' },
+    { z: PROMENADE_LANE_A, x0: -30, x1: 20, look: { color: '#e9c46a', hat: 0, hair: 3, skin: 2 }, extra: { moustache: false, shirtStyle: 0 } },
+    { z: PROMENADE_LANE_B, x0: -24, x1: 24, look: { color: '#6a4c93', hat: 1, hair: 0, skin: 3 }, extra: { moustache: true, grey: true, shirtStyle: 3, vest: '#3a3a3a' } },
+    { z: PROMENADE_LANE_A, x0: -40, x1: 10, look: { color: '#2e8b57', hat: 0, hair: 4, skin: 1 }, extra: { moustache: false, shirtStyle: 1 }, item: 'dondurma' },
+  ];
+  STROLL.slice(0, quality === 'low' ? 2 : STROLL.length).forEach((s, i) => {
+    const ch = new Character(s.look, { adult: true, extra: s.extra });
+    const x = s.x0 + ((i * 17.3) % (s.x1 - s.x0));
+    ch.root.position.set(x, 0, s.z);
+    if (s.item) {
+      const it = itemModel(s.item);
+      if (it) ch.hold(it);
+    }
+    scene.add(ch.root);
+    walkers.push({ ch, x0: s.x0, x1: s.x1, dir: i % 2 ? -1 : 1, speed: 1.1 + (i % 3) * 0.15, pause: 0 });
+  });
   paper.position.set(te.x - 0.55, 1.18, te.z);
   paper.rotation.set(-0.25, -Math.PI / 2, 0);
   scene.add(paper);
@@ -498,6 +522,27 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
       // regulars
       for (const r of regulars) {
         r.ch.animate(dt, 0, false, false);
+      }
+      for (const w of walkers) {
+        const p = w.ch.root.position;
+        let speed = w.speed;
+        if (w.pause > 0) {
+          // a stop to look at the view, then back the other way
+          w.pause -= dt;
+          speed = 0;
+          const look = Math.PI; // towards the sea
+          w.ch.facing += Math.atan2(Math.sin(look - w.ch.facing), Math.cos(look - w.ch.facing)) * Math.min(1, dt * 3);
+        } else {
+          p.x += w.dir * w.speed * dt;
+          if ((w.dir > 0 && p.x > w.x1) || (w.dir < 0 && p.x < w.x0)) {
+            w.dir = -w.dir;
+            w.pause = 2 + Math.random() * 5;
+          }
+          const want = w.dir > 0 ? -Math.PI / 2 : Math.PI / 2;
+          w.ch.facing += Math.atan2(Math.sin(want - w.ch.facing), Math.cos(want - w.ch.facing)) * Math.min(1, dt * 5);
+        }
+        w.ch.root.rotation.y = w.ch.facing;
+        w.ch.animate(dt, speed, false, false);
       }
       // tavla dice: roll every few seconds
       diceT -= dt;
