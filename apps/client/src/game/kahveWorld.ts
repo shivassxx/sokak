@@ -11,6 +11,7 @@ import {
   SEA_Z,
   STREET,
   TABLES,
+  REGULAR_SEATS,
   TAVLA_TABLES,
   TERRACE,
   seatPosition,
@@ -25,6 +26,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Foliage } from './foliage';
 import { parkedCar } from './cars';
 import { Pigeons } from './pigeons';
+import { tavlaTable } from './tavlaBoard';
 import { marketFitout } from './marketProps';
 
 /**
@@ -38,8 +40,6 @@ export interface KahveWorld {
   follow(x: number, z: number): void;
   /** a piece of simit thrown from (x, z) towards the sea; the nearest gull dives for it */
   feedGulls(x: number, z: number): void;
-  /** world positions used by the scene for NPCs */
-  tavlaBoards: THREE.Vector3[];
 }
 
 const BRICK = 0x9c4a32;
@@ -331,27 +331,9 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   TABLES.forEach((c, i) => felts.setMatrixAt(i, new THREE.Matrix4().makeTranslation(c.x, TABLE_TOP + 0.001, c.z)));
   felts.receiveShadow = true;
   scene.add(felts);
-  // tavla tables in the lounge
-  const tavlaBoards: THREE.Vector3[] = [];
-  for (const t of TAVLA_TABLES) {
-    b.pat = PAT.wood;
-    b.cyl(t.x, 0.72, t.z, 0.48, 0.04, LIGHT_OAK, 24);
-    b.pat = PAT.none;
-    b.cyl(t.x, 0, t.z, 0.05, 0.72, STEEL, 8);
-    b.cyl(t.x, 0, t.z, 0.28, 0.03, STEEL, 16);
-    b.pat = PAT.wood;
-    b.box(t.x, 0.76, t.z, 0.62, 0.03, 0.46, 0x7a4a2a);
-    b.pat = PAT.none;
-    b.box(t.x, 0.79, t.z, 0.56, 0.005, 0.4, 0xe9d8b0);
-    for (let k = 0; k < 24; k++) {
-      const side = k < 12 ? -1 : 1;
-      const xx = t.x - 0.255 + (k % 12) * 0.0465 + (k % 12 >= 6 ? 0.02 : 0);
-      b.add(new THREE.ConeGeometry(0.019, 0.17, 3), k % 2 ? 0x8f2f2a : 0x2b1a10, xx, 0.795, t.z + side * 0.11, (side * Math.PI) / 2, 0, 0);
-    }
-    for (let k = 0; k < 10; k++) b.cyl(t.x - 0.2 + (k % 5) * 0.04, 0.79, t.z + (k < 5 ? -0.15 : 0.15), 0.019, 0.008, k % 2 ? 0xf4f1e8 : 0x6d2a1e, 12);
-    tavlaBoards.push(new THREE.Vector3(t.x, 0.81, t.z));
-    for (const s of [-1, 1]) bentwoodChair(b, t.x + s * 0.85, t.z, s > 0 ? Math.PI / 2 : -Math.PI / 2);
-  }
+  // playable tavla tables in the lounge; the regulars' chairs along the side walls
+  for (let i = 0; i < TAVLA_TABLES.length; i++) tavlaTable(b, i);
+  for (const r of REGULAR_SEATS) bentwoodChair(b, r.x + Math.sin(r.yaw) * 0.06, r.z + Math.cos(r.yaw) * 0.06, r.yaw);
   // big plants
   const plants = new Foliage(low ? 0.6 : 1);
   for (const o of KAHVE_OBJECTS) {
@@ -838,7 +820,6 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   let t = 0;
   let tvT = 0;
   return {
-    tavlaBoards,
     follow(x, z) {
       listener.set(x, z);
       sky.position.set(x, 0, z);

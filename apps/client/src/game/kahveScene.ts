@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, type TableView } from '@sokak/shared';
+import { CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, REGULAR_SEATS, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, tavlaSeatPosition, type TableView } from '@sokak/shared';
+import type { TavlaView } from '@sokak/tavla';
+import { BOARD_Y, TavlaPieces } from './tavlaBoard';
 import type { OkeyCtx } from '@sokak/okey';
 import { canvasTex, type Mover, type World } from './world';
 import { Character, realAvatarOr, type RealAvatar } from './character';
@@ -43,6 +45,10 @@ export interface KahveScene extends World {
   /** spectator camera: above and behind `side`, looking down on the whole table */
   watchView(table: number, side: number): { pos: THREE.Vector3; target: THREE.Vector3; fov: number };
   anchors(table: number): TableAnchors | null;
+  /** live tavla table state (null = no game: the board shows the starting position) */
+  setTavla(table: number, view: TavlaView | null): void;
+  /** camera pose for playing tavla at a seat: behind and above the chair, looking down at the board */
+  tavlaView(table: number, seat: number): { pos: THREE.Vector3; target: THREE.Vector3; fov: number };
   /** camera pose for playing at a seat */
   seatView(table: number, seat: number, aspect: number, bottomNdc: number): { pos: THREE.Vector3; target: THREE.Vector3; fov: number };
 }
@@ -145,7 +151,7 @@ const LEAN = 0.26;
 export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): KahveScene {
   const quality = initialQuality();
   const world = buildKahveWorld(scene, renderer, quality);
-  const tavlaBoards = world.tavlaBoards;
+  const tavla = new TavlaPieces(scene);
 
   // -------------------------------------------------------------- tiles on every table
   const field = new TileField(1800);
@@ -347,13 +353,12 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     regulars.push({ ch, pose });
     return ch;
   };
-  const [tw, te] = TAVLA_TABLES as [{ x: number; z: number }, { x: number; z: number }];
-  // tavla players in the lounge
-  addRegular(tw.x - 0.85, 0, tw.z, -Math.PI / 2, 'sitThink', { color: '#7b6a58', skin: 1, hat: 1 }, { grey: true, shirtStyle: 3, tespih: true });
-  addRegular(tw.x + 0.85, 0, tw.z, Math.PI / 2, 'sit', { color: '#3f5f7a', skin: 2, hat: 0 }, { bald: true, shirtStyle: 2 });
-  // the paper reader and the dozer at the other board
-  const reader = addRegular(te.x - 0.85, 0, te.z, -Math.PI / 2, 'read', { color: '#d9d2c0', skin: 0, hat: 0 }, { glasses: true, grey: true, shirtStyle: 3, vest: '#4a4a4a' });
-  addRegular(te.x + 0.85, 0, te.z, Math.PI / 2, 'doze', { color: '#8a5a3a', skin: 3, hat: 1 }, { shirtStyle: 3 });
+  // the regulars on their chairs along the side walls: prayer beads, a bald one, the paper reader, the dozer
+  const [r0, r1, r2, r3] = REGULAR_SEATS as [(typeof REGULAR_SEATS)[number], (typeof REGULAR_SEATS)[number], (typeof REGULAR_SEATS)[number], (typeof REGULAR_SEATS)[number]];
+  addRegular(r0.x, 0, r0.z, r0.yaw, 'sitThink', { color: '#7b6a58', skin: 1, hat: 1 }, { grey: true, shirtStyle: 3, tespih: true });
+  addRegular(r1.x, 0, r1.z, r1.yaw, 'sit', { color: '#3f5f7a', skin: 2, hat: 0 }, { bald: true, shirtStyle: 2 });
+  const reader = addRegular(r2.x, 0, r2.z, r2.yaw, 'read', { color: '#d9d2c0', skin: 0, hat: 0 }, { glasses: true, grey: true, shirtStyle: 3, vest: '#4a4a4a' });
+  addRegular(r3.x, 0, r3.z, r3.yaw, 'doze', { color: '#8a5a3a', skin: 3, hat: 1 }, { shirtStyle: 3 });
   // fishermen at the sea railing
   for (const [x, c] of [
     [-24, '#4a5a3a'],
@@ -399,19 +404,11 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     scene.add(ch.root);
     walkers.push({ ch, x0: s.x0, x1: s.x1, dir: i % 2 ? -1 : 1, speed: 1.1 + (i % 3) * 0.15, pause: 0 });
   });
-  paper.position.set(te.x - 0.55, 1.18, te.z);
-  paper.rotation.set(-0.25, -Math.PI / 2, 0);
+  // held in front of the reader (who faces −sin(yaw), −cos(yaw))
+  paper.position.set(r2.x - Math.sin(r2.yaw) * 0.3, 1.18, r2.z - Math.cos(r2.yaw) * 0.3);
+  paper.rotation.set(-0.25, r2.yaw, 0, 'YXZ');
   scene.add(paper);
   void reader;
-  // dice on the tavla board
-  const diceMat = new THREE.MeshStandardMaterial({ color: 0xfaf7f0, roughness: 0.3 });
-  const dice = [0, 1].map(() => {
-    const d = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.022, 0.022), diceMat);
-    scene.add(d);
-    return d;
-  });
-  let diceT = 0;
-
   // -------------------------------------------------------------- the çaycı
   const cayci = new Character({ color: '#f4f1e8', hat: 0, hair: 0, skin: 1 }, { adult: true, extra: { vest: '#2b2b2b', moustache: true, shirtStyle: 3 }, real: realAvatarOr('m05') });
   cayci.setLabel('Çaycı Rıza', '#ffe7a8');
@@ -477,6 +474,16 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
       st.viewer = viewerSeat;
       st.ref = refSeat;
       dirty = true;
+    },
+    setTavla(table, view) {
+      tavla.set(table, view);
+    },
+    tavlaView(table, seat) {
+      const sp = tavlaSeatPosition(table, seat);
+      const c = TAVLA_TABLES[table]!;
+      const dx = sp.x - c.x;
+      const dz = sp.z - c.z;
+      return { pos: new THREE.Vector3(c.x + dx * 1.15, BOARD_Y + 0.85, c.z + dz * 1.15), target: new THREE.Vector3(c.x, BOARD_Y, c.z - dz * 0.05), fov: 50 };
     },
     watchView(table, side) {
       // from the empty corner to the right of `side`, so no player's head is in the way
@@ -548,17 +555,7 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
         w.ch.root.rotation.y = w.ch.facing;
         w.ch.animate(dt, speed, false, false);
       }
-      // tavla dice: roll every few seconds
-      diceT -= dt;
-      const board = tavlaBoards[0];
-      if (board) {
-        if (diceT < 0) diceT = 4 + Math.random() * 3;
-        const air = Math.max(0, diceT - 3.4) / 0.6;
-        dice.forEach((d, i) => {
-          d.position.set(board.x - 0.05 + i * 0.06 + air * 0.1, board.y + 0.012 + Math.sin(air * Math.PI) * 0.12, board.z + 0.02 * i);
-          d.rotation.set(air * 9 + i, air * 7, air * 5);
-        });
-      }
+      tavla.update(dt);
       // waiter
       const ch = cayci;
       if (route.length) {
