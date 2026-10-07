@@ -195,8 +195,14 @@ export class VoiceChat {
       }
     };
     pc.ontrack = (e) => {
-      if (!this.ctx || p.gain) return;
-      const stream = e.streams[0] ?? new MediaStream([e.track]);
+      if (!this.ctx) return;
+      // after an offer collision a second track can arrive: always listen to the newest one
+      if (p.gain) {
+        p.gain.disconnect();
+        p.analyser?.disconnect();
+        if (p.el) p.el.srcObject = null;
+      }
+      const stream = new MediaStream([e.track]);
       // Chrome only feeds remote WebRTC audio into WebAudio while an element plays it
       const el = new Audio();
       el.srcObject = stream;
@@ -204,7 +210,7 @@ export class VoiceChat {
       void el.play().catch(() => {});
       const src = this.ctx.createMediaStreamSource(stream);
       const gain = this.ctx.createGain();
-      gain.gain.value = 0;
+      gain.gain.value = p.gain ? p.gain.gain.value : 0;
       const an = this.ctx.createAnalyser();
       an.fftSize = 512;
       src.connect(gain).connect(this.ctx.destination);
