@@ -6,21 +6,17 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
 
-/**
- * Quality tiers:
- *  - high: MSAA, ground-truth ambient occlusion, bloom, colour grade + vignette
- *  - medium: MSAA, bloom, grade (no AO)
- *  - low: plain forward render (phones); a CSS vignette keeps the mood
- * Starts from a guess (touch device → low) and steps down if frames are slow.
- */
-export type Quality = 'high' | 'medium' | 'low';
+import { TIERS, type Tier } from './quality';
 
-export function initialQuality(): Quality {
-  const q = new URLSearchParams(location.search).get('q');
-  if (q === 'high' || q === 'medium' || q === 'low') return q;
-  if (matchMedia('(pointer: coarse)').matches) return 'low';
-  return 'high';
-}
+/**
+ * Post-processing per quality tier (see quality.ts → TIERS):
+ *  - high: MSAA, ground-truth ambient occlusion, bloom, colour grade + vignette
+ *  - medium: lighter MSAA, bloom, grade (no AO)
+ *  - low: plain forward render (phones); a CSS vignette keeps the mood
+ * The tier is chosen by the quality module (preset or automatic) and changed live via setQuality.
+ */
+export type Quality = Tier;
+export { initialQuality } from './quality';
 
 const GradeShader = {
   uniforms: {
@@ -60,26 +56,34 @@ export class PostFX {
   private grade: ShaderPass | null = null;
   private w = 1;
   private h = 1;
-  private slowFrames = 0;
-  private sampled = 0;
+  private bloomStrength: number;
 
   constructor(
     private renderer: THREE.WebGLRenderer,
     private scene: THREE.Scene,
     private camera: THREE.PerspectiveCamera,
-    public quality: Quality = initialQuality(),
+    public quality: Quality,
     private opts: { bloomStrength?: number; aoRadius?: number; vignette?: number } = {},
   ) {
+    this.bloomStrength = opts.bloomStrength ?? 0.35;
+    this.build();
+  }
+
+  /** Switch tiers live (rebuilds the composer; no context loss). */
+  setQuality(q: Quality): void {
+    if (q === this.quality) return;
+    this.quality = q;
     this.build();
   }
 
   private build(): void {
     this.dispose();
-    if (this.quality === 'low') return;
-    const target = new THREE.WebGLRenderTarget(this.w, this.h, { type: THREE.HalfFloatType, samples: 4 });
+    const spec = TIERS[this.quality].post;
+    if (!spec) return;
+    const target = new THREE.WebGLRenderTarget(this.w, this.h, { type: THREE.HalfFloatType, samples: spec.msaa });
     const composer = new EffectComposer(this.renderer, target);
     composer.addPass(new RenderPass(this.scene, this.camera));
-    if (this.quality === 'high') {
+    if (spec.ao) {
       const ao = new GTAOPass(this.scene, this.camera, this.w, this.h);
       ao.blendIntensity = 0.9;
       ao.updateGtaoMaterial({ radius: this.opts.aoRadius ?? 0.6, distanceExponent: 1.4, thickness: 1.2, scale: 1.0, samples: 12 });
@@ -108,12 +112,16 @@ export class PostFX {
       composer.addPass(ao);
       this.gtao = ao;
     }
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(this.w / 2, this.h / 2), this.opts.bloomStrength ?? 0.35, 0.5, 0.96);
-    composer.addPass(this.bloom);
+    if (spec.bloom) {
+      this.bloom = new UnrealBloomPass(new THREE.Vector2(this.w / 2, this.h / 2), this.bloomStrength, 0.5, 0.96);
+      composer.addPass(this.bloom);
+    }
     composer.addPass(new OutputPass());
-    this.grade = new ShaderPass(GradeShader);
-    this.grade.uniforms.uVignette!.value = this.opts.vignette ?? 0.32;
-    composer.addPass(this.grade);
+    if (spec.grade) {
+      this.grade = new ShaderPass(GradeShader);
+      this.grade.uniforms.uVignette!.value = this.opts.vignette ?? 0.32;
+      composer.addPass(this.grade);
+    }
     composer.setPixelRatio(this.renderer.getPixelRatio());
     composer.setSize(this.w, this.h);
     this.composer = composer;
@@ -128,27 +136,13 @@ export class PostFX {
 
   /** Bloom strength follows the time of day (lamps glow more at night). */
   setBloom(strength: number): void {
+    this.bloomStrength = strength;
     if (this.bloom) this.bloom.strength = strength;
   }
 
   render(dt: number): void {
     if (this.composer) this.composer.render(dt);
     else this.renderer.render(this.scene, this.camera);
-    this.adapt(dt);
-  }
-
-  /** Step down a tier when the frame rate stays low (after a warm-up). */
-  private adapt(dt: number): void {
-    this.sampled++;
-    if (this.sampled < 90 || this.quality === 'low') return;
-    if (dt > 1 / 40) this.slowFrames++;
-    else this.slowFrames = Math.max(0, this.slowFrames - 1);
-    if (this.slowFrames > 120) {
-      this.quality = this.quality === 'high' ? 'medium' : 'low';
-      this.slowFrames = 0;
-      this.sampled = 0;
-      this.build();
-    }
   }
 
   dispose(): void {

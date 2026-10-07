@@ -44,7 +44,8 @@ packages/tavla  tavla (Turkish backgammon) rules (pure, injectable rng) + match 
 
 ## Client rendering (quality pass 2)
 - `game/character.ts` — rigged character (Kenney CC0 mesh, `public/models/character.glb`); virtual joints → bones each frame; `skinPainter.ts` paints the atlas per look.
-- `game/postfx.ts` — quality tiers and the EffectComposer chain (RenderPass → GTAO → Bloom → Output → grade).
+- `game/quality.ts` — "Grafik kalitesi": preset (Düşük / Orta / Yüksek / Otomatik, localStorage), `TIERS` (pixel-ratio cap, sun shadows on/off + map size + box size, post passes + MSAA), device guess, `AutoTuner` (1 s fps windows, steps down under 45 fps, up only after 30 s at ≥57 fps and never back to a tier that was slow), fps meter. No three.js import (the home screen uses it). `Game.setQuality()` applies a tier live (renderer pixel ratio, `PostFX.setQuality`, the scene's shadow-casting sun); build-time details (foliage density, hall lamps, strollers, preloaded avatars) follow the tier at load. UI: `ui/Settings.tsx` (⚙️ button + panel portal'd to body, fps counter, volume → `audio.ts` master gain).
+- `game/postfx.ts` — EffectComposer chain per tier (RenderPass → GTAO → Bloom → Output → grade), rebuilt live on a tier change.
 - `game/kahveScene.ts` + `kahveProps.ts` — kıraathane, regulars, çaycı, and the table tiles: `layoutTable()` produces placements (racks, deck, gösterge, piles, melds) + anchors (deck, piles, meld corners) for the UI; face-up tiles ease to their placements.
 - `game/okeyTiles.ts` — `TileField` (one InstancedMesh, per-instance atlas cell).
 - `ui/okey/OkeyBoard.tsx` — overlay that projects anchors to screen every frame (hot-spots, name plates) and owns the HTML ıstaka; `ui/okey/rack.ts` — pure rack logic (`moveTile`, `syncRack`, groups, open plan), unit tested in `apps/client/test/rack.test.ts`.
