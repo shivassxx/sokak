@@ -19,3 +19,5 @@
 ## 2026-10-07 — okey only
 - [x] Saklambaç removed at the user's request; the game is the 101 Okey kahvehane (see `Docs/Decisions.md`).
 - [x] Home: pick one of the realistic avatars instead of the cartoon look editor.
+- [x] ⚙️ Ayarlar: graphics quality (Düşük / Orta / Yüksek / Otomatik with live fps-based tuning), fps counter, volume.
+- [ ] Real-device fps check of the quality tiers (mid-range phone, GTX 1050 Ti).

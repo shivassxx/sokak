@@ -60,6 +60,7 @@ import { footsteps, goalRoar, gullCry, play, seaside } from '../../game/audio';
 import { useToasts } from '../toasts';
 import { AnnounceBanner } from './AnnounceBanner';
 import { Social } from '../Social';
+import { SettingsButton } from '../Settings';
 import { TouchControls, isTouch } from '../TouchControls';
 import { OkeyBoard } from '../okey/OkeyBoard';
 import { TavlaBoard } from '../tavla/TavlaBoard';
@@ -785,6 +786,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             Veresiye yaz
           </button>
         )}
+        <SettingsButton inGame />
       </div>
 
       {!atTable && !watching && (

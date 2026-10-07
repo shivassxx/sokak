@@ -3,6 +3,7 @@ import { AVATARS, NAME_MAX } from '@sokak/shared';
 import { loadPrefs, savePrefs, type Prefs } from './prefs';
 import type { CharacterPreview } from '../game/preview';
 import { play } from '../game/audio';
+import { SettingsButton } from './Settings';
 
 interface Props {
   /** opened from a friend's salon link */
@@ -53,6 +54,9 @@ export function Home({ invite, busy, error, onStart }: Props) {
   const go = () => onStart(prefs);
   return (
     <div className="home">
+      <div className="home-settings">
+        <SettingsButton />
+      </div>
       <h1 className="logo">
         SOKAK<span>OYUNLARI</span>
       </h1>

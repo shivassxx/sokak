@@ -418,3 +418,22 @@ kbd { font: 800 11px/1 'Baloo 2', system-ui; padding: 3px 6px; border-radius: 6p
 .hand-result tr.team-member td:first-child { padding-left: 22px; }
 .team-score { font-weight: 900; }
 .hand-result .dotc { display: inline-block; vertical-align: middle; }
+
+/* settings (⚙️ Ayarlar): graphics quality, fps counter, volume */
+.home > .home-settings { position: absolute; top: max(12px, env(safe-area-inset-top)); right: 12px; z-index: 5; }
+.home-settings .lbl { display: none; }
+.settings-panel { position: fixed; top: max(58px, calc(env(safe-area-inset-top) + 50px)); right: 10px; width: min(372px, calc(100vw - 20px)); max-height: calc(100vh - 70px); overflow-y: auto; display: flex; flex-direction: column; gap: 12px; z-index: 20; color: var(--ink); text-align: left; }
+.settings-panel .panel-head .btn.small { background: #fff; color: var(--ink); border: none; box-shadow: 0 2px 0 rgba(0,0,0,.14); }
+.quality-chips .chip { font-size: 15px; padding: 6px 12px; }
+.settings-help { font-size: 13px; font-weight: 600; color: var(--ink-soft); text-transform: none; letter-spacing: 0; }
+.settings-row { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 15px; }
+.settings-row input { width: 22px; height: 22px; accent-color: var(--sun); }
+.settings-panel input[type=range] { width: 100%; accent-color: var(--sun); height: 28px; }
+.fps-counter { position: fixed; left: 10px; top: max(56px, calc(env(safe-area-inset-top) + 48px)); z-index: 6; pointer-events: none; background: rgba(20,12,6,.7); color: #b8ff9a; font: 700 12px/1 ui-monospace, monospace; padding: 4px 8px; border-radius: 8px; }
+@media (max-height: 540px) {
+  .settings-panel { top: 46px; gap: 8px; padding: 10px 12px; max-height: calc(100vh - 54px); }
+  .settings-panel h2 { font-size: 18px; }
+  .quality-chips { flex-wrap: nowrap; }
+  .quality-chips .chip { font-size: 13px; padding: 4px 10px; }
+  .settings-help { font-size: 12px; }
+}

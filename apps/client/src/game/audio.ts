@@ -25,6 +25,31 @@ let loading = false;
 let stepSrc: AudioBufferSourceNode | null = null;
 let stepGain: GainNode | null = null;
 
+/** master volume 0..1 (the settings slider); 0.7 at full keeps the old loudness */
+let volume = (() => {
+  try {
+    const v = Number(localStorage.getItem('sokak.volume') ?? '1');
+    return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 1;
+  } catch {
+    return 1;
+  }
+})();
+const masterLevel = () => (muted ? 0 : 0.7 * volume);
+
+export function getVolume(): number {
+  return volume;
+}
+
+export function setVolume(v: number): void {
+  volume = Math.min(1, Math.max(0, v));
+  try {
+    localStorage.setItem('sokak.volume', String(volume));
+  } catch {
+    /* ignore */
+  }
+  if (master && ctx) master.gain.setTargetAtTime(masterLevel(), ctx.currentTime, 0.03);
+}
+
 let muted = (() => {
   try {
     return localStorage.getItem('sokak.muted') === '1';
@@ -39,7 +64,7 @@ function ac(): AudioContext | null {
   if (!C) return null;
   ctx = new C();
   master = ctx.createGain();
-  master.gain.value = muted ? 0 : 0.7;
+  master.gain.value = masterLevel();
   master.connect(ctx.destination);
   sfxBus = ctx.createGain();
   sfxBus.connect(master);
@@ -86,7 +111,7 @@ export function setMuted(m: boolean): void {
   } catch {
     /* ignore */
   }
-  if (master) master.gain.value = m ? 0 : 0.7;
+  if (master) master.gain.value = masterLevel();
   if (m) window.speechSynthesis?.cancel();
 }
 

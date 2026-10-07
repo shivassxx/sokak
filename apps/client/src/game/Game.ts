@@ -28,7 +28,8 @@ import { itemModel, type UseKind } from './items';
 export { loadCharacterKit, loadRealKit } from './character';
 import { Input } from './input';
 import type { Mover, World } from './world';
-import { PostFX, initialQuality } from './postfx';
+import { PostFX } from './postfx';
+import { TIERS, currentTier, onQualityChange, qualityFrame, type Tier } from './quality';
 import type { KahveScene } from './kahveScene';
 
 export interface InputSender {
@@ -152,6 +153,10 @@ export class Game {
   sender: InputSender | null = null;
 
   private post: PostFX;
+  /** the shadow-casting sun (found in the scene; its box follows the player) */
+  private sun: THREE.DirectionalLight | null = null;
+  private tier: Tier;
+  private offQuality: () => void;
   private world: World;
   /** kahvehane-only scene helpers (waiter, drinks, racks) */
   kahve: KahveScene | null = null;
@@ -186,8 +191,8 @@ export class Game {
     kahveBuilder: (scene: THREE.Scene, renderer: THREE.WebGLRenderer) => KahveScene,
   ) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
-    const quality = initialQuality();
+    const quality = (this.tier = currentTier());
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, TIERS[quality].pixelRatio));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -201,6 +206,11 @@ export class Game {
     this.world = this.kahve;
     this.camDist = 4.2;
     this.post = new PostFX(this.renderer, this.scene, this.camera, quality, { bloomStrength: 0.28, aoRadius: 0.45, vignette: 0.32 });
+    this.scene.traverse((o) => {
+      if (!this.sun && (o as THREE.DirectionalLight).isDirectionalLight && o.castShadow) this.sun = o as THREE.DirectionalLight;
+    });
+    this.applyShadows();
+    this.offQuality = onQualityChange(() => this.setQuality(currentTier()));
     this.input.attach(canvas);
     this.input.onPress((a) => {
       if (a === 'jump') this.jumpQueued = true;
@@ -597,6 +607,33 @@ export class Game {
     return out;
   }
 
+  // ------------------------------------------------------------ quality
+  /** Apply a quality tier live: pixel ratio, shadows, post-processing (no reload). */
+  setQuality(t: Tier): void {
+    if (t === this.tier) return;
+    this.tier = t;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, TIERS[t].pixelRatio));
+    this.post.setQuality(t);
+    this.applyShadows();
+    this.resize();
+  }
+
+  private applyShadows(): void {
+    const sun = this.sun;
+    if (!sun) return;
+    const spec = TIERS[this.tier];
+    // toggling castShadow changes the lights' state, so three.js recompiles the lit materials itself
+    sun.castShadow = spec.shadows;
+    if (sun.shadow.mapSize.x !== spec.shadowMapSize) {
+      sun.shadow.mapSize.set(spec.shadowMapSize, spec.shadowMapSize);
+      sun.shadow.map?.dispose();
+      sun.shadow.map = null;
+    }
+    const S = spec.shadowDistance;
+    Object.assign(sun.shadow.camera, { left: -S, right: S, top: S, bottom: -S });
+    sun.shadow.camera.updateProjectionMatrix();
+  }
+
   // ------------------------------------------------------------ loop
   private resize(): void {
     const w = this.canvas.clientWidth || window.innerWidth;
@@ -667,7 +704,8 @@ export class Game {
   private loop(now: number): void {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
-    const dt = Math.min(0.1, (now - this.last) / 1000);
+    const rawDt = (now - this.last) / 1000;
+    const dt = Math.min(0.1, rawDt);
     this.last = now;
 
     const look = this.input.consumeLook();
@@ -803,6 +841,7 @@ export class Game {
     this.world.update(dt, movers);
     this.onFrame?.(dt);
     if (!NO_RENDER) this.post.render(dt);
+    qualityFrame(rawDt);
   }
 
   private updateCamera(focus: THREE.Vector3, dt: number): void {
@@ -879,6 +918,7 @@ export class Game {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.resizeObs.disconnect();
+    this.offQuality();
     this.input.detach();
     for (const id of [...this.remotes.keys()]) this.removeRemote(id);
     this.post.dispose();
