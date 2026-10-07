@@ -337,7 +337,7 @@ export function caydanlik(b: Builder, x: number, y: number, z: number): void {
     [0.13, 0.17],
     [0.08, 0.2],
     [0.0, 0.2],
-  ].map(([r, h]) => new THREE.Vector2(r!, h!)), 16), 0xd6d9dd, x, y + 0.07, z);
+  ].map(([r, h]) => new THREE.Vector2(r!, h!)), 16), 0xd6d9dd, x, y + 0.07, z, 0, 0, 0, 'cars');
   b.add(new THREE.LatheGeometry([
     [0.0, 0],
     [0.08, 0],
@@ -345,8 +345,8 @@ export function caydanlik(b: Builder, x: number, y: number, z: number): void {
     [0.08, 0.12],
     [0.04, 0.14],
     [0.0, 0.15],
-  ].map(([r, h]) => new THREE.Vector2(r!, h!)), 14), 0xe8e8e8, x, y + 0.27, z);
-  b.add(new THREE.CylinderGeometry(0.012, 0.02, 0.12, 6), 0xd6d9dd, x + 0.16, y + 0.17, z, 0, 0, -0.9);
+  ].map(([r, h]) => new THREE.Vector2(r!, h!)), 14), 0xf2f0ea, x, y + 0.27, z, 0, 0, 0, 'varnish');
+  b.add(new THREE.CylinderGeometry(0.012, 0.02, 0.12, 6), 0xd6d9dd, x + 0.16, y + 0.17, z, 0, 0, -0.9, 'cars');
   b.add(new THREE.TorusGeometry(0.09, 0.008, 4, 12, Math.PI), 0x222222, x, y + 0.27, z, 0, 0, 0);
 }
 

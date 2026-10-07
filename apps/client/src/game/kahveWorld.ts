@@ -277,18 +277,35 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   }
   for (let i = 0; i < 8; i++) b.cyl(-8 + i * 1.6, 2.85, HALL.z0 + 0.25, 0.1, 0.3, [0xd8473b, 0xf2c94c, 0x3f8f5a, 0xe9e2d0][i % 4]!, 10);
   // tea urns + çaydanlıklar on the counter
+  // polished stainless çay kazanları with brass taps (glossy 'cars' bucket = clearcoat)
   for (const x of [-7.6, -6.6]) {
-    b.cyl(x, 1.06, -21.2, 0.24, 0.62, 0xc9ccd1, 18);
-    b.cyl(x, 1.68, -21.2, 0.2, 0.08, 0x9a9da2, 18);
-    b.add(new THREE.CylinderGeometry(0.015, 0.015, 0.14, 6), 0x222222, x, 1.25, -20.94, Math.PI / 2, 0, 0);
+    b.cyl(x, 1.06, -21.2, 0.24, 0.62, 0xc9ccd1, 20, 0.24, 'cars');
+    b.cyl(x, 1.68, -21.2, 0.2, 0.08, 0x9a9da2, 20, 0.22, 'cars');
+    b.add(new THREE.SphereGeometry(0.04, 8, 6), 0x2b2b2b, x, 1.79, -21.2);
+    b.add(new THREE.CylinderGeometry(0.015, 0.015, 0.14, 6), 0xc9a24a, x, 1.25, -20.94, Math.PI / 2, 0, 0, 'cars');
+    b.add(new THREE.CylinderGeometry(0.012, 0.012, 0.07, 6), 0xc9a24a, x, 1.2, -20.88, 0, 0, 0, 'cars');
+    b.add(new THREE.BoxGeometry(0.1, 0.02, 0.03), 0x2b2b2b, x, 1.3, -20.88);
+  }
+  // hanging çay trays (askılı tepsi) on hooks behind the ocak
+  for (const [k, x] of [-8.4, -8.0, 1.4, 1.8].entries()) {
+    const y = 2.1;
+    const z = HALL.z0 + 0.12;
+    b.add(new THREE.CylinderGeometry(0.17, 0.17, 0.012, 18), k % 2 ? 0xd9dcdf : 0xc9a24a, x, y - 0.36, z + 0.17, Math.PI / 2 - 0.12, 0, 0, 'cars');
+    for (const a of [-0.9, 0, 0.9]) b.add(new THREE.CylinderGeometry(0.004, 0.004, 0.36, 4), 0x9a9da2, x + Math.sin(a) * 0.08, y - 0.18, z + 0.08, 0.35, 0, a * 0.45, 'cars');
+    b.add(new THREE.TorusGeometry(0.03, 0.006, 4, 10), 0x9a9da2, x, y, z + 0.03, 0, 0, 0, 'cars');
   }
   samovar(b, -5.2, 1.06, -21.3, 1.0);
   for (const x of [-3.8, -3.0, -2.2]) caydanlik(b, x, 1.06, -21.3);
+  // rows of filled glasses on glossy saucers, waiting for the tray; sugar bowls
   for (let i = 0; i < 18; i++) {
     const x = -0.8 + (i % 6) * 0.17;
     const z = -20.8 - Math.floor(i / 6) * 0.17;
-    b.cyl(x, 1.06, z, 0.05, 0.008, 0xffffff, 10);
-    b.add(new THREE.LatheGeometry([new THREE.Vector2(0.018, 0), new THREE.Vector2(0.026, 0.02), new THREE.Vector2(0.02, 0.05), new THREE.Vector2(0.028, 0.085)], 8), 0x9b2a14, x, 1.07, z);
+    b.cyl(x, 1.06, z, 0.05, 0.008, 0xffffff, 12, 0.05, 'varnish');
+    b.add(new THREE.LatheGeometry([new THREE.Vector2(0.001, 0), new THREE.Vector2(0.018, 0), new THREE.Vector2(0.026, 0.02), new THREE.Vector2(0.02, 0.05), new THREE.Vector2(0.028, 0.085)], 10), 0x8e1f0b, x, 1.07, z, 0, 0, 0, 'cars');
+  }
+  for (const x of [0.4, -4.6]) {
+    b.add(new THREE.LatheGeometry([new THREE.Vector2(0.001, 0), new THREE.Vector2(0.04, 0), new THREE.Vector2(0.06, 0.05), new THREE.Vector2(0.055, 0.08)], 12), 0xd9dcdf, x, 1.06, -20.7, 0, 0, 0, 'cars');
+    b.cyl(x, 1.13, -20.7, 0.05, 0.012, 0xffffff, 10);
   }
   b.box(1.8, 1.06, -21.1, 0.42, 0.22, 0.34, 0x2b2b2b);
   // tables + chairs
@@ -407,13 +424,29 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     else if (o.kind === 'car') parkedCar(b, o.x, o.z, o.tint! % 2 ? Math.PI : 0, o.tint ?? 0);
     else if (o.kind === 'pier') iskele(b, o.x - o.w / 2, o.x + o.w / 2, o.z - o.d / 2, o.z + o.d / 2);
     else if (o.kind === 'lowTable') {
-      b.pat = PAT.wood;
-      b.box(o.x, 0.4, o.z, o.w, 0.05, o.d, 0x8a5a33);
+      // low wooden çay bahçesi table: top, apron, four legs; two glasses and a sugar bowl
+      b.pat = PAT.grainX;
+      b.box(o.x, 0.4, o.z, o.w, 0.04, o.d, 0x8a5a33, 'varnish');
+      b.box(o.x, 0.34, o.z, o.w - 0.1, 0.06, o.d - 0.1, 0x6e4628, 'varnish');
       b.pat = PAT.none;
-      b.box(o.x, 0, o.z, 0.08, 0.4, 0.08, 0x5a3a28);
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(o.x + sx * (o.w / 2 - 0.07), 0, o.z + sz * (o.d / 2 - 0.07), 0.05, 0.4, 0.05, 0x5a3a28);
+      for (const dx of [-0.16, 0.16]) {
+        b.cyl(o.x + dx, 0.44, o.z + 0.08, 0.05, 0.008, 0xffffff, 12, 0.05, 'varnish');
+        b.add(new THREE.LatheGeometry([new THREE.Vector2(0.001, 0), new THREE.Vector2(0.018, 0), new THREE.Vector2(0.026, 0.02), new THREE.Vector2(0.02, 0.05), new THREE.Vector2(0.028, 0.085)], 10), 0x8e1f0b, o.x + dx, 0.45, o.z + 0.08, 0, 0, 0, 'cars');
+      }
+      b.add(new THREE.LatheGeometry([new THREE.Vector2(0.001, 0), new THREE.Vector2(0.04, 0), new THREE.Vector2(0.06, 0.05), new THREE.Vector2(0.055, 0.08)], 12), 0xd9dcdf, o.x, 0.44, o.z - 0.12, 0, 0, 0, 'cars');
     } else if (o.kind === 'stool') {
+      // hasır tabure: four turned legs, stretchers and a woven straw seat
+      const W = 0.34;
+      for (const sx of [-1, 1])
+        for (const sz of [-1, 1]) b.add(new THREE.CylinderGeometry(0.017, 0.02, 0.32, 6), 0x6e4628, o.x + sx * (W / 2 - 0.03), 0.16, o.z + sz * (W / 2 - 0.03), sz * 0.06, 0, -sx * 0.06, 'varnish');
+      for (const s of [-1, 1]) {
+        b.box(o.x, 0.1, o.z + s * (W / 2 - 0.03), W - 0.06, 0.02, 0.02, 0x6e4628, 'varnish');
+        b.box(o.x + s * (W / 2 - 0.03), 0.1, o.z, 0.02, 0.02, W - 0.06, 0x6e4628, 'varnish');
+      }
+      b.box(o.x, 0.29, o.z, W, 0.03, W, 0x6e4628, 'varnish');
       b.pat = PAT.fabric;
-      b.cyl(o.x, 0, o.z, 0.2, 0.32, [0xc0392b, 0xe9c46a, 0x2f5d73][Math.abs(Math.round(o.x * 7)) % 3]!, 12);
+      b.box(o.x, 0.3, o.z, W - 0.05, 0.03, W - 0.05, [0xc9a35a, 0xb8914a, 0xd2b06a][Math.abs(Math.round(o.x * 7)) % 3]!);
       b.pat = PAT.none;
     }
   }
