@@ -58,3 +58,4 @@
 - Tea glass is now an ince belli glass with tea inside.
 - Fonts: only latin + latin-ext subsets are bundled.
 - 117 tests; build OK; 4.48 MB gzip total, 137 KB before the lobby.
+- Later: leaf-card foliage (`foliage.ts`: çınar trees, potted ficus), red İstanbul simit cart, Şehir Hatları ferry, procedural 90s sedans + taxi (2 more parked cars, colliders), historic pier hall, market fit-out (`marketProps.ts`; freezer + crates colliders), facade windows (`facadeWindow`), no-shadow 'detail' bucket, far house rows with plain windows. ~580k tris/frame incl. shadows (was ~500k). 117 tests; 4.48 MB gzip.

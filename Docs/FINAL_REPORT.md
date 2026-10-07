@@ -47,9 +47,15 @@ Linke tıklayınca saniyeler içinde açılan, telefonda ve bilgisayarda çalı�
 
 ## 4. Kullanılan varlıklar (kaynak + lisans)
 
-**Üçüncü taraf varlık yok.** Tüm 3D modeller (`world.ts`, `character.ts`), tabelalar (çalışma anında canvas ile) ve sesler (WebAudio sentezi) bu projede kodla üretildi. Sayma/"sobe" sesi için cihazın kendi Türkçe konuşma sesi kullanılıyor (varsa; indirme yok).
+Ayrıntılı liste (isim, yapan, adres, lisans, tarih, nerede kullanıldığı, yapılan değişiklik) `Docs/ThirdPartyAssets.md` dosyasında. Özet:
 
-Önerilen CC0 paketler (kenney.nl, quaternius.com, polyhaven.com bu ortamdan erişilemedi) `Docs/ThirdPartyAssets.md` içinde **ASSET RECOMMENDED** tablosu olarak listelendi: Kenney City Kit (Suburban), Kenney Car Kit, Quaternius karakterleri, Kenney Interface Sounds ve kendi kaydedeceğin çocuk sesleri ("bir… otuz", "Önüm arkam sağım solum sobe…").
+- **Kenney** (CC0): Saklambaç'taki park etmiş kamyonetler, adım/zıplama/ortam sesleri, çocuk karakterlerin iskeletli gövdesi (`pmndrs/market-assets` GitHub deposundan).
+- **Microsoft Rocketbox** (MIT, lisans metni `public/models/ROCKETBOX_LICENSE.txt`): kahvehanedeki 9 gerçekçi yetişkin karakter (oyuncular ve NPC'ler).
+- **ambientCG Fabric030** (CC0): okey masasındaki çuha dokusu.
+- **Baloo 2** yazı tipi (SIL OFL 1.1): arayüz yazıları.
+- Geri kalan her şey (binalar, Kız Kulesi, vapur, arabalar, market, ağaçlar, okey taşları, tabelalar, deniz) bu projede kodla üretildi; bazı sesler WebAudio ile sentezleniyor.
+
+kenney.nl, polyhaven.com, ambientcg.com gibi siteler bu çalışma ortamından açılamadığı için varlıklar yalnızca lisansı açık GitHub depolarından alındı.
 
 ## 5. Bilinen sorunlar ve engeller
 
@@ -361,3 +367,26 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - Sahilde vapura binip karşıya geçme gibi yeni mini etkinlikler eklenebilir. Tutulan balıklar için bir "günün balıkçısı" listesi de eklenebilir.
 - Saklambaç için de Üsküdar temalı ikinci bir mahalle yapılabilir.
 
+
+## Ek: Sabah — "bütün modelleri gerçekçileştir" geçişi
+
+İstediğin gibi her değişiklikten sonra ekran görüntüsü gönderdim (01–07 numaralı görseller).
+
+**Ne değişti**
+- **Kız Kulesi:** 2023 restorasyonundaki hâliyle baştan yapıldı: kayalık ada, taş rıhtım, iki katlı taş bina, kare gövde + sekizgen kule, demir balkon, camlı fener, kurşun kaplı kubbe, altın alem, bayrak.
+- **Okey takımı:** yuvarlak kenarlı, parlak krem taşlar ve kazınmış rakamlar; cilalı masif ahşap masa, ıstaka ve sandalyeler; dokulu yeşil çuha. Ekrandaki ıstaka ve taşlar da kalınlıklı ve ahşap desenli.
+- **Karakterler:** kahvehanede artık gerçekçi, dokulu insan modelleri var (Microsoft Rocketbox, 9 farklı kişi: 6 erkek, 3 kadın). Oyuncular, tavla oynayan amcalar, çaycı, bakkal, simitçi ve sahilde yürüyenler bunları kullanıyor. Elde tutulan çay, simit ve dondurma dik duruyor, parmaklar eşyayı kavrıyor. Çay bardağı ince belli ve içinde demli çay var. Saklambaç'taki çocuk karakterleri bilerek çizgi film tarzında bıraktım.
+- **Sahil ve sokak:** yapraklı çınar ağaçları, salonda gerçek saksı ficusları, camlı vitrinli kırmızı simit arabası, Şehir Hatları vapuru (pencereli kamaralar, üst güverte, can simitleri, sarı-siyah baca), 90'lar sedanları ve sarı taksi, tarihi görünümlü Üsküdar Vapur İskelesi (kemerler, pilastrlar, korniş, saatli çatı feneri).
+- **Hasan Market:** reyonlarda marka blokları hâlinde ürünler, camlı içecek dolapları, süt ürünleri dolabı, yazar kasa, sigara dolabı ("18 yaş altına tütün satılmaz" uyarısıyla), dondurma dolabı, kapıda meyve-sebze kasaları.
+- **Evler:** çerçeveli pencereler, parlak camlar, panjurlar, saksılar, köşe çıtaları, kapı sundurmaları.
+- **Işık:** salon zemini aynalı olmaktan çıkarıldı. Önceden akşam güneşinin yansıması ekranın yarısını beyaza boyuyordu.
+
+**Performans ve boyut**
+- Toplam indirme 4,48 MB (gzip), yani 5 MB sınırının altında. Lobiyi açmak için gereken kısım hâlâ 137 KB.
+- Gerçekçi karakterler sadece 101 Okey seçilince yükleniyor: telefonda 4 kişilik hafif set, bilgisayarda 9 kişilik set.
+- Sahne yükü: bir karede ~580 bin üçgen (gölgeler dahil). Küçük süs eşyaları gölge düşürmüyor; uzaktaki ev sıraları sade pencereli.
+- 117 test geçiyor ve derleme başarılı.
+
+**Bilinen sınırlar**
+- Gerçekçi karakterlerin yüz ifadesi yok, animasyonları da prosedürel (kendi yürüme ve oturma sistemimiz). Yine de duruşlar ve eller doğal görünüyor.
+- Gerçek bir telefonda kare hızı henüz ölçülmedi. Tarayıcı testleri yazılımsal grafik sürücüsüyle yapıldı.
