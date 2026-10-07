@@ -392,6 +392,12 @@ export class Game {
     ch?.setSpeaking(on);
   }
 
+  /** A player reaches to the table (they drew, discarded or laid tiles); null id = local player. */
+  reach(id: string | null): void {
+    const ch = id === null ? this.localChar : this.remotes.get(id)?.char;
+    ch?.reach();
+  }
+
   /** Item in hand (market / simitçi); null id = local player. */
   setHeld(id: string | null, item: string): void {
     const ch = id === null ? this.localChar : this.remotes.get(id)?.char;

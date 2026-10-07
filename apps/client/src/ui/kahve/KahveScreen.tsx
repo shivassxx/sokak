@@ -300,6 +300,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   };
 
   // ------------------------------------------------------------ keep characters in sync with the room
+  const handCounts = useRef(new Map<number, number[]>());
   useEffect(() => {
     if (!game || !view) return;
     const ids = new Set(Object.keys(view.players));
@@ -344,6 +345,16 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     // real tiles on every table
     view.tables.forEach((t) => {
       const tv = t.view ? (JSON.parse(t.view) as TableView) : null;
+      // whoever's hand count changed made a move: their character reaches to the table
+      const prev = handCounts.current.get(t.id);
+      if (tv && prev && t.status !== 'open')
+        tv.handCounts.forEach((n, s) => {
+          if (prev[s] === undefined || prev[s] === n) return;
+          const who = Object.values(view.players).find((p) => p.table === t.id && p.seat === s);
+          if (who) game.reach(who.id === me ? null : who.id);
+        });
+      if (tv) handCounts.current.set(t.id, tv.handCounts);
+      else handCounts.current.delete(t.id);
       game.kahve?.setTable(t.id, tv && t.status !== 'open' ? tv : null, seated && mine.table === t.id ? mine.seat : null, watching?.table === t.id ? watching.side : 0);
     });
   }, [game, view, me, watching]);

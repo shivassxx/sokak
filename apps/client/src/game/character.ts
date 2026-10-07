@@ -251,6 +251,7 @@ interface BoneInfo {
 }
 
 const _q2 = new THREE.Quaternion();
+const REACH_TIME = 0.6;
 const _qa = new THREE.Quaternion();
 const CURL = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.9));
 const CURL_THUMB = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.35));
@@ -562,6 +563,12 @@ export class Character {
     }
   }
 
+  private reachT = 0;
+  /** Reach to the table centre once (an okey move by this player). */
+  reach(): void {
+    this.reachT = REACH_TIME;
+  }
+
   /** Put a small prop (tea glass …) in the right hand. */
   hold(obj: THREE.Object3D | null): void {
     for (const c of [...this.propGroup.children])
@@ -770,6 +777,14 @@ export class Character {
     }
 
     this.applyPose(moving);
+    if (this.reachT > 0) {
+      // a quick reach across the table (draw / discard), right arm out and back
+      this.reachT = Math.max(0, this.reachT - dt);
+      const k = Math.sin(Math.PI * (1 - this.reachT / REACH_TIME));
+      this.armR.upper.rotation.x += 0.6 * k;
+      this.armR.lower.rotation.x -= 0.5 * k;
+      this.chest.rotation.x -= 0.12 * k;
+    }
     this.applyEmote(dt, moving);
     this.applyUse(dt);
     this.applyRig();
