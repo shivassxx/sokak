@@ -1,5 +1,5 @@
 import { Client, type Room } from 'colyseus.js';
-import { KAHVE_ROOM, SERVER_PORT, type JoinOptions, type LeaderInfo, type SalonInfo, type WeeklyBoard } from '@sokak/shared';
+import { KAHVE_ROOM, SERVER_PORT, type AchState, type JoinOptions, type LeaderInfo, type SalonInfo, type WeeklyBoard } from '@sokak/shared';
 
 export function serverEndpoint(): string {
   const env = import.meta.env.VITE_SERVER_URL as string | undefined;
@@ -101,6 +101,15 @@ export async function getWeeklyLeaders(week: 'current' | 'last' = 'current'): Pr
   return (await r.json()) as WeeklyBoard;
 }
 
+/** Başarımlar: this device's counters and unlocked ids. */
+export async function getAchievements(): Promise<AchState> {
+  const t = deviceToken();
+  if (!t) return { c: {}, got: [] };
+  const r = await fetch(`${httpEndpoint()}/api/achievements?device=${t}`, { cache: 'no-store' });
+  if (!r.ok) throw new Error('achievements');
+  return (await r.json()) as AchState;
+}
+
 export interface KahveJoin {
   /** a specific salon (lobby list / invite link) */
   roomId?: string;
@@ -109,11 +118,13 @@ export interface KahveJoin {
   /** open a new salon (optionally private: link only) */
   create?: boolean;
   private?: boolean;
+  /** opened from a friend's invite link */
+  invited?: boolean;
 }
 
 /** Kahvehane salon: join by id, quick-join any, or create a new (private) one. */
 export async function joinKahve(opts: JoinOptions, how: KahveJoin = {}): Promise<Room> {
-  const o: JoinOptions = { ...opts, device: deviceToken(), quick: how.quick, private: how.private };
+  const o: JoinOptions = { ...opts, device: deviceToken(), quick: how.quick, private: how.private, invited: how.invited || undefined };
   const room = how.roomId ? await client.joinById(how.roomId, o) : how.create ? await client.create(KAHVE_ROOM, o) : await client.joinOrCreate(KAHVE_ROOM, o);
   remember(room);
   return room;

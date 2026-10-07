@@ -98,3 +98,9 @@
 - Client: "Masa ayarları" in the table lobby (mode, bet, hands, turn time, team badges, "Eşin"), eşli/turn info on the board, partner/rival badges on the plates, a team badge in the me-bar, team rows and team totals in the hand/match result, an eşli line in "Nasıl oynanır?".
 - Tests: `apps/server/test/esli.test.ts` (settings validation + host only; a fast eşli bot match with team settlement and money conservation). 130 tests total; build OK; size check OK (3.25 MB gzip).
 - Screenshots: /tmp/claude-0/agent-shots/esli/.
+## Başarımlar (2026-10-07, agent worktree)
+- Shared: `achievements.ts` (21 defs, `bumpAchievement` pure unlock step, `achProgress`, `ACH_MSG`), `JoinOptions.invited`.
+- Server: `Wallet.ach`, `WalletStore.bumpAch/achievements`, `GET /api/achievements`; `KahvehaneRoom.ach()` hooks in match end (okey + tavla), hand end (okey/çifte/elden finish), caught theft, tavla mars, served/bought çay, gulls, fish, vapur boarding, ledge spot, market, quick-chat, TV goal tick check; `achTable` for the invite-friend achievement.
+- Client: `ui/Achievements.tsx` + `achievements.css` (panel, gold toast, HUD button), lobby button with count (lazy panel), `achievementChime` in audio, `invited` flag on invite-link joins.
+- Tests: `packages/shared/test/achievements.test.ts` (5), `apps/server/test/achievements.test.ts` (4: store unlock/pay once, bot match unlocks "İlk maç" once with exact money, two tabs → one market unlock, progress persists on rejoin). The wallet test now expects the market reward. 150 tests total; lobby 131 KB gzip.
+- Screenshots: /tmp/claude-0/agent-shots/achievements/.

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import type { WeeklyBoard, WeeklyLeader } from '@sokak/shared';
+import { bumpAchievement, type AchCounter, type AchievementDef, type AchState, type WeeklyBoard, type WeeklyLeader } from '@sokak/shared';
 import { istanbulWeek, previousWeek } from './week';
 
 /** One device's results in one ISO week (Istanbul time). */
@@ -37,6 +37,8 @@ export interface Wallet {
   /** weekly leaderboard: the most recent week with a finished match, and the one before it */
   week?: WeekStats;
   prevWeek?: WeekStats;
+  /** başarımlar: counters and unlocked ids (see packages/shared/src/achievements.ts) */
+  ach?: AchState;
 }
 
 const KEEP_MS = 60 * 24 * 3600 * 1000;
@@ -108,6 +110,28 @@ export class WalletStore {
       prevWeek,
     });
     return true;
+  }
+
+  /**
+   * Count towards the device's achievements. Unlocks happen here, against the
+   * stored record, so several tabs (or salons) of one device can never unlock or
+   * pay the same achievement twice: the reward goes straight into the stored
+   * wallet and the unlocked ones are returned (the caller mirrors the money into
+   * its session). Needs an existing wallet; returns [] when there is none.
+   */
+  bumpAch(token: string, counter: AchCounter, n = 1): AchievementDef[] {
+    const w = WalletStore.validToken(token) ? this.data.get(token) : undefined;
+    if (!w) return [];
+    const { state, unlocked } = bumpAchievement(w.ach, counter, n);
+    const reward = unlocked.reduce((s, a) => s + a.reward, 0);
+    this.set(token, { ...w, ach: state, money: Math.max(0, w.money) + reward });
+    return unlocked;
+  }
+
+  /** A device's achievement record (empty for an unknown device). */
+  achievements(token: string): AchState {
+    const a = WalletStore.validToken(token) ? this.data.get(token)?.ach : undefined;
+    return { c: { ...(a?.c ?? {}) }, got: [...(a?.got ?? [])] };
   }
 
   /**

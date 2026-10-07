@@ -4,7 +4,7 @@ import path from 'node:path';
 import express from 'express';
 import { Server, matchMaker } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
-import { KAHVE_ROOM, type LeaderInfo, type SalonInfo, type SalonMeta } from '@sokak/shared';
+import { ACHIEVEMENTS, KAHVE_ROOM, type LeaderInfo, type SalonInfo, type SalonMeta } from '@sokak/shared';
 import { KahvehaneRoom } from './rooms/KahvehaneRoom';
 import { Analytics } from './analytics';
 import { WalletStore } from './wallets';
@@ -71,6 +71,13 @@ export async function startServer(port: number, opts: {
     const token = req.query.device;
     const w = WalletStore.validToken(token) ? wallets.get(token) : null;
     res.json(w ? { money: w.money, played: w.played ?? 0, won: w.won ?? 0 } : null);
+  });
+  // başarımlar: this device's counters and unlocked ids (the list itself is in @sokak/shared)
+  app.get('/api/achievements', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store');
+    const token = req.query.device;
+    res.json({ ...(WalletStore.validToken(token) ? wallets.achievements(token) : { c: {}, got: [] }), total: ACHIEVEMENTS.length });
   });
   // lobby leaderboard: the richest players online right now, public salons only
   app.get('/api/leaders', async (_req, res) => {

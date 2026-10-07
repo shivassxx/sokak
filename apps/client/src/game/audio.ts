@@ -262,6 +262,15 @@ export function seaside(level: number): void {
 }
 
 /** A ferry's horn: a deep, slightly out-of-tune chord. */
+/** Başarım unlocked: a short bright arpeggio (C6 E6 G6 C7) with a soft triangle shimmer. */
+export function achievementChime(): void {
+  if (muted || !ac()) return;
+  [1046.5, 1318.5, 1568, 2093].forEach((f, i) => {
+    tone(f, i * 0.09, 0.5 - i * 0.05, 'sine', 0.22);
+    tone(f * 2, i * 0.09 + 0.01, 0.25, 'triangle', 0.05);
+  });
+}
+
 export function vapurHorn(volume = 0.6): void {
   const c = ctx;
   if (!c || !sfxBus || muted) return;
