@@ -20,9 +20,10 @@ import { Builder, canvasTex, decal, hash } from './world';
 import { PAT, patternize } from './materials';
 import { STEEL, LIGHT_OAK, TABLE_TOP, feltTexture, modernChair, modernOkeyTable, parasol, patioHeater, samovar, caydanlik, bentwoodChair } from './kahveProps';
 import { vapurHorn } from './audio';
-import { classicLamp, gull, hillMosque, houseRow, iskele, kizKulesi, parkBench, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
+import { classicLamp, gull, hillMosque, houseRow, iskele, kizKulesi, limb, parkBench, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
 import type { Quality } from './postfx';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { Foliage } from './foliage';
 
 /**
  * Static world of the okey mode: the modern kıraathane (hall + terrace), the
@@ -331,14 +332,32 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     for (const s of [-1, 1]) bentwoodChair(b, t.x + s * 0.85, t.z, s > 0 ? Math.PI / 2 : -Math.PI / 2);
   }
   // big plants
+  const plants = new Foliage();
   for (const o of KAHVE_OBJECTS) {
     if (o.kind !== 'planter') continue;
     const outdoor = o.z > 18;
     if (outdoor) continue;
-    b.add(new THREE.CylinderGeometry(o.w / 2, o.w / 2.4, o.h, 14), 0x3a3c40, o.x, o.h / 2, o.z);
-    for (let k = 0; k < 9; k++) {
-      const a = k * 2.4;
-      b.blob(o.x + Math.sin(a) * 0.32, o.h + 0.5 + (k % 3) * 0.35, o.z + Math.cos(a) * 0.32, 0.28, k % 2 ? 0x3f7f3a : 0x2f6a34, 0.5, 1, 'foliage');
+    // fibre-clay pot with a rim and soil; a ficus with two stems and leafy clumps
+    b.pat = PAT.plaster;
+    b.add(new THREE.CylinderGeometry(o.w / 2, o.w / 2.5, o.h, 20), 0x3a3c40, o.x, o.h / 2, o.z);
+    b.add(new THREE.TorusGeometry(o.w / 2 - 0.02, 0.03, 6, 20), 0x34363a, o.x, o.h, o.z, Math.PI / 2, 0, 0);
+    b.pat = PAT.grass;
+    b.cyl(o.x, o.h - 0.06, o.z, o.w / 2 - 0.04, 0.03, 0x3b2c20, 16);
+    b.pat = PAT.none;
+    const top = o.h + 1.6;
+    for (const [dx, dz, h] of [
+      [0.08, 0.02, 1],
+      [-0.07, -0.05, 0.82],
+    ] as const) {
+      const a = new THREE.Vector3(o.x + dx * 0.5, o.h - 0.05, o.z + dz * 0.5);
+      const e = new THREE.Vector3(o.x + dx * 3, o.h + (top - o.h) * h, o.z + dz * 3);
+      limb(b, a, e, 0.035, 0.018, 0x6b5a45);
+    }
+    for (let k = 0; k < 4; k++) {
+      const a = k * 2.2 + o.x;
+      const y = o.h + 0.75 + k * 0.32;
+      const r = 0.32 + (k === 3 ? 0.08 : 0.12);
+      plants.crown(o.x + Math.sin(a) * 0.14, y, o.z + Math.cos(a) * 0.14, r, r * 0.8, r, 42, 0.5);
     }
   }
 
@@ -399,11 +418,12 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   houseRow(b, -110, 90, -55, 1, 9, 2);
 
   // -------------------------------------------------------------- street & sahil furniture
+  const trees = new Foliage();
   for (const o of KAHVE_OBJECTS) {
     if (o.kind === 'lamp') classicLamp(b, o.x, o.z);
-    else if (o.kind === 'planter' && o.z > 18) planeTree(b, o.x, o.z);
+    else if (o.kind === 'planter' && o.z > 18) planeTree(b, o.x, o.z, 1, trees);
     else if (o.kind === 'bench') parkBench(b, o.x, o.z, 1);
-    else if (o.kind === 'cart') simitCart(b, o.x, o.z);
+    else if (o.kind === 'cart') simitCart(b, o.x, o.z, glassPanes);
     else if (o.kind === 'pier') iskele(b, o.x - o.w / 2, o.x + o.w / 2, o.z - o.d / 2, o.z + o.d / 2);
     else if (o.kind === 'lowTable') {
       b.pat = PAT.wood;
@@ -457,6 +477,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   addMesh(b.build('main'), mainMat, true, true);
   addMesh(b.build('ground'), groundMat, false, true);
   addMesh(b.build('foliage'), foliageMat, true, true);
+  if (!trees.empty) scene.add(trees.build('plane'));
+  if (!plants.empty) scene.add(plants.build('small'));
   addMesh(b.build('glow'), glowMat, false, false);
   addMesh(b.build('cars'), mainMat, false, true);
   // varnished furniture wood: same patterns, plus a clear lacquer coat
@@ -498,6 +520,20 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   glowDecal(neon('ÇAY', '#ff6fb5'), -1, 3.3, HALL.z0 + 0.05, 2.2, 0.7);
   glowDecal(neon('OKEY · TAVLA', '#7fe3ff', 1024, 160), HALL.x0 + 0.08, 3.4, -12, 4.4, 0.7, Math.PI / 2);
   glowDecal(neon('MARKET', '#ffffff', 512, 128), (M.x0 + M.x1) / 2, 3.6, 0.2, 5, 1.1);
+  // "SİMİT" on both long sides of the simitçi's cart
+  const cart = KAHVE_OBJECTS.find((o) => o.kind === 'cart');
+  if (cart) {
+    const simitSign = canvasTex(1024, 128, (ctx) => {
+      ctx.fillStyle = '#f3eee4';
+      ctx.fillRect(0, 0, 1024, 128);
+      ctx.fillStyle = '#b3261e';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '800 100px "Baloo 2", sans-serif';
+      ctx.fillText('SİMİT · POĞAÇA', 512, 70);
+    });
+    for (const s of [-1, 1]) decal(scene, simitSign, cart.x, 0.845, cart.z + s * 0.369, 1.04, 0.13, s > 0 ? 0 : Math.PI);
+  }
   // the ferry pier's name boards and clock
   const pier = KAHVE_OBJECTS.find((o) => o.kind === 'pier');
   if (pier) {
@@ -697,6 +733,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   const OUT_TO = new THREE.Vector3(540, -1.1, 230);
   const CYCLE = 170;
   const caller = vapur();
+  caller.name = 'vapur-caller';
   scene.add(caller);
   let callerPhase = -1;
   const listener = new THREE.Vector2();

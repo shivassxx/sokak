@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Builder, canvasTex, hash } from './world';
 import { PAT, patternize } from './materials';
+import type { Foliage } from './foliage';
 
 /**
  * The Üsküdar waterfront in code: wooden houses with cumbas, plane trees,
@@ -70,19 +71,53 @@ function house(b: Builder, cx: number, zFace: number, w: number, floors: number,
   b.pat = pat;
 }
 
-/** A plane tree in a round stone planter. */
-export function planeTree(b: Builder, x: number, z: number, s = 1): void {
+/** A plane tree (çınar) in a round stone planter: mottled trunk, limbs and leaf-card crowns. */
+export function planeTree(b: Builder, x: number, z: number, s = 1, leaves?: Foliage): void {
   b.pat = PAT.stone;
   b.cyl(x, 0, z, 0.72, 0.6, 0xb8ad9a, 16);
   b.pat = PAT.grass;
-  b.cyl(x, 0.6, z, 0.64, 0.02, 0x5d7a3a, 16);
-  b.pat = PAT.none;
-  b.cyl(x, 0.6, z, 0.18 * s, 3.2 * s, 0x8a8170, 8, 0.12 * s);
-  for (let k = 0; k < 7; k++) {
-    const a = k * 2.3;
-    b.blob(x + Math.sin(a) * 1.4 * s, (3.6 + (k % 3) * 0.7) * s, z + Math.cos(a) * 1.4 * s, (1.4 + hash(k + x) * 0.5) * s, k % 2 ? 0x4f7f34 : 0x5f9140, 0.8, 1, 'foliage');
+  b.cyl(x, 0.6, z, 0.64, 0.02, 0x5d6a3a, 16);
+  if (!leaves) {
+    b.pat = PAT.none;
+    b.cyl(x, 0.6, z, 0.18 * s, 3.2 * s, 0x8a8170, 8, 0.12 * s);
+    for (let k = 0; k < 7; k++) {
+      const a = k * 2.3;
+      b.blob(x + Math.sin(a) * 1.4 * s, (3.6 + (k % 3) * 0.7) * s, z + Math.cos(a) * 1.4 * s, (1.4 + hash(k + x) * 0.5) * s, k % 2 ? 0x4f7f34 : 0x5f9140, 0.8, 1, 'foliage');
+    }
+    b.blob(x, 5.0 * s, z, 1.8 * s, 0x588a3a, 0.75, 1, 'foliage');
+    return;
   }
-  b.blob(x, 5.0 * s, z, 1.8 * s, 0x588a3a, 0.75, 1, 'foliage');
+  // çınar bark: patchy olive-grey and cream (plaster noise), a slight lean
+  b.pat = PAT.plaster;
+  const lean = (hash(x * 3.1) - 0.5) * 0.12;
+  const top = new THREE.Vector3(x + lean * 2.6 * s, 0.6 + 2.7 * s, z + lean * 1.3 * s);
+  limb(b, new THREE.Vector3(x, 0.4, z), top, 0.22 * s, 0.15 * s, 0x7f7a66);
+  const limbs = 5;
+  for (let k = 0; k < limbs; k++) {
+    const a = (k / limbs) * Math.PI * 2 + hash(x + k) * 0.8;
+    const out = (1.5 + hash(k * 7 + x) * 0.8) * s;
+    const end = new THREE.Vector3(top.x + Math.cos(a) * out, top.y + (1.3 + hash(k + z) * 0.9) * s, top.z + Math.sin(a) * out);
+    limb(b, top, end, 0.1 * s, 0.05 * s, k % 2 ? 0x938b74 : 0x7a7462);
+    // two twigs fork off each limb into its leaf clump
+    for (const t of [-0.6, 0.7]) {
+      const tip = new THREE.Vector3(end.x + Math.cos(a + t) * 0.9 * s, end.y + 0.7 * s, end.z + Math.sin(a + t) * 0.9 * s);
+      limb(b, end, tip, 0.05 * s, 0.025 * s, 0x8a836e);
+    }
+    leaves.crown(end.x, end.y + 0.55 * s, end.z, 1.6 * s, 1.2 * s, 1.6 * s, 95, 1.1 * s);
+  }
+  leaves.crown(top.x, top.y + 2.6 * s, top.z, 2.2 * s, 1.5 * s, 2.2 * s, 140, 1.2 * s);
+  b.pat = PAT.none;
+}
+
+const _up = new THREE.Vector3(0, 1, 0);
+/** a tapered branch from a to b */
+export function limb(b: Builder, a: THREE.Vector3, e: THREE.Vector3, r0: number, r1: number, color: number): void {
+  const d = e.clone().sub(a);
+  const len = d.length();
+  const g = new THREE.CylinderGeometry(r1, r0, len, 7, 1);
+  g.translate(0, len / 2, 0);
+  const m = new THREE.Matrix4().compose(a, new THREE.Quaternion().setFromUnitVectors(_up, d.normalize()), new THREE.Vector3(1, 1, 1));
+  b.addMatrix(g, color, m);
 }
 
 /** Wooden slat bench with cast-iron legs, back to +z unless facing says otherwise. */
@@ -106,14 +141,74 @@ export function classicLamp(b: Builder, x: number, z: number, h = 4.4): void {
   b.cyl(x, h - 0.6, z, 0.2, 0.05, IRON, 6);
 }
 
-/** The simitçi's red glass cart. */
-export function simitCart(b: Builder, x: number, z: number): void {
-  b.box(x, 0.5, z, 1.7, 0.5, 0.9, 0xc0392b);
-  b.box(x, 1.0, z, 1.6, 0.6, 0.8, 0xeef4f6);
-  b.box(x, 1.6, z, 1.75, 0.08, 0.95, 0xc0392b);
-  for (const dx of [-0.6, 0.6]) b.add(new THREE.TorusGeometry(0.28, 0.05, 6, 14), 0x222222, x + dx, 0.32, z + 0.48);
-  b.box(x - 0.95, 0.7, z, 0.5, 0.04, 0.04, 0x555555);
-  for (let k = 0; k < 9; k++) b.add(new THREE.TorusGeometry(0.11, 0.035, 6, 12), 0xb8752f, x - 0.5 + (k % 3) * 0.32, 1.12 + Math.floor(k / 3) * 0.13, z, Math.PI / 2, 0, 0);
+/**
+ * The simitçi's cart, like the red İstanbul carts: lacquered red cabinet with a white band,
+ * a glass display case with two trays of simit, a canopy with gold trim, spoked wheels,
+ * a stand leg and push handles. Glass panes go to `glass` (the scene's transparent mesh).
+ */
+export function simitCart(b: Builder, x: number, z: number, glass?: THREE.BufferGeometry[]): void {
+  const RED = 0xb3261e;
+  const GOLD = 0xd9b45a;
+  const WHITE = 0xf3eee4;
+  const STEEL = 0x8c9196;
+  b.box(x, 0.6, z, 1.5, 0.05, 0.78, 0x2a2a2a);
+  b.box(x, 0.65, z, 1.44, 0.42, 0.72, RED);
+  for (const s of [-1, 1]) {
+    b.box(x, 0.78, z + s * 0.362, 1.3, 0.13, 0.01, WHITE);
+    b.box(x, 0.715, z + s * 0.363, 1.32, 0.012, 0.01, GOLD);
+    b.box(x, 0.915, z + s * 0.363, 1.32, 0.012, 0.01, GOLD);
+  }
+  b.box(x, 1.07, z, 1.56, 0.04, 0.84, WHITE);
+  // display case: red posts, top, two trays of simit
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(x + sx * 0.72, 1.11, z + sz * 0.36, 0.035, 0.52, 0.035, RED);
+  b.box(x, 1.63, z, 1.5, 0.035, 0.77, RED);
+  for (const [y, n] of [
+    [1.12, 1],
+    [1.36, 0],
+  ] as const) {
+    b.box(x, y, z, 1.38, 0.012, 0.66, 0xd9d4ca);
+    for (let i = 0; i < 6; i++)
+      for (let j = 0; j < 3; j++) {
+        const k = i * 3 + j + n * 20;
+        const px = x - 0.56 + i * 0.225 + (hash(k + x) - 0.5) * 0.03;
+        const pz = z - 0.2 + j * 0.2 + (hash(k * 3) - 0.5) * 0.03;
+        b.add(new THREE.TorusGeometry(0.075, 0.026, 6, 14), hash(k * 5) < 0.5 ? 0xa8642a : 0xbd7a35, px, y + 0.035, pz, Math.PI / 2, 0, hash(k) * 3);
+        // a few stacked
+        if (hash(k * 7) < 0.3) b.add(new THREE.TorusGeometry(0.075, 0.026, 6, 14), 0xb06d2e, px + 0.02, y + 0.085, pz, Math.PI / 2 + 0.15, 0, 0);
+      }
+  }
+  if (glass) {
+    const pane = (w: number, h: number, px: number, py: number, pz: number, ry: number) => {
+      const g = new THREE.PlaneGeometry(w, h);
+      g.rotateY(ry);
+      g.translate(px, py, pz);
+      glass.push(g);
+    };
+    for (const s of [-1, 1]) {
+      pane(1.42, 0.52, x, 1.35, z + s * 0.36, 0);
+      pane(0.7, 0.52, x + s * 0.72, 1.35, z, Math.PI / 2);
+    }
+  }
+  // canopy with gold trim on thin posts
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.cyl(x + sx * 0.7, 1.65, z + sz * 0.34, 0.012, 0.3, STEEL, 6);
+  b.box(x, 1.94, z, 1.84, 0.05, 1.06, RED);
+  b.box(x, 1.915, z, 1.86, 0.03, 1.08, GOLD);
+  // spoked wheels on an axle across the cart
+  for (const s of [-1, 1]) {
+    const wz = z + s * 0.47;
+    const wx = x + 0.2;
+    b.add(new THREE.TorusGeometry(0.31, 0.028, 6, 24), 0x1d1d1d, wx, 0.34, wz);
+    b.add(new THREE.TorusGeometry(0.28, 0.014, 4, 24), RED, wx, 0.34, wz);
+    for (let k = 0; k < 8; k++) b.add(new THREE.CylinderGeometry(0.007, 0.007, 0.56, 4), STEEL, wx, 0.34, wz, 0, 0, (k / 8) * Math.PI);
+    b.add(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 10), STEEL, wx, 0.34, wz, Math.PI / 2, 0, 0);
+  }
+  b.add(new THREE.CylinderGeometry(0.018, 0.018, 0.96, 6), STEEL, x + 0.2, 0.34, z, Math.PI / 2, 0, 0);
+  // stand legs at the far end, push handles at the near end
+  for (const s of [-1, 1]) {
+    b.box(x - 0.62, 0, z + s * 0.3, 0.04, 0.6, 0.04, 0x2a2a2a);
+    b.add(new THREE.CylinderGeometry(0.016, 0.016, 0.42, 6), STEEL, x + 0.92, 0.92, z + s * 0.3, 0, 0, Math.PI / 2 - 0.25);
+  }
+  b.add(new THREE.CylinderGeometry(0.022, 0.022, 0.66, 8), 0x2a2a2a, x + 1.12, 0.97, z, Math.PI / 2, 0, 0);
 }
 
 /** Üsküdar iskele: a pitched-roof pier hall with arches, clock and sign. */
@@ -460,34 +555,135 @@ export function kizKulesi(): THREE.Group {
 }
 
 // ------------------------------------------------------------------ vapur
-/** City ferry: white hull, dark band, cabins with windows, black-yellow funnel. */
+/** deck plan of the ferry: a fine bow at +x, a rounded stern at −x */
+function ferryPlan(len: number, beam: number): THREE.Shape {
+  const r = beam / 2;
+  const bow = len / 2;
+  const sh = new THREE.Shape();
+  sh.moveTo(-bow + 2.2, -r);
+  sh.lineTo(bow - 7, -r);
+  sh.quadraticCurveTo(bow - 0.6, -r * 0.75, bow, 0);
+  sh.quadraticCurveTo(bow - 0.6, r * 0.75, bow - 7, r);
+  sh.lineTo(-bow + 2.2, r);
+  sh.quadraticCurveTo(-bow, r, -bow, 0);
+  sh.quadraticCurveTo(-bow, -r, -bow + 2.2, -r);
+  return sh;
+}
+
+/**
+ * Şehir Hatları city ferry: white hull over a dark red bottom and black boot-top, an enclosed
+ * main deck with a band of windows, an upper deck with railings and life rings, a cabin with
+ * a wheelhouse at each end, the yellow funnel with its black top, masts and a name board.
+ * Parts are merged per material (≈8 draw calls a ferry).
+ */
 export function vapur(): THREE.Group {
   const g = new THREE.Group();
-  const white = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.6 });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x2a2f35, roughness: 0.6 });
-  const yellow = new THREE.MeshStandardMaterial({ color: 0xe8b23a, roughness: 0.5 });
-  const win = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
-  // parts are collected per material and merged: a whole ferry is 4 draw calls
+  const white = new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.45 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x1e2226, roughness: 0.6 });
+  const bottom = new THREE.MeshStandardMaterial({ color: 0x7a2a22, roughness: 0.7 });
+  const yellow = new THREE.MeshStandardMaterial({ color: 0xe9b33a, roughness: 0.45 });
+  const deck = new THREE.MeshStandardMaterial({ color: 0x9a8f80, roughness: 0.85 });
+  const glassM = new THREE.MeshStandardMaterial({ color: 0x24313b, roughness: 0.12, metalness: 0.6 });
+  const lit = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
+  const ring = new THREE.MeshStandardMaterial({ color: 0xe8642a, roughness: 0.6 });
   const parts = new Map<THREE.Material, THREE.BufferGeometry[]>();
-  const add = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number) => {
-    const gg = (geo.index ? geo.toNonIndexed() : geo).translate(x, y, z);
+  const add = (geo: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0, ry = 0) => {
+    let gg = geo.index ? geo.toNonIndexed() : geo;
+    if (ry) gg.rotateY(ry);
+    gg = gg.translate(x, y, z);
     for (const k of Object.keys(gg.attributes)) if (k !== 'position' && k !== 'normal') gg.deleteAttribute(k);
     parts.set(m, [...(parts.get(m) ?? []), gg]);
   };
-  const hull = new THREE.CylinderGeometry(4, 4, 34, 12, 1);
-  hull.rotateZ(Math.PI / 2);
-  hull.scale(1, 0.55, 1);
-  add(hull, white, 0, 1.2, 0);
-  add(new THREE.BoxGeometry(34.2, 0.5, 8.2), dark, 0, 0.6, 0);
-  add(new THREE.BoxGeometry(26, 2.6, 6.6), white, 0, 3.6, 0);
-  add(new THREE.BoxGeometry(18, 2.2, 5.6), white, -1, 6.0, 0);
-  for (let k = 0; k < 12; k++) for (const s of [-1, 1]) add(new THREE.BoxGeometry(1.2, 0.8, 0.05), win, -12 + k * 2.2, 3.8, s * 3.32);
-  add(new THREE.CylinderGeometry(0.9, 1.0, 3.2, 12), yellow, 2, 8.6, 0);
-  add(new THREE.CylinderGeometry(0.92, 0.92, 0.8, 12), dark, 2, 10.2, 0);
+  const slab = (len: number, beam: number, y0: number, h: number) => {
+    const e = new THREE.ExtrudeGeometry(ferryPlan(len, beam), { depth: h, bevelEnabled: false, curveSegments: 8 });
+    e.rotateX(-Math.PI / 2);
+    e.translate(0, y0, 0);
+    return e;
+  };
+  const L = 36;
+  const B = 8;
+  // hull: antifouling red below the water, a black boot-top, white topsides, a rubbing strake
+  add(slab(L - 1.2, B - 0.6, -1.2, 1.3), bottom);
+  add(slab(L - 0.4, B - 0.15, 0.1, 0.45), dark);
+  add(slab(L, B, 0.55, 1.65), white);
+  add(slab(L + 0.15, B + 0.15, 2.2, 0.14), dark);
+  // main deck cabin with a band of windows (every other one lit at dusk)
+  const C1 = { len: L - 5, beam: B - 0.9, y: 2.34, h: 2.3 };
+  add(slab(C1.len, C1.beam, C1.y, C1.h), white);
+  const winX0 = -C1.len / 2 + 2.6;
+  const winX1 = C1.len / 2 - 6.2;
+  const n1 = Math.floor((winX1 - winX0) / 1.45);
+  for (let k = 0; k <= n1; k++)
+    for (const sd of [-1, 1]) add(new THREE.BoxGeometry(1.05, 1.0, 0.06), (k * 7 + (sd > 0 ? 3 : 0)) % 5 < 2 ? lit : glassM, winX0 + k * 1.45, C1.y + 1.35, sd * (C1.beam / 2 + 0.01));
+  // upper deck: an overhanging plate, railings with life rings, the upper cabin
+  const DY = C1.y + C1.h;
+  add(slab(L - 2.4, B - 0.2, DY, 0.16), white);
+  add(slab(L - 2.6, B - 0.4, DY + 0.16, 0.02), deck);
+  const railY = DY + 0.18;
+  const rx0 = -(L - 2.4) / 2 + 2.2;
+  const rx1 = (L - 2.4) / 2 - 7;
+  for (const sd of [-1, 1]) {
+    const z = sd * ((B - 0.2) / 2 - 0.08);
+    add(new THREE.BoxGeometry(rx1 - rx0, 0.06, 0.06), white, (rx0 + rx1) / 2, railY + 1.0, z);
+    add(new THREE.BoxGeometry(rx1 - rx0, 0.03, 0.03), white, (rx0 + rx1) / 2, railY + 0.5, z);
+    for (let x = rx0; x <= rx1 + 0.01; x += 1.5) add(new THREE.BoxGeometry(0.05, 1.0, 0.05), white, x, railY + 0.5, z);
+    for (const x of [rx0 + 3, rx1 - 3]) {
+      const t = new THREE.TorusGeometry(0.32, 0.08, 6, 14);
+      add(t, ring, x, railY + 0.62, z + sd * 0.07);
+    }
+  }
+  const C2 = { len: L - 15, beam: B - 2.2, y: DY + 0.18, h: 2.1 };
+  add(slab(C2.len, C2.beam, C2.y, C2.h), white);
+  const n2 = Math.floor((C2.len - 7) / 1.3);
+  for (let k = 0; k <= n2; k++)
+    for (const sd of [-1, 1]) add(new THREE.BoxGeometry(0.9, 0.85, 0.06), (k * 3 + (sd > 0 ? 1 : 0)) % 4 === 0 ? lit : glassM, -C2.len / 2 + 2.2 + k * 1.3, C2.y + 1.2, sd * (C2.beam / 2 + 0.01));
+  add(slab(C2.len + 0.6, C2.beam + 0.6, C2.y + C2.h, 0.12), white);
+  // wheelhouses fore and aft with a wrap of dark windows
+  for (const sx of [-1, 1]) {
+    const wx = sx * (C2.len / 2 - 2.6);
+    add(new THREE.BoxGeometry(2.6, 1.5, C2.beam - 0.6), white, wx, C2.y + C2.h + 0.87, 0);
+    add(new THREE.BoxGeometry(2.64, 0.6, C2.beam - 0.9), glassM, wx, C2.y + C2.h + 1.15, 0);
+    add(new THREE.BoxGeometry(2.9, 0.1, C2.beam - 0.3), dark, wx, C2.y + C2.h + 1.67, 0);
+  }
+  // the funnel: yellow, black top, a little rake
+  const funnel = new THREE.CylinderGeometry(0.95, 1.1, 3.4, 16);
+  funnel.scale(1.5, 1, 1);
+  const top = C2.y + C2.h + 0.12;
+  add(funnel, yellow, -1, top + 1.7, 0);
+  const cap = new THREE.CylinderGeometry(0.97, 0.95, 0.8, 16);
+  cap.scale(1.5, 1, 1);
+  add(cap, dark, -1, top + 3.8, 0);
+  // masts with lights, a flag staff at the stern
+  add(new THREE.CylinderGeometry(0.06, 0.08, 4.2, 6), white, C2.len / 2 - 2.6, top + 3.5, 0);
+  add(new THREE.CylinderGeometry(0.05, 0.07, 3.2, 6), white, -C2.len / 2 + 2.6, top + 3.0, 0);
+  add(new THREE.SphereGeometry(0.12, 8, 6), lit, C2.len / 2 - 2.6, top + 5.65, 0);
+  add(new THREE.CylinderGeometry(0.04, 0.05, 3, 6), white, -L / 2 + 1.6, DY + 1.6, 0);
+  // bow and stern open decks get a rail too
+  for (const [x0, x1] of [
+    [L / 2 - 7, L / 2 - 1.2],
+    [-L / 2 + 0.6, -L / 2 + 2.2],
+  ] as const)
+    for (const sd of [-1, 1]) add(new THREE.BoxGeometry(x1 - x0, 0.05, 0.05), white, (x0 + x1) / 2, 2.36 + 1.0, sd * (B / 2 - 0.25 - (x0 > 0 ? (x1 - x0) * 0.25 : 0)));
   for (const [m, geos] of parts) {
     const o = new THREE.Mesh(mergeGeometries(geos), m);
-    o.castShadow = m !== win;
+    o.castShadow = m !== lit && m !== glassM;
+    o.receiveShadow = true;
     g.add(o);
+  }
+  // name boards on the bow, both sides
+  const name = canvasTex(512, 96, (ctx) => {
+    ctx.clearRect(0, 0, 512, 96);
+    ctx.fillStyle = '#1d3a63';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 72px "Baloo 2", sans-serif';
+    ctx.fillText('ÜSKÜDAR', 256, 54);
+  });
+  for (const sd of [-1, 1]) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 0.64), new THREE.MeshStandardMaterial({ map: name, transparent: true, roughness: 0.5 }));
+    m.position.set(L / 2 - 8.5, 1.45, sd * (B / 2 + 0.02));
+    m.rotation.y = sd > 0 ? 0 : Math.PI;
+    g.add(m);
   }
   return g;
 }
