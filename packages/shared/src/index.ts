@@ -11,3 +11,4 @@ export * from './vapur';
 export * from './tv';
 export * from './tvStream';
 export * from './achievements';
+export * from './dayclock';

@@ -114,3 +114,9 @@
 - Client: `ui/Achievements.tsx` + `achievements.css` (panel, gold toast, HUD button), lobby button with count (lazy panel), `achievementChime` in audio, `invited` flag on invite-link joins.
 - Tests: `packages/shared/test/achievements.test.ts` (5), `apps/server/test/achievements.test.ts` (4: store unlock/pay once, bot match unlocks "İlk maç" once with exact money, two tabs → one market unlock, progress persists on rejoin). The wallet test now expects the market reward. 150 tests total; lobby 131 KB gzip.
 - Screenshots: /tmp/claude-0/agent-shots/achievements/.
+## Day–night cycle (2026-10-07, agent worktree)
+- Shared: `dayclock.ts` (`dayTime`, `dayMsForHour`, `dayPhase`, `simitOpen`, `formatDayTime`, `DAY_SEGMENTS`, `DAY_MS`…); 7 unit tests.
+- Client: `game/dayNight.ts` (lighting keyframes + `sampleLight`; 5 unit tests incl. "evening key = original look", smoothness, no allocation), `game/dayHour.ts` (`worldHour` + `?saat=` pin, HUD label), `kahveWorld` applies it twice a second (sun/moon, sky with stars and moon, fog, hemisphere, exposure, environment, sea, skyline tint + city-lights overlay, lamp glow, Kız Kulesi floodlight, storefront glass, light pools), gulls/pigeons roost, simitçi hidden at night, `Game` bloom per hour + `pinHour`, `ui/kahve/DayClock.tsx` HUD chip, crickets in `audio.ts`.
+- 161 tests (12 new); typecheck and build OK. The lobby is 134 KB gzip (entry +0.2 KB). The total stays under budget.
+- Frame time (Playwright + SwiftShader, Orta, 1200×640, same sahil camera; median rAF): before 1033 / 1033 ms, after 1050 ms at 19:00 and 1067 ms at 23:00. That is within noise, ≤ +3 % at night.
+- Screenshots: /tmp/claude-0/agent-shots/daynight/ (sahil 06/07/13/19/20/23, salon and kıraathane at 23:00, `?saat=21.5`).

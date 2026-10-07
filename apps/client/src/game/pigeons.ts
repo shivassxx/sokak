@@ -92,6 +92,8 @@ interface Bird {
 
 export class Pigeons {
   private birds: Bird[] = [];
+  /** night: every other pigeon has gone to roost, the rest sit still with the head tucked in */
+  resting = false;
 
   constructor(scene: THREE.Scene, homes: THREE.Vector3[]) {
     homes.forEach((home, i) => {
@@ -139,8 +141,13 @@ export class Pigeons {
         }
         continue;
       }
-      // on the ground: peck, sometimes walk a few steps with the head bobbing, turn
-      if (b.walk) {
+      // night: every other bird has gone to roost (hidden), the rest doze with the head tucked in
+      b.g.visible = !(this.resting && i % 2 === 1);
+      if (this.resting) {
+        b.walk = null;
+        head.position.set(0, 0.235, -0.1);
+      } else if (b.walk) {
+        // on the ground: peck, sometimes walk a few steps with the head bobbing, turn
         const d = b.walk.clone().sub(b.g.position).setY(0);
         const l = d.length();
         if (l < 0.05) b.walk = null;
@@ -155,6 +162,7 @@ export class Pigeons {
         head.position.y = 0.27 - Math.max(0, Math.sin(b.t * 3 + i)) * 0.09;
         if (hash(Math.floor(b.t * 0.5) * 13 + i) > 0.93) b.walk = new THREE.Vector3(b.home.x + (hash(b.t + i) - 0.5) * 2.5, b.home.y, b.home.z + (hash(b.t * 2 + i) - 0.5) * 2.5);
       }
+      if (!b.g.visible) continue;
       for (const m of movers) {
         const dx = b.g.position.x - m.x;
         const dz = b.g.position.z - m.z;

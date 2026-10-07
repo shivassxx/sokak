@@ -7,6 +7,7 @@ import {
   BOARD_REACH,
   BOARD_SPOT,
   vapurState,
+  simitOpen,
   type VapurPhase,
   HAND_OPTIONS,
   TEAM_COLORS,
@@ -56,7 +57,8 @@ import {
   tvTeam,
 } from '@sokak/shared';
 import type { Game } from '../../game/Game';
-import { footsteps, goalRoar, gullCry, play, seaside } from '../../game/audio';
+import { footsteps, goalRoar, gullCry, nightAmbience, play, seaside } from '../../game/audio';
+import { DayClock } from './DayClock';
 import { useToasts } from '../toasts';
 import { AnnounceBanner } from './AnnounceBanner';
 import { TvWatch } from './TvWatch';
@@ -618,7 +620,8 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       };
       TABLES.forEach((t, i) => consider('table', i, Math.hypot(pos.x - t.x, pos.z - t.z), SIT_REACH));
       TAVLA_TABLES.forEach((t, i) => consider('tavla', i, Math.hypot(pos.x - t.x, pos.z - t.z), TAVLA_REACH));
-      SHOPS.forEach((sh, i) => !sh.deck && consider('shop', i, Math.hypot(pos.x - sh.x, pos.z - sh.z), SHOP_REACH));
+      const simitciOpen = simitOpen(game.daylight().hour);
+      SHOPS.forEach((sh, i) => !sh.deck && (simitciOpen || sh.id !== 'simitci') && consider('shop', i, Math.hypot(pos.x - sh.x, pos.z - sh.z), SHOP_REACH));
       const taken = new Set(Object.values(v.players).map((p) => p.spot));
       SIT_SPOTS.forEach((sp, i) => !taken.has(i) && consider('spot', i, Math.hypot(pos.x - sp.x, pos.z - sp.z), SPOT_REACH));
       const b = best as { kind: 'table' | 'shop' | 'spot' | 'tavla'; i: number } | null;
@@ -644,15 +647,19 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       // faint through the glass in the hall, full on the promenade
       const lv = pos.z < 0 ? 0.06 : Math.min(1, 0.15 + Math.max(0, pos.z - 2) / 26);
       seaside(lv);
+      // night: crickets outside (faint in the hall), and the gulls mostly asleep
+      const night = game.daylight().night;
+      nightAmbience(Math.max(0, night - 0.3) * (pos.z < 0 ? 0.25 : 1.4));
       const now = performance.now();
       if (pos.z > 12 && now > nextGull) {
-        gullCry(0.25 + lv * 0.5, Math.random() * 2 - 1);
+        if (Math.random() > night * 0.75) gullCry(0.25 + lv * 0.5, Math.random() * 2 - 1);
         nextGull = now + 7000 + Math.random() * 14000;
       }
     }, 400);
     return () => {
       clearInterval(iv);
       seaside(0);
+      nightAmbience(0);
       footsteps(0, false);
       game.events = {};
     };
@@ -760,6 +767,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
           </button>
         )}
         {view?.name && <span className="pill salon-name">📍 {view.name}</span>}
+        {game && <DayClock game={game} />}
         <button className="btn small" title="Arkadaşını davet et" onClick={() => void invite()}>
           🔗<span className="lbl"> Davet et</span>
         </button>

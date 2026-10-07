@@ -29,6 +29,7 @@ export { loadCharacterKit, loadRealKit } from './character';
 import { Input } from './input';
 import type { Mover, World } from './world';
 import { PostFX } from './postfx';
+import { pinHour } from './dayHour';
 import { TIERS, currentTier, onQualityChange, qualityFrame, type Tier } from './quality';
 import type { KahveScene } from './kahveScene';
 
@@ -155,6 +156,7 @@ export class Game {
   private post: PostFX;
   /** the shadow-casting sun (found in the scene; its box follows the player) */
   private sun: THREE.DirectionalLight | null = null;
+  private bloomNow = 0.28;
   private tier: Tier;
   private offQuality: () => void;
   private world: World;
@@ -355,6 +357,17 @@ export class Game {
       } else this.prevBody = cloneBody(b);
       this.body = b;
     }
+  }
+
+  // ------------------------------------------------------------ the day–night cycle
+  /** Current game hour and how much it is night (0 day … 1 night), as lit in the scene. */
+  daylight(): { hour: number; night: number } {
+    return this.kahve?.daylight ?? { hour: 18.5, night: 0 };
+  }
+
+  /** Dev: pin the game hour (null = follow the shared world clock again). */
+  pinHour(h: number | null): void {
+    pinHour(h);
   }
 
   // ------------------------------------------------------------ the vapur
@@ -839,6 +852,9 @@ export class Game {
     if (this.body && this.prevBody) movers.push({ x: this.body.x, z: this.body.z, speed: Math.hypot(this.body.x - this.prevBody.x, this.body.z - this.prevBody.z) / SIM_DT });
     for (const r of this.remotes.values()) if (r.char.root.visible) movers.push({ x: r.prevX, z: r.prevZ, speed: 4 });
     this.world.update(dt, movers);
+    // lamps bloom more after dark (the day–night cycle only changes this a couple of times a second)
+    const bloom = this.kahve?.daylight.bloom ?? this.bloomNow;
+    if (bloom !== this.bloomNow) this.post.setBloom((this.bloomNow = bloom));
     this.onFrame?.(dt);
     if (!NO_RENDER) this.post.render(dt);
     qualityFrame(rawDt);

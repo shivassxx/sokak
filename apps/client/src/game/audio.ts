@@ -429,3 +429,55 @@ export function gullCry(volume = 0.5, pan = 0): void {
     o.stop(t + 0.26);
   }
 }
+
+let crickets: { level: GainNode; oscs: OscillatorNode[] } | null = null;
+/**
+ * Crickets on a summer night, synthesized: two high sine "singers", each gated by a fast pulse
+ * train (the chirp's syllables) and a slower one (chirp, pause). `level` 0..1; 0 stops them.
+ */
+export function nightAmbience(level: number): void {
+  const c = ctx;
+  if (!c || !ambienceBus) return;
+  if (level <= 0.01) {
+    if (crickets) {
+      for (const o of crickets.oscs) o.stop();
+      crickets.level.disconnect();
+      crickets = null;
+    }
+    return;
+  }
+  if (!crickets) {
+    const level = c.createGain();
+    level.gain.value = 0;
+    level.connect(ambienceBus);
+    const oscs: OscillatorNode[] = [];
+    // gain = 0.5 + 0.5·square(t): an on/off gate
+    const gate = (rate: number) => {
+      const g = c.createGain();
+      g.gain.value = 0.5;
+      const lfo = c.createOscillator();
+      lfo.type = 'square';
+      lfo.frequency.value = rate;
+      const depth = c.createGain();
+      depth.gain.value = 0.5;
+      lfo.connect(depth).connect(g.gain);
+      lfo.start();
+      oscs.push(lfo);
+      return g;
+    };
+    for (const [freq, pulse, chirp, pan] of [
+      [4350, 31, 1.7, -0.5],
+      [4710, 27, 1.3, 0.55],
+    ] as const) {
+      const tone = c.createOscillator();
+      tone.frequency.value = freq;
+      const p = c.createStereoPanner();
+      p.pan.value = pan;
+      tone.connect(gate(pulse)).connect(gate(chirp)).connect(p).connect(level);
+      tone.start();
+      oscs.push(tone);
+    }
+    crickets = { level, oscs };
+  }
+  crickets.level.gain.setTargetAtTime(Math.min(1, level) * 0.05, c.currentTime, 0.8);
+}
