@@ -16,6 +16,8 @@ export interface Wallet {
   won?: number;
   /** last "veresiye" (so leaving and coming back doesn't skip the wait) */
   lastCredit?: number;
+  /** today's mission progress (shared by every tab of the device) */
+  missions?: { day: string; progress: Record<string, number> };
 }
 
 const KEEP_MS = 60 * 24 * 3600 * 1000;

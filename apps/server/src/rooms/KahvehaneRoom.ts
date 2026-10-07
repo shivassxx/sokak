@@ -3,6 +3,7 @@ import {
   BET_OPTIONS,
   CREDIT_AMOUNT,
   CREDIT_COOLDOWN_MS,
+  DAILY_MISSIONS,
   EMOTES,
   FISH,
   FALSE_ACCUSE_FINE,
@@ -23,6 +24,9 @@ import {
   SHOP_ITEMS,
   SHOP_REACH,
   bySea,
+  missionDay,
+  type MissionId,
+  type MissionState,
   SIT_REACH,
   SIT_SPOTS,
   SKINS,
@@ -91,6 +95,8 @@ interface Avatar {
   /** what this session last wrote to the wallet: saves add the difference, so two tabs
       on one device can't overwrite each other's losses */
   saved: { money: number; played: number; won: number };
+  /** mission progress for players without a device wallet */
+  missions: MissionState;
 }
 
 interface TableRuntime {
@@ -260,7 +266,9 @@ export class KahvehaneRoom extends Room<KahveState> {
       castZ: 0,
       device,
       saved: { money: p.money, played: p.played, won: p.won },
+      missions: { day: missionDay(), progress: {} },
     });
+    p.missions = JSON.stringify(this.missionState(p.id));
     if (bonus) this.clock.setTimeout(() => this.avatars.get(p.id)?.client?.send(KMSG.notice, `🎁 Günlük bonus: +${bonus} ₺. Hoş geldin!`), 1500);
     if (options.quick) this.quickSeat(p.id, undefined);
   }
@@ -289,6 +297,43 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.removePlayer(p.id);
   }
 
+  /** Today's missions of a player: kept in the device wallet (one state for all its tabs). */
+  private missionState(id: string): MissionState {
+    const a = this.avatars.get(id);
+    const store = this.cls.wallets;
+    const today = missionDay();
+    const w = a?.device && store ? store.get(a.device) : null;
+    const m = w ? w.missions : a?.missions;
+    return m && m.day === today ? { day: m.day, progress: { ...m.progress } } : { day: today, progress: {} };
+  }
+
+  /** Count towards a daily mission; completing one pays its reward right away. */
+  private mission(id: string, kind: MissionId, n = 1): void {
+    const a = this.avatars.get(id);
+    const p = this.state.players.get(id);
+    const def = DAILY_MISSIONS.find((d) => d.id === kind);
+    // missions belong to a device wallet (nothing to keep them in otherwise)
+    if (!a || !p || p.isBot || !def || !a.device || !this.cls.wallets) return;
+    const m = this.missionState(id);
+    const before = m.progress[kind] ?? 0;
+    if (before >= def.goal) return;
+    m.progress[kind] = Math.min(def.goal, before + n);
+    a.missions = m;
+    const store = this.cls.wallets;
+    const w = a.device && store ? store.get(a.device) : null;
+    if (w && a.device && store) store.set(a.device, { ...w, missions: m });
+    if (m.progress[kind] === def.goal) {
+      p.money += def.reward;
+      a.client?.send(KMSG.notice, `📋 Görev tamam: ${def.text} (+${def.reward} ₺)`);
+      this.saveWallet(id);
+    }
+    // every tab of the device sees the new progress
+    for (const [oid, oa] of this.avatars) if (oid === id || (a.device && oa.device === a.device)) {
+      const op = this.state.players.get(oid);
+      if (op) op.missions = JSON.stringify(m);
+    }
+  }
+
   /** Add this session's change since its last save to the device wallet (only when something changed). */
   private saveWallet(id: string): void {
     const a = this.avatars.get(id);
@@ -302,6 +347,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const credit = a.lastCreditAt > (w?.lastCredit ?? -1e12) ? a.lastCreditAt : w?.lastCredit;
     if (!dm && !dp && !dw && credit === w?.lastCredit && w) return;
     store.set(a.device, {
+      ...(w ?? {}),
       money: Math.max(0, (w?.money ?? a.saved.money) + dm),
       lastBonus: w?.lastBonus ?? Date.now(),
       seen: Date.now(),
@@ -519,6 +565,7 @@ export class KahvehaneRoom extends Room<KahveState> {
         pl.played = Math.min(65535, pl.played + 1);
         if (winners.includes(s)) pl.won = Math.min(65535, pl.won + 1);
         this.saveWallet(pl.id);
+        this.mission(pl.id, 'match');
       }
       t.lastMatch = JSON.stringify({ totals, winners, pot: t.pot, payout });
       if (this.cls.rng() < 0.6) this.clock.setTimeout(() => this.botSay(ti, 'Bir el daha!'), 1800);
@@ -723,7 +770,10 @@ export class KahvehaneRoom extends Room<KahveState> {
     const msg: ServedMsg = { from: id, to, item: item.id };
     this.broadcast(KMSG.served, msg);
     // bots say thanks for a round on the house
-    if (m.to === 'table' && p.table >= 0) this.clock.setTimeout(() => this.botSay(p.table, 'Eyvallah!'), 1500);
+    if (m.to === 'table' && p.table >= 0) {
+      this.clock.setTimeout(() => this.botSay(p.table, 'Eyvallah!'), 1500);
+      this.mission(id, 'tea');
+    }
   }
 
   // ------------------------------------------------------------ lobby helpers
@@ -811,6 +861,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.uses--;
     if (p.uses <= 0) p.holding = '';
     this.broadcast(KMSG.used, { id, item } satisfies UsedMsg);
+    // by the water a simit goes to the gulls (the client shows the dive)
+    if (item === 'simit' && bySea(a.body.x, a.body.z)) this.mission(id, 'gulls');
   }
 
   /** Q with a rod: cast → (a bite after a few seconds) → pull in time to land something. */
@@ -853,6 +905,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const fish = FISH.find((f) => (r -= f.w) < 0) ?? FISH[0]!;
     spend();
     this.broadcast(KMSG.used, { id, item: 'olta', fish: fish.id } satisfies UsedMsg);
+    if (fish.id !== 'ayakkabi') this.mission(id, 'fish');
   }
 
   private sitSpot(id: string, raw: unknown): void {

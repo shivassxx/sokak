@@ -167,6 +167,8 @@ export interface KPlayerView {
   /** finished matches / wins (kept with the device wallet) */
   played: number;
   won: number;
+  /** today's mission progress (JSON MissionState) */
+  missions: string;
 }
 
 export interface KTableView {

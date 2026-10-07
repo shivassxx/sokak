@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { matchMaker } from '@colyseus/core';
 import { NetBot } from '@sokak/bots/client';
-import { FISH, KAHVE_ROOM, KMSG, MENU, MSG, QUICK_CHAT_OKEY, SEA_Z, SHOPS, SHOP_ITEMS, SIT_SPOTS, START_MONEY, TABLES, TABLE_COUNT, type TableView } from '@sokak/shared';
+import { DAILY_MISSIONS, FISH, KAHVE_ROOM, KMSG, MENU, MSG, QUICK_CHAT_OKEY, SEA_Z, SHOPS, SHOP_ITEMS, SIT_SPOTS, START_MONEY, TABLES, TABLE_COUNT, type TableView } from '@sokak/shared';
 import { startServer, type StartedServer } from '../src/app';
 import { until, sleep } from './helpers';
 import type { KahvehaneRoom } from '../src/rooms/KahvehaneRoom';
@@ -301,6 +301,32 @@ describe('kahvehane', () => {
     await until(() => !!st(c).players?.get(c.id));
     expect(me(c).money).toBe(START_MONEY - 300);
     await c.leave();
+  });
+
+  it('daily missions: tea for the table and a match count, rewards are paid once', async () => {
+    const device = '12'.repeat(16);
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Gorevci', device, quick: true });
+    await until(() => (st(a).players?.get(a.id)?.table ?? -1) >= 0);
+    const ti = me(a).table;
+    a.room.send(KMSG.tableBot, {});
+    await until(() => [...table(a, ti).seats].filter(Boolean).length === 2);
+    const before = me(a).money;
+    a.room.send(KMSG.order, { item: 'cay', to: 'table' });
+    const tea = DAILY_MISSIONS.find((d) => d.id === 'tea')!;
+    const cost = MENU.find((m) => m.id === 'cay')!.price * 2;
+    await until(() => me(a).money === before - cost + tea.reward);
+    expect(JSON.parse(me(a).missions).progress.tea).toBe(1);
+    // a second round of tea pays no second reward
+    await sleep(1600);
+    a.room.send(KMSG.order, { item: 'cay', to: 'table' });
+    await until(() => me(a).money === before - cost * 2 + tea.reward);
+    // the same device in another tab sees today's progress
+    const b = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Gorevci2', device });
+    await until(() => !!st(b).players?.get(b.id));
+    expect(JSON.parse(me(b).missions).progress.tea).toBe(1);
+    a.room.send(KMSG.stand);
+    await a.leave();
+    await b.leave();
   });
 
   it('lobby leaderboard: the richest online players of public salons', async () => {

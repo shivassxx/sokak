@@ -24,6 +24,8 @@ export class KPlayer extends Schema {
   /** finished matches / wins (device wallet), the level is derived from them */
   @type('uint16') played = 0;
   @type('uint16') won = 0;
+  /** today's mission progress, JSON MissionState */
+  @type('string') missions = '';
 }
 
 export class KTable extends Schema {

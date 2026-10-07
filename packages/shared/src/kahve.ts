@@ -312,6 +312,25 @@ export const FISH: readonly { id: string; name: string; emoji: string; w: number
 
 export const START_MONEY = 1000;
 
+/** Daily missions: small goals around the kahve, rewarded with play money once a day. */
+export const DAILY_MISSIONS: readonly { id: string; text: string; goal: number; reward: number }[] = [
+  { id: 'match', text: 'Bir okey maçı bitir', goal: 1, reward: 150 },
+  { id: 'tea', text: 'Masana çay ısmarla', goal: 1, reward: 40 },
+  { id: 'fish', text: 'Sahilde bir balık tut', goal: 1, reward: 60 },
+  { id: 'gulls', text: 'Martılara 3 kez simit at', goal: 3, reward: 40 },
+];
+export type MissionId = 'match' | 'tea' | 'fish' | 'gulls';
+/** Progress of today's missions (JSON in the player schema). */
+export interface MissionState {
+  /** the day (Istanbul time) this progress belongs to, e.g. "2026-10-07" */
+  day: string;
+  progress: Record<string, number>;
+}
+/** Today's date in Istanbul (UTC+3) — missions reset at local midnight. */
+export function missionDay(now = Date.now()): string {
+  return new Date(now + 3 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
 /** Level from finished matches and wins: quick at first, slower later. */
 export function levelOf(played: number, won: number): number {
   return 1 + Math.floor(Math.sqrt((played * 10 + won * 25) / 40));
