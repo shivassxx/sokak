@@ -41,5 +41,6 @@
 - Verified with Playwright: lobby → quick play → bots → 5 draw/discard turns; reload mid-match keeps the hand; walk to market, buy, smoke; simitçi → bench → eat (seen from a second client); ledge sitting; invite link to a private salon; voice between two browser contexts; phone-landscape lobby/hall.
 - Later in the night: rack arrangement kept across a reload, gull feeding, fishing (server-timed bites, float + line rendering, catch announcements; NPC rods were pointing backwards — rod rotation solved numerically for the 'fish' pose).
 - Spectator mode for running tables (corner camera, live scores panel).
+- Kahve sounds: footsteps, synthesized surf by distance to the sea, gull cries (also when feeding them).
 - Levels from finished matches/wins (device wallet), lobby profile line, ⭐ badge in the HUD and on okey name plates, level-up toast.
 - 113 tests; build OK; 2.18 MB gzip total, 136 KB before the lobby.

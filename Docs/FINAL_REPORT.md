@@ -282,6 +282,7 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
   - Hemen çekersen istavrit, çinekop, lüfer, palamut ya da bazen eski bir ayakkabı çıkıyor. Tuttuğun şey salondaki herkese duyuruluyor.
   - Erken çekersen ya da geç kalırsan balık kaçıyor. Yürüyüp uzaklaşırsan oltayı topluyorsun.
   - Balıkçı amcaların oltaları ters duruyordu, o da düzeltildi.
+- **Sesler:** kahvehane dünyasında artık adım sesleri var. Sahile yaklaştıkça dalga sesi artıyor, ara sıra martılar çığlık atıyor; simit atınca martı bağırarak geliyor. Bu sesler dosya indirmeden, tarayıcıda üretiliyor.
 - Banklara, taburelere ve sahil duvarına **E** ile oturabilirsin. Emote, hazır sohbet cümleleri ("Sahile inelim mi?", "Manzaraya bak!") ve çay ısmarlama dışarıda da çalışıyor. Çaycı siparişi nerede olursan ol getiriyor.
 
 **Online oyun özellikleri**

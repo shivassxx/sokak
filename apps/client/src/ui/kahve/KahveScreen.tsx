@@ -35,7 +35,7 @@ import {
   type TeleportMsg,
 } from '@sokak/shared';
 import type { Game } from '../../game/Game';
-import { play } from '../../game/audio';
+import { footsteps, gullCry, play, seaside } from '../../game/audio';
 import { useToasts } from '../Hud';
 import { Social } from '../Social';
 import { TouchControls, isTouch } from '../TouchControls';
@@ -188,6 +188,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
           if (who) game.remoteEmote(who, 'point');
           else game.playLocalEmote('point');
           game.kahve?.feedGulls(at!.x, at!.z);
+          setTimeout(() => gullCry(0.8), 700);
         } else game.useItem(who, item.use);
       }),
       room.onMessage(MSG.emote, (e: EmoteMsg) => (e.id === me ? game.playLocalEmote(e.e) : game.remoteEmote(e.id, e.e))),
@@ -435,6 +436,35 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     }, 200);
     return () => clearInterval(iv);
   }, [game, me]);
+
+  // sounds: footsteps, the sea getting louder towards the sahil, gulls now and then
+  useEffect(() => {
+    if (!game) return;
+    game.events = {
+      onJump: () => play('jump'),
+      onLand: () => play('land'),
+      onStep: (speed, sprinting) => footsteps(speed, sprinting),
+    };
+    let nextGull = performance.now() + 6000;
+    const iv = setInterval(() => {
+      const pos = game.localPosition();
+      if (!pos) return;
+      // faint through the glass in the hall, full on the promenade
+      const lv = pos.z < 0 ? 0.06 : Math.min(1, 0.15 + Math.max(0, pos.z - 2) / 26);
+      seaside(lv);
+      const now = performance.now();
+      if (pos.z > 12 && now > nextGull) {
+        gullCry(0.25 + lv * 0.5, Math.random() * 2 - 1);
+        nextGull = now + 7000 + Math.random() * 14000;
+      }
+    }, 400);
+    return () => {
+      clearInterval(iv);
+      seaside(0);
+      footsteps(0, false);
+      game.events = {};
+    };
+  }, [game]);
 
   // E = interact with the nearby thing, Q = use the item in hand, moving gets you off a bench
   useEffect(() => {

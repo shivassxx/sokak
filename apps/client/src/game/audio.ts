@@ -242,6 +242,88 @@ export function ambience(on: boolean): void {
   ambienceSrc.start();
 }
 
+let surf: { level: GainNode; nodes: AudioNode[]; src: AudioBufferSourceNode; lfo: OscillatorNode } | null = null;
+/**
+ * Waves on the sahil, synthesized (no download): looping brown noise through a low-pass,
+ * swelling slowly. `level` 0..1 follows how close the listener is to the water; 0 stops it.
+ */
+export function seaside(level: number): void {
+  const c = ctx;
+  if (!c || !ambienceBus) return;
+  if (level <= 0) {
+    if (surf) {
+      surf.src.stop();
+      surf.lfo.stop();
+      surf.level.disconnect();
+      surf = null;
+    }
+    return;
+  }
+  if (!surf) {
+    const len = c.sampleRate * 4;
+    const buf = c.createBuffer(1, len, c.sampleRate);
+    const d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+      d[i] = last * 3.2;
+    }
+    // smooth the loop seam
+    for (let i = 0; i < 2000; i++) d[len - 1 - i] = d[len - 1 - i]! * (i / 2000) + d[i]! * (1 - i / 2000);
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    src.loop = true;
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 520;
+    const swell = c.createGain();
+    swell.gain.value = 0.55;
+    const lfo = c.createOscillator();
+    lfo.frequency.value = 0.11;
+    const depth = c.createGain();
+    depth.gain.value = 0.4;
+    lfo.connect(depth).connect(swell.gain);
+    const level = c.createGain();
+    level.gain.value = 0;
+    src.connect(lp).connect(swell).connect(level).connect(ambienceBus);
+    src.start();
+    lfo.start();
+    surf = { level, nodes: [lp, swell, depth], src, lfo };
+  }
+  surf.level.gain.setTargetAtTime(Math.min(1, level) * 1.6, c.currentTime, 0.6);
+}
+
+/** A seagull's cry: a few squeaky falling "kyow" calls. */
+export function gullCry(volume = 0.5, pan = 0): void {
+  const c = ctx;
+  if (!c || !sfxBus || muted) return;
+  const t0 = c.currentTime;
+  const n = 2 + Math.floor(Math.random() * 3);
+  const base = 1300 + Math.random() * 400;
+  const p = c.createStereoPanner();
+  p.pan.value = Math.max(-1, Math.min(1, pan));
+  p.connect(sfxBus);
+  for (let k = 0; k < n; k++) {
+    const t = t0 + k * (0.26 + Math.random() * 0.08);
+    const o = c.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(base * 1.25, t);
+    o.frequency.linearRampToValueAtTime(base * 1.6, t + 0.05);
+    o.frequency.exponentialRampToValueAtTime(base * 0.8, t + 0.22);
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = base * 1.4;
+    bp.Q.value = 2.5;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(volume * 0.22, t + 0.03);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+    o.connect(bp).connect(g).connect(p);
+    o.start(t);
+    o.stop(t + 0.26);
+  }
+}
+
 /** Speak a Turkish phrase if the browser has a voice (optional sugar). */
 export function say(text: string, rate = 1.05): void {
   if (muted) return;
