@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, REGULAR_SEATS, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, tavlaSeatPosition, VAPUR_DECK_Y, type TableView, type TvBroadcast } from '@sokak/shared';
+import { simitOpen, CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, REGULAR_SEATS, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, tavlaSeatPosition, VAPUR_DECK_Y, type TableView, type TvBroadcast } from '@sokak/shared';
 import type { TavlaView } from '@sokak/tavla';
 import { BOARD_Y, TavlaPieces } from './tavlaBoard';
 import type { OkeyCtx } from '@sokak/okey';
@@ -11,6 +11,7 @@ import { buildKahveWorld } from './kahveWorld';
 import { NavGrid } from './navGrid';
 import { TILE_H, TILE_T, TILE_W, TileField, cellOf, setAtlasOkey } from './okeyTiles';
 import { initialQuality } from './postfx';
+import type { LightState } from './dayNight';
 
 /**
  * The okey world's live parts on top of `kahveWorld`: real tiles on every
@@ -35,8 +36,10 @@ export interface KahveScene extends World {
   follow(x: number, z: number): void;
   /** throw a piece of simit to the gulls from (x, z); y = feet height (the vapur's deck) */
   feedGulls(x: number, z: number, y?: number): void;
-  /** server clock for the shared vapur timeline and the TV */
+  /** server clock for the shared vapur timeline, the TV and the day–night cycle */
   setClock(clock: () => number): void;
+  /** the day–night cycle's current lighting (hour, night factor, bloom) */
+  readonly daylight: Readonly<LightState>;
   /** the derby on the kıraathane TVs (null = normal programme) */
   setTv(b: TvBroadcast | null): void;
   /** a goal on the TV: the regulars jump up and the çaycı waves */
@@ -377,10 +380,13 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     const f = addRegular(x, 0, SEA_Z - 0.55, Math.PI, 'fish', { color: c, skin: 1, hat: 1 }, { grey: x > 0, shirtStyle: 3 });
     f.hold(fishingRod());
   }
-  // shop keepers
+  // shop keepers (the simitçi goes home at night)
+  let simitci: Character | null = null;
   for (const sh of SHOPS) {
     if (sh.deck) continue;
-    addRegular(sh.seller.x, 0, sh.seller.z, sh.seller.yaw, 'stand', { color: sh.id === 'market' ? '#2e8b57' : '#f4f1e8', skin: 2, hat: sh.id === 'simitci' ? 1 : 0 }, { shirtStyle: 3, apron: true, real: sh.id === 'market' ? 'm01' : 'm08' }).setLabel(sh.id === 'market' ? 'Bakkal Hasan' : 'Simitçi Cemal', '#ffe7a8');
+    const keeper = addRegular(sh.seller.x, 0, sh.seller.z, sh.seller.yaw, 'stand', { color: sh.id === 'market' ? '#2e8b57' : '#f4f1e8', skin: 2, hat: sh.id === 'simitci' ? 1 : 0 }, { shirtStyle: 3, apron: true, real: sh.id === 'market' ? 'm01' : 'm08' });
+    keeper.setLabel(sh.id === 'market' ? 'Bakkal Hasan' : 'Simitçi Cemal', '#ffe7a8');
+    if (sh.id === 'simitci') simitci = keeper;
   }
   // the vapur's çaycı rides along on the stern deck (a child of the boat)
   const boat = scene.getObjectByName('vapur-caller');
@@ -477,6 +483,7 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
 
   let t = 0;
   return {
+    daylight: world.daylight,
     follow(x, z) {
       world.follow(x, z);
     },
@@ -566,6 +573,7 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
       // the sahil strollers scare the pigeons too
       for (const w of walkers) movers.push({ x: w.ch.root.position.x, z: w.ch.root.position.z, speed: 1.2 });
       world.update(dt, movers);
+      if (simitci) simitci.root.visible = simitOpen(world.daylight.hour);
       // regulars (and the hall's cheering on a goal)
       for (let i = cheers.length - 1; i >= 0; i--) {
         const c = cheers[i]!;

@@ -29,6 +29,8 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Foliage } from './foliage';
 import { parkedCar } from './cars';
 import { Pigeons } from './pigeons';
+import { createLightState, MOON_DIR, sampleLight, type LightState } from './dayNight';
+import { worldHour } from './dayHour';
 import { TvScreen } from './tvScreen';
 import { tavlaTable } from './tavlaBoard';
 import { marketFitout } from './marketProps';
@@ -51,6 +53,8 @@ export interface KahveWorld {
   setClock(clock: () => number): void;
   /** the derby on the shared TV (null = normal programme) */
   setTv(b: TvBroadcast | null): void;
+  /** the day–night cycle's current lighting (hour, night factor, bloom); refreshed ~2× a second */
+  readonly daylight: Readonly<LightState>;
 }
 
 const BRICK = 0x9c4a32;
@@ -60,12 +64,18 @@ const CHARCOAL = 0x2c2d31;
 export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRenderer, quality: Quality): KahveWorld {
   const low = quality === 'low';
   // -------------------------------------------------------------- sky, light
-  const sunDir = new THREE.Vector3(-0.66, 0.24, 0.71).normalize();
+  // the day–night cycle (dayNight.ts) drives all of this; the values here are the evening key
+  const daylight = sampleLight(18.5, createLightState());
+  const sunDir = daylight.dir;
   const skyUniforms = {
-    top: { value: new THREE.Color(0x4a5d9a) },
-    mid: { value: new THREE.Color(0xe98a6a) },
-    horizon: { value: new THREE.Color(0xffc690) },
+    top: { value: daylight.top },
+    mid: { value: daylight.mid },
+    horizon: { value: daylight.horizon },
     sunDir: { value: sunDir },
+    glowCol: { value: daylight.glowCol },
+    uGlow: { value: 1 },
+    uStars: { value: 0 },
+    moonDir: { value: new THREE.Vector3(...MOON_DIR).normalize() },
   };
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(1000, 32, 16),
@@ -75,13 +85,26 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       fog: false,
       uniforms: skyUniforms,
       vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
-      fragmentShader: `uniform vec3 top; uniform vec3 mid; uniform vec3 horizon; uniform vec3 sunDir; varying vec3 vD;
+      fragmentShader: `uniform vec3 top; uniform vec3 mid; uniform vec3 horizon; uniform vec3 sunDir; uniform vec3 glowCol;
+        uniform float uGlow; uniform float uStars; uniform vec3 moonDir; varying vec3 vD;
         void main(){
+          vec3 d = normalize(vD);
           float h = clamp(vD.y, -0.1, 1.0);
           vec3 c = mix(horizon, mid, smoothstep(0.0, 0.18, h));
           c = mix(c, top, smoothstep(0.15, 0.7, h));
-          float s = max(dot(normalize(vD), sunDir), 0.0);
-          c += vec3(1.0, 0.75, 0.45) * (pow(s, 600.0) * 4.0 + pow(s, 12.0) * 0.35);
+          float s = max(dot(d, sunDir), 0.0);
+          c += glowCol * (pow(s, 600.0) * 4.0 + pow(s, 12.0) * 0.35) * uGlow;
+          if (uStars > 0.0) {
+            // stars: one candidate per cell of a direction grid, fading out towards the haze
+            vec3 p = d * 170.0;
+            vec3 cell = floor(p);
+            float r = fract(sin(dot(cell, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
+            float star = step(0.97, r) * smoothstep(0.3, 0.0, length(fract(p) - 0.5)) * (0.3 + 1.6 * fract(r * 37.0));
+            c += vec3(0.85, 0.9, 1.0) * star * uStars * smoothstep(0.06, 0.3, h);
+            // the moon: a soft-edged disc with a faint halo
+            float m = dot(d, moonDir);
+            c += vec3(1.0, 0.97, 0.88) * smoothstep(0.99965, 0.9998, m) * 1.3 * uStars + vec3(0.3, 0.36, 0.5) * pow(max(m, 0.0), 400.0) * 0.35 * uStars;
+          }
           gl_FragColor = vec4(c, 1.0);
           #include <tonemapping_fragment>
           #include <colorspace_fragment>
@@ -90,13 +113,19 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   );
   sky.renderOrder = -1;
   scene.add(sky);
-  scene.background = new THREE.Color(0xe9a07a);
-  scene.fog = new THREE.Fog(0xe7a888, 90, 520);
+  const background = new THREE.Color(0xe9a07a);
+  scene.background = background;
+  const fog = new THREE.Fog(0xe7a888, 90, 520);
+  scene.fog = fog;
   const pm = new THREE.PMREMGenerator(renderer);
   scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
   scene.environmentIntensity = 0.32;
   pm.dispose();
-  scene.add(new THREE.HemisphereLight(0xffdcb8, 0x5a4a42, low ? 1.1 : 0.72));
+  // phones (low) get a brighter fill and a softer sun: keep those ratios over the whole day
+  const HEMI_K = low ? 1.1 / 0.72 : 1;
+  const SUN_K = low ? 1.8 / 2.3 : 1;
+  const hemi = new THREE.HemisphereLight(0xffdcb8, 0x5a4a42, low ? 1.1 : 0.72);
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffb27a, low ? 1.8 : 2.3);
   sun.castShadow = true;
   const S = low ? 22 : 30;
@@ -495,12 +524,43 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   // varnished furniture wood: same patterns, plus a clear lacquer coat
   const varnishMat = patternize(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.48, clearcoat: 0.6, clearcoatRoughness: 0.22 }), 0.18);
   addMesh(b.build('varnish'), varnishMat, true, true);
-  const glass = new THREE.Mesh(
-    mergeGeometries(glassPanes, false)!,
-    new THREE.MeshStandardMaterial({ color: 0xcfe3ea, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false }),
-  );
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0xcfe3ea, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false });
+  const glass = new THREE.Mesh(mergeGeometries(glassPanes, false)!, glassMat);
   glass.userData.noAO = true;
   scene.add(glass);
+
+  // -------------------------------------------------------------- fake light pools (no real lights)
+  // soft additive discs on the floor under the hall's pendants and the street / sahil lamps;
+  // the lamps' pools only show after dusk, the pendants' get stronger as the daylight goes
+  const poolTex = canvasTex(64, 64, (ctx) => {
+    const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.35, 'rgba(255,255,255,0.55)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 64, 64);
+  });
+  const poolGeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+  const pools = (spots: readonly (readonly [number, number, number, number])[], color: number) => {
+    const mat = new THREE.MeshBasicMaterial({ map: poolTex, color, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 });
+    const mesh = new THREE.InstancedMesh(poolGeo, mat, spots.length);
+    const m = new THREE.Matrix4();
+    spots.forEach(([x, y, z, d], i) => mesh.setMatrixAt(i, m.makeScale(d, 1, d).setPosition(x, y, z)));
+    mesh.userData.noAO = true;
+    mesh.matrixAutoUpdate = false;
+    mesh.frustumCulled = false;
+    mesh.visible = false;
+    scene.add(mesh);
+    return mesh;
+  };
+  const pendantPools = pools(
+    TABLES.slice(0, 18).map((c) => [c.x, 0.012, c.z, 2.6] as const),
+    0xffc98f,
+  );
+  const lampSpots: [number, number, number, number][] = [];
+  for (const o of KAHVE_OBJECTS) if (o.kind === 'lamp') lampSpots.push([o.x, 0.025, o.z, 6.5]);
+  for (let x = -40; x <= 28; x += 10) lampSpots.push([x, 0.025, SEA_Z - 2.6, 5.6]);
+  const lampPools = pools(lampSpots, 0xffd49a);
 
   // -------------------------------------------------------------- signs and pictures
   const neon = (text: string, color: string, w = 512, h = 160) =>
@@ -757,6 +817,16 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   skyline.position.set(0, 40, 0);
   skyline.userData.noAO = true;
   scene.add(skyline);
+  // the city's night lights on the same backdrop, added on top after dusk (hidden by day)
+  const cityLightsMat = new THREE.MeshBasicMaterial({ map: skylineTexture('lights'), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, side: THREE.BackSide, fog: false, depthWrite: false, toneMapped: false });
+  const cityLights = new THREE.Mesh(skyline.geometry, cityLightsMat);
+  cityLights.position.copy(skyline.position);
+  cityLights.renderOrder = 1;
+  cityLights.userData.noAO = true;
+  cityLights.visible = false;
+  scene.add(cityLights);
+  const towerFlood = tower.userData.flood as { value: number };
+  const towerGlow = tower.userData.glow as THREE.MeshBasicMaterial;
   const gulls = Array.from({ length: low ? 4 : 10 }, (_, i) => {
     const g = gull();
     scene.add(g);
@@ -770,16 +840,19 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       y: 7 + (i % 5) * 2.5,
       sp: 0.25 + (i % 3) * 0.08,
       ph: i * 1.7,
+      /** angle on the circle and the bob phase (advanced per frame: slower at night) */
+      ang: i * 1.7,
+      bob: i * 1.7,
+      /** the non-followers roost at night: only half the gulls are out */
+      rests: i % 2 === 1,
+      flap: i * 1.7,
       dive: null as null | { t: number; from: THREE.Vector3; catchAt: THREE.Vector3; piece: THREE.Mesh; hand: THREE.Vector3; land: THREE.Vector3 },
     };
   });
   const crumbGeo = new THREE.TorusGeometry(0.05, 0.018, 5, 8, Math.PI);
   const crumbMat = new THREE.MeshStandardMaterial({ color: 0xb8752f, roughness: 0.7 });
   const DIVE = 1.8; // seconds: the piece flies for DIVE, the gull grabs it at 55 %
-  const circlePos = (q: (typeof gulls)[number], at: number, out: THREE.Vector3) => {
-    const a = at * q.sp + q.ph;
-    return out.set(q.cx + Math.cos(a) * q.r, q.y + Math.sin(at * 0.7 + q.ph) * 0.6, q.cz + Math.sin(a) * q.r);
-  };
+  const circlePos = (q: (typeof gulls)[number], out: THREE.Vector3) => out.set(q.cx + Math.cos(q.ang) * q.r, q.y + Math.sin(q.bob) * 0.6, q.cz + Math.sin(q.ang) * q.r);
   const piecePos = (d: NonNullable<(typeof gulls)[number]['dive']>, s: number, out: THREE.Vector3) =>
     out.lerpVectors(d.hand, d.land, s).setY(d.hand.y + (d.land.y - d.hand.y) * s + Math.sin(Math.PI * s) * 3);
   const tmpG = new THREE.Vector3();
@@ -794,8 +867,55 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     for (let i = 0; i < n; i++) pigeonHomes.push(new THREE.Vector3(cx + (hash(i * 3 + cx) - 0.5) * 5, 0.02, PROMENADE.z0 + 8.7 + (hash(i * 5 + cx) - 0.5) * 0.6));
   const pigeons = new Pigeons(scene, pigeonHomes);
 
+  // -------------------------------------------------------------- day–night
+  const glowBase = glowMat.color.r;
+  const towerGlowBase = towerGlow.color.r;
+  const GLASS_GLOW = new THREE.Color(0x3a2610);
+  let gullPace = 1;
+  let roost = false;
+  let lightT = 0;
+  const ramp = (x: number, a: number, b: number) => Math.min(1, Math.max(0, (x - a) / (b - a)));
+  const applyDaylight = (hour: number) => {
+    const L = sampleLight(hour, daylight); // also moves sunDir and the sky colours (shared objects)
+    sun.color.copy(L.sun);
+    sun.intensity = L.sunI * SUN_K;
+    hemi.color.copy(L.hemiSky);
+    hemi.groundColor.copy(L.hemiGround);
+    hemi.intensity = L.hemiI * HEMI_K;
+    background.copy(L.bg);
+    fog.color.copy(L.fog);
+    fog.near = L.fogNear;
+    fog.far = L.fogFar;
+    scene.environmentIntensity = L.env;
+    renderer.toneMappingExposure = L.exposure;
+    skyUniforms.uGlow.value = L.glow;
+    skyUniforms.uStars.value = ramp(L.night, 0.35, 1);
+    const wu = water.uniforms;
+    (wu.uSun!.value as THREE.Vector3).copy(L.dir);
+    (wu.uDeep!.value as THREE.Color).copy(L.seaDeep);
+    (wu.uShallow!.value as THREE.Color).copy(L.seaShallow);
+    (wu.uSky!.value as THREE.Color).copy(L.seaSky);
+    (wu.uSunCol!.value as THREE.Color).copy(L.seaGlint);
+    (skyline.material as THREE.MeshBasicMaterial).color.copy(L.skyline);
+    cityLightsMat.opacity = ramp(L.night, 0.25, 0.9);
+    cityLights.visible = cityLightsMat.opacity > 0.01;
+    glowMat.color.setScalar(glowBase * L.lamps);
+    towerGlow.color.setScalar(towerGlowBase * L.lamps);
+    towerFlood.value = ramp(L.night, 0.3, 1) * 0.55;
+    glassMat.emissive.copy(GLASS_GLOW).multiplyScalar(L.night);
+    pendantPools.material.opacity = 0.42 * L.night;
+    pendantPools.visible = L.night > 0.01;
+    lampPools.material.opacity = 0.5 * ramp(L.night, 0.3, 1);
+    lampPools.visible = lampPools.material.opacity > 0.01;
+    // gulls and pigeons settle down for the night
+    roost = L.night > 0.6;
+    gullPace = 1 - 0.45 * L.night;
+    pigeons.resting = roost;
+  };
+
   let t = 0;
   return {
+    daylight,
     follow(x, z) {
       listener.set(x, z);
       // the TVs are only seen from inside the hall or through the storefront
@@ -817,7 +937,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       let best: (typeof gulls)[number] | null = null;
       let bestD = Infinity;
       for (const q of gulls) {
-        const dd = q.dive ? Infinity : circlePos(q, t, tmpG).distanceTo(hand);
+        const dd = q.dive || !q.g.visible ? Infinity : circlePos(q, tmpG).distanceTo(hand);
         if (dd < bestD) (best = q), (bestD = dd);
       }
       if (!best) return; // every gull is already busy with a piece
@@ -833,11 +953,19 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       const piece = new THREE.Mesh(crumbGeo, crumbMat);
       piece.position.copy(hand);
       scene.add(piece);
-      const d = { t: 0, from: circlePos(best, t, new THREE.Vector3()), catchAt: new THREE.Vector3(), piece, hand, land };
+      const d = { t: 0, from: circlePos(best, new THREE.Vector3()), catchAt: new THREE.Vector3(), piece, hand, land };
       piecePos(d, 0.55, d.catchAt);
       best.dive = d;
     },
     update(dt, movers = []) {
+      // lighting: refreshed twice a second, or at once when the hour jumps (dev pin, clock sync)
+      const hour = worldHour(clock());
+      const dh = Math.abs(hour - daylight.hour);
+      lightT -= dt;
+      if (lightT <= 0 || (dh > 0.05 && dh < 23.95)) {
+        lightT = 0.5;
+        applyDaylight(hour);
+      }
       pigeons.update(dt, movers);
       t += dt;
       water.uniforms.uTime!.value = t;
@@ -856,10 +984,12 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
           q.cx = v.x - q.follow.back * c + q.follow.side * s;
           q.cz = v.z + q.follow.back * s + q.follow.side * c;
         }
-        const a = t * q.sp + q.ph;
-        circlePos(q, t, q.g.position);
-        q.g.rotation.y = -a;
-        let flapSpeed = 7;
+        q.ang += dt * q.sp * gullPace;
+        q.bob += dt * 0.7 * gullPace;
+        q.g.visible = !(q.rests && roost && !q.dive);
+        circlePos(q, q.g.position);
+        q.g.rotation.y = -q.ang;
+        let flapSpeed = 7 * gullPace;
         const d = q.dive;
         if (d) {
           d.t += dt;
@@ -883,7 +1013,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
             if (k >= 1) q.dive = null;
           }
         }
-        const flap = Math.sin(t * flapSpeed + q.ph) * 0.6;
+        q.flap += dt * flapSpeed;
+        const flap = Math.sin(q.flap) * 0.6;
         q.g.children[1]!.rotation.x = flap;
         q.g.children[2]!.rotation.x = -flap;
       }

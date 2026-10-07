@@ -616,12 +616,29 @@ export function kizKulesi(): THREE.Group {
     m.castShadow = m.receiveShadow = shadow;
     g.add(m);
   };
-  mk(b.build('main'), patternize(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 }), 0.18));
+  // floodlights at night: an emissive wash that follows the stone's own colour (so the dark
+  // rocks stay dark), from the parapet up, a little weaker towards the top. uFlood 0 = off.
+  const flood = { value: 0 };
+  const stone = patternize(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 }), 0.18);
+  const patterned = stone.onBeforeCompile;
+  stone.onBeforeCompile = (sh, r) => {
+    patterned(sh, r);
+    sh.uniforms.uFlood = flood;
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uFlood;').replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+       if (uFlood > 0.0) totalEmissiveRadiance += diffuseColor.rgb * vec3(1.0, 0.82, 0.6) * uFlood * smoothstep(0.3, 1.8, vWPos.y) * (1.2 - 0.45 * smoothstep(6.0, 36.0, vWPos.y));`,
+    );
+  };
+  stone.customProgramCacheKey = () => 'kk-flood';
+  mk(b.build('main'), stone);
   mk(b.build('cars'), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.35 }));
   mk(b.build('foliage'), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.9 }));
   const glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
   glow.color.setScalar(1.25);
   mk(b.build('glow'), glow, false);
+  g.userData.flood = flood;
+  g.userData.glow = glow;
   // the flag on a pole at the corner of the building
   b.pat = PAT.none;
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 7, 6), new THREE.MeshStandardMaterial({ color: 0xe9e6df, roughness: 0.4 }));
@@ -880,8 +897,14 @@ export function gull(): THREE.Group {
 }
 
 // ------------------------------------------------------------------ backdrops
-/** Historic peninsula at sunset: domes, minarets, Galata on the right. */
-export function skylineTexture(): THREE.CanvasTexture {
+/**
+ * Historic peninsula at sunset: domes, minarets, Galata on the right.
+ * `lights` paints only what glows at night on the same layout (same seed): every window light
+ * and the shore lights brighter, many more windows, and the floodlit mosques and Galata Tower,
+ * for an additive overlay that fades in after dusk.
+ */
+export function skylineTexture(mode: 'base' | 'lights' = 'base'): THREE.CanvasTexture {
+  const lit = mode === 'lights';
   const W = 4096;
   const H = 512;
   return canvasTex(W, H, (ctx) => {
@@ -890,8 +913,12 @@ export function skylineTexture(): THREE.CanvasTexture {
     let seed = 7;
     const rnd = () => hash(seed++ * 0.731);
     // aerial perspective: each layer further back is lighter and bluer (sunset haze)
-    const HAZE = ['rgba(176,146,164,0.55)', 'rgba(146,116,140,0.82)', 'rgba(112,86,114,0.95)'];
-    const LAND = 'rgb(92,70,100)';
+    const NONE = 'rgba(0,0,0,0)';
+    const HAZE = lit ? [NONE, NONE, NONE] : ['rgba(176,146,164,0.55)', 'rgba(146,116,140,0.82)', 'rgba(112,86,114,0.95)'];
+    // at night the monuments are floodlit: a warm wash over their silhouettes
+    const LAND = lit ? 'rgba(255,190,120,0.3)' : 'rgb(92,70,100)';
+    const GROVE = lit ? NONE : 'rgb(84,72,96)';
+    const bands: [number, number, number, number][][] = [];
     // far hills across the Golden Horn
     ctx.fillStyle = HAZE[0]!;
     ctx.beginPath();
@@ -920,6 +947,7 @@ export function skylineTexture(): THREE.CanvasTexture {
         ctx.fillStyle = rnd() < 0.7 ? 'rgba(255,206,130,0.9)' : 'rgba(255,236,196,0.7)';
         ctx.fillRect(lx, ly, 2.5, 2);
       }
+      bands.push(rects);
     };
     blocks(HAZE[1]!, base - 8, 12, 40, 10, 26, 0);
     // tree-covered slopes and cypress groves
@@ -969,7 +997,7 @@ export function skylineTexture(): THREE.CanvasTexture {
       }
     };
     // Sarayburnu and the Topkapı ridge: cypresses, pavilion roofs, the Adalet tower
-    trees(1620, 60, 420, 'rgb(84,72,96)');
+    trees(1620, 60, 420, GROVE);
     ctx.fillStyle = LAND;
     for (let k = 0; k < 9; k++) {
       const x = 1560 + k * 46;
@@ -991,11 +1019,11 @@ export function skylineTexture(): THREE.CanvasTexture {
     // the historic peninsula as seen from Salacak, exaggerated so it carries at this distance
     mosque(820, base, 70, 4, 105, 1); // Ayasofya: four minarets, a flatter dome
     mosque(1300, base - 4, 74, 6, 120, 3); // Sultanahmet: six minarets with three balconies
-    trees(2050, 36, 300, 'rgb(84,72,96)');
+    trees(2050, 36, 300, GROVE);
     mosque(2150, base - 26, 66, 4, 110, 3); // Süleymaniye on its hill
     mosque(2650, base + 2, 48, 2, 70, 2); // Yeni Cami by the water
     // Galata across the Horn: cylinder, gallery, conical cap
-    ctx.fillStyle = 'rgb(98,76,106)';
+    ctx.fillStyle = lit ? 'rgba(255,200,140,0.4)' : 'rgb(98,76,106)';
     ctx.fillRect(3302, base - 248, 46, 248);
     ctx.fillRect(3296, base - 262, 58, 14);
     for (let k = 0; k < 7; k++) ctx.fillRect(3298 + k * 8, base - 270, 4, 8);
@@ -1011,6 +1039,21 @@ export function skylineTexture(): THREE.CanvasTexture {
     for (let x = 4; x < W; x += 9 + rnd() * 14) {
       ctx.fillStyle = rnd() < 0.8 ? 'rgba(255,214,150,0.95)' : 'rgba(255,255,235,0.8)';
       ctx.fillRect(x, base + 2 + rnd() * 3, 2, 2);
+    }
+    if (lit) {
+      // the night city: many more lit windows on both bands (own seed, the layout above is unchanged)
+      let s2 = 101;
+      const r2 = () => hash(s2++ * 0.917);
+      for (const [n, rects] of [
+        [700, bands[0]!],
+        [2600, bands[1]!],
+      ] as const) {
+        for (let k = 0; k < n; k++) {
+          const r = rects[Math.floor(r2() * rects.length)]!;
+          ctx.fillStyle = r2() < 0.75 ? 'rgba(255,200,120,0.85)' : 'rgba(235,240,255,0.7)';
+          ctx.fillRect(r[0] + 2 + r2() * Math.max(1, r[2] - 6), r[1] + 4 + r2() * Math.max(1, r[3] - 8), 2.5, 2);
+        }
+      }
     }
     // fade both ends into the haze instead of a hard edge
     ctx.globalCompositeOperation = 'destination-out';
