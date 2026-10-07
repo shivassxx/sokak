@@ -60,3 +60,10 @@
 - 117 tests; build OK; 4.48 MB gzip total, 137 KB before the lobby.
 - Later: leaf-card foliage (`foliage.ts`: çınar trees, potted ficus), red İstanbul simit cart, Şehir Hatları ferry, procedural 90s sedans + taxi (2 more parked cars, colliders), historic pier hall, market fit-out (`marketProps.ts`; freezer + crates colliders), facade windows (`facadeWindow`), no-shadow 'detail' bucket, far house rows with plain windows. ~580k tris/frame incl. shadows (was ~500k). 117 tests; 4.48 MB gzip.
 - Later still: çay ocağı/çay bahçesi details, skyline repaint (aerial perspective), Saklambaç trees/cars from the shared modules (Kenney trucks removed), realistic seated hand pose + reach on draw/discard (`Character.reach`, triggered from hand-count changes in `KahveScreen`), herring gull model, soft billboard clouds in Saklambaç.
+
+## Weekly leaderboard (2026-10-07, agent session)
+- Server: `week.ts` (ISO weeks in Istanbul time), `WalletStore` week stats + `recordMatch()` + `weekly()` / `weeklyRank()` with an injectable clock and pruning of old week stats; `GET /api/leaders/weekly` (`?week=last`, `?device=`); `KahvehaneRoom` records finished matches (net = payout) and walk-outs (−bet), sets the `trophy` schema field for the weekly top 3.
+- Client: lobby tabs "Haftanın en iyileri" / "Şu an en zenginler" (`KahveLobby.tsx`, `getWeeklyLeaders()` in `net/connection.ts`), 🏆 on name tags and okey plates.
+- Tests: `apps/server/test/weekly.test.ts` (week ids incl. year boundary, net accounting, tie-break, top 10 + own rank, nickname update, Monday rollover, last week / champion, prune on save/load, no tokens) and a kahve integration test (device player's full bot match → weekly board with the right net, walk-out counts −bet, trophy). 69 tests total; build OK; size check OK.
+- Verified with Playwright on a seeded wallet file: lobby at 1280×720 and 844×390 (no horizontal overflow).
+- Privacy decision recorded in `Docs/Decisions.md` ("Weekly leaderboard").
