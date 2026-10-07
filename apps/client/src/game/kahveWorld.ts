@@ -16,6 +16,7 @@ import {
   TERRACE,
   seatPosition,
   vapurState,
+  type TvBroadcast,
   type VapurPhase,
 } from '@sokak/shared';
 import { Builder, canvasTex, decal, hash, type Mover } from './world';
@@ -28,6 +29,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { Foliage } from './foliage';
 import { parkedCar } from './cars';
 import { Pigeons } from './pigeons';
+import { TvScreen } from './tvScreen';
 import { tavlaTable } from './tavlaBoard';
 import { marketFitout } from './marketProps';
 
@@ -45,8 +47,10 @@ export interface KahveWorld {
    * `y` is the thrower's feet height (on the vapur's deck the piece goes over the side)
    */
   feedGulls(x: number, z: number, y?: number): void;
-  /** the server clock (epoch ms) that drives the shared vapur timeline */
+  /** the server clock (epoch ms) that drives the shared vapur timeline and the TV */
   setClock(clock: () => number): void;
+  /** the derby on the shared TV (null = normal programme) */
+  setTv(b: TvBroadcast | null): void;
 }
 
 const BRICK = 0x9c4a32;
@@ -684,61 +688,34 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     0.5,
   );
 
-  // -------------------------------------------------------------- TVs (shared canvas)
-  const tvCanvas = document.createElement('canvas');
-  tvCanvas.width = 256;
-  tvCanvas.height = 144;
-  const tvCtx = tvCanvas.getContext('2d')!;
-  const tvTex = new THREE.CanvasTexture(tvCanvas);
-  tvTex.colorSpace = THREE.SRGBColorSpace;
+  // -------------------------------------------------------------- TVs (one shared canvas)
+  const tvScreen = new TvScreen();
+  const bezelMat = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.32, metalness: 0.5 });
+  const screenMat = new THREE.MeshBasicMaterial({ map: tvScreen.texture, toneMapped: false });
   for (const o of KAHVE_OBJECTS) {
     if (o.kind !== 'tv') continue;
     const side = o.w < o.d;
-    const frame = new THREE.Mesh(new THREE.BoxGeometry(side ? 0.08 : o.w, o.h, side ? o.d : 0.08), new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.4 }));
-    frame.position.set(o.x, o.y + o.h / 2, o.z);
-    scene.add(frame);
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry((side ? o.d : o.w) - 0.12, o.h - 0.12), new THREE.MeshBasicMaterial({ map: tvTex, toneMapped: false }));
-    screen.position.set(o.x + (side ? (o.x < 0 ? 0.05 : -0.05) : 0), o.y + o.h / 2, o.z + (side ? 0 : -0.05));
-    screen.rotation.y = side ? (o.x < 0 ? Math.PI / 2 : -Math.PI / 2) : Math.PI;
+    const width = side ? o.d : o.w;
+    // face into the hall: side-wall sets face the middle, the back-wall one faces the door
+    const yaw = side ? (o.x < (HALL.x0 + HALL.x1) / 2 ? Math.PI / 2 : -Math.PI / 2) : o.z < (HALL.z0 + HALL.z1) / 2 ? 0 : Math.PI;
+    const g = new THREE.Group();
+    g.position.set(o.x, o.y + o.h / 2, o.z);
+    g.rotation.y = yaw;
+    // slim bezel (a thin dark frame round a 6 cm deep panel); the screen sits just in front
+    const bezel = new THREE.Mesh(new THREE.BoxGeometry(width, o.h, 0.05), bezelMat);
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(width - 0.05, o.h - 0.05), screenMat);
+    screen.position.z = 0.027;
     screen.userData.noAO = true;
-    scene.add(screen);
+    g.add(bezel, screen);
+    if (width > 2.6) {
+      // the big one gets a soundbar under it
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.08, 0.1), bezelMat);
+      bar.position.set(0, -o.h / 2 - 0.12, 0.04);
+      g.add(bar);
+    }
+    scene.add(g);
   }
-  const players = Array.from({ length: 10 }, (_, i) => ({ x: 40 + (i % 5) * 40, y: 30 + Math.floor(i / 5) * 60 + (i % 3) * 12, team: i < 5 ? 0 : 1 }));
-  const ball = { x: 128, y: 72, vx: 30, vy: 12 };
-  const drawTv = (t: number) => {
-    tvCtx.fillStyle = '#2e8b3e';
-    tvCtx.fillRect(0, 0, 256, 144);
-    for (let i = 0; i < 8; i++) {
-      tvCtx.fillStyle = i % 2 ? '#2a8039' : '#33944a';
-      tvCtx.fillRect(i * 32, 0, 32, 144);
-    }
-    tvCtx.strokeStyle = 'rgba(255,255,255,0.8)';
-    tvCtx.lineWidth = 2;
-    tvCtx.strokeRect(8, 8, 240, 128);
-    tvCtx.beginPath();
-    tvCtx.moveTo(128, 8);
-    tvCtx.lineTo(128, 136);
-    tvCtx.stroke();
-    tvCtx.beginPath();
-    tvCtx.arc(128, 72, 18, 0, Math.PI * 2);
-    tvCtx.stroke();
-    for (const p of players) {
-      p.x += (ball.x - p.x) * 0.02 + Math.sin(t * 2 + p.y) * 0.6;
-      p.y += (ball.y - p.y) * 0.01 + Math.cos(t * 1.7 + p.x) * 0.5;
-      tvCtx.fillStyle = p.team ? '#ffffff' : '#d8473b';
-      tvCtx.fillRect(p.x - 2, p.y - 4, 4, 8);
-    }
-    tvCtx.fillStyle = '#ffffff';
-    tvCtx.beginPath();
-    tvCtx.arc(ball.x, ball.y, 2.5, 0, Math.PI * 2);
-    tvCtx.fill();
-    tvCtx.fillStyle = 'rgba(0,0,0,0.6)';
-    tvCtx.fillRect(6, 4, 128, 18);
-    tvCtx.fillStyle = '#ffffff';
-    tvCtx.font = '700 12px sans-serif';
-    tvCtx.fillText(`ÜSKÜDAR 2 - 1 KADIKÖY  ${String(60 + (Math.floor(t / 4) % 30))}'`, 10, 17);
-    tvTex.needsUpdate = true;
-  };
+  const tvVisible = { v: true };
 
   // -------------------------------------------------------------- the sea, Kız Kulesi, vapur, skyline, gulls
   const water = waterMaterial(sunDir);
@@ -818,10 +795,11 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   const pigeons = new Pigeons(scene, pigeonHomes);
 
   let t = 0;
-  let tvT = 0;
   return {
     follow(x, z) {
       listener.set(x, z);
+      // the TVs are only seen from inside the hall or through the storefront
+      tvVisible.v = x > HALL.x0 - 6 && x < HALL.x1 + 6 && z < TERRACE.z1 + 4;
       sky.position.set(x, 0, z);
       const sx = Math.round(x / 2) * 2;
       const sz = Math.round(z / 2) * 2;
@@ -830,6 +808,9 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     },
     setClock(c) {
       clock = c;
+    },
+    setTv(b) {
+      tvScreen.setBroadcast(b);
     },
     feedGulls(x, z, y = 0) {
       const hand = new THREE.Vector3(x, y + 1.5, z);
@@ -906,16 +887,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
         q.g.children[1]!.rotation.x = flap;
         q.g.children[2]!.rotation.x = -flap;
       }
-      tvT += dt;
-      if (tvT > 0.08) {
-        ball.x += ball.vx * tvT;
-        ball.y += ball.vy * tvT;
-        if (ball.x < 14 || ball.x > 242) ball.vx *= -1;
-        if (ball.y < 14 || ball.y > 130) ball.vy *= -1;
-        if (Math.random() < 0.02) (ball.vx = (Math.random() - 0.5) * 80), (ball.vy = (Math.random() - 0.5) * 50);
-        drawTv(t);
-        tvT = 0;
-      }
+      tvScreen.update(dt, now, tvVisible.v);
     },
   };
 }

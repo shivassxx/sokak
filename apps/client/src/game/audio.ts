@@ -285,6 +285,86 @@ export function vapurHorn(volume = 0.6): void {
   }
 }
 
+/**
+ * A goal on the kıraathane TV: a stadium crowd roar (band-passed noise swelling and fading)
+ * under the commentator's long "Gooool!" (a sawtooth voice through two vowel formants,
+ * sweeping up and holding with vibrato). `volume` drops when you hear it from outside.
+ */
+export function goalRoar(volume = 0.7): void {
+  const c = ctx;
+  if (!c || !sfxBus || muted) return;
+  const t = c.currentTime;
+  const out = c.createGain();
+  out.gain.value = volume;
+  out.connect(sfxBus);
+  // crowd: 4 s of noise, two bands for body and hiss
+  const len = 4.2;
+  const buf = c.createBuffer(1, Math.floor(c.sampleRate * len), c.sampleRate);
+  const d = buf.getChannelData(0);
+  let lp = 0;
+  for (let i = 0; i < d.length; i++) {
+    // gently low-passed noise with a slow "wave" of voices in it
+    lp += ((Math.random() * 2 - 1) - lp) * 0.35;
+    d[i] = lp * (0.8 + 0.2 * Math.sin((i / c.sampleRate) * 9 + Math.sin(i / 7000)));
+  }
+  for (const [f, q, v] of [
+    [700, 0.8, 0.5],
+    [1900, 1.2, 0.18],
+  ] as const) {
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = f;
+    bp.Q.value = q;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(v, t + 0.35);
+    g.gain.setValueAtTime(v, t + 2.2);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+    src.connect(bp).connect(g).connect(out);
+    src.start(t);
+  }
+  // commentator: "G" (a short noisy onset) then a long rising "ooool"
+  const v0 = t + 0.15;
+  const dur = 2.4;
+  const o = c.createOscillator();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(170, v0);
+  o.frequency.exponentialRampToValueAtTime(310, v0 + 0.45);
+  o.frequency.setValueAtTime(310, v0 + 1.6);
+  o.frequency.exponentialRampToValueAtTime(240, v0 + dur);
+  const vib = c.createOscillator();
+  vib.frequency.value = 5.5;
+  const vibGain = c.createGain();
+  vibGain.gain.value = 7;
+  vib.connect(vibGain).connect(o.frequency);
+  const voice = c.createGain();
+  voice.gain.setValueAtTime(0.0001, v0);
+  voice.gain.exponentialRampToValueAtTime(0.32, v0 + 0.08);
+  voice.gain.setValueAtTime(0.32, v0 + dur - 0.5);
+  voice.gain.exponentialRampToValueAtTime(0.0001, v0 + dur);
+  // "o" formants (≈ 450 / 800 Hz)
+  for (const [f, q, v] of [
+    [450, 6, 1],
+    [800, 8, 0.6],
+  ] as const) {
+    const bp = c.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = f;
+    bp.Q.value = q;
+    const g = c.createGain();
+    g.gain.value = v;
+    o.connect(bp).connect(g).connect(voice);
+  }
+  voice.connect(out);
+  o.start(v0);
+  vib.start(v0);
+  o.stop(v0 + dur + 0.05);
+  vib.stop(v0 + dur + 0.05);
+  noise(0.12, 0.06, 0.12 * volume, 2500);
+}
+
 /** A seagull's cry: a few squeaky falling "kyow" calls. */
 export function gullCry(volume = 0.5, pan = 0): void {
   const c = ctx;

@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { tvTeam, type TvBroadcast } from '@sokak/shared';
+import { TV_TOTAL_MS, tvTeam, type TvBroadcast } from '@sokak/shared';
 
 /**
  * The one TV channel shared by every salon. Staff start and stop broadcasts (admin panel);
@@ -11,7 +11,9 @@ export class TvChannel {
 
   constructor(private now: () => number = () => Date.now()) {}
 
+  /** a finished broadcast (full-time screen over) no longer counts as on air */
   current(): TvBroadcast | null {
+    if (this.cur && this.now() >= this.cur.startedAt + TV_TOTAL_MS) this.cur = null;
     return this.cur;
   }
 

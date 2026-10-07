@@ -292,4 +292,6 @@ export interface KahveView {
   players: Record<string, KPlayerView>;
   tables: KTableView[];
   tavla: KTavlaView[];
+  /** JSON TvBroadcast, '' when the TV shows its normal programme */
+  tv?: string;
 }
