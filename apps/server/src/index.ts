@@ -21,8 +21,9 @@ console.log(`[sokak] server listening on :${s.port}`);
 
 const shutdown = async () => {
   console.log('[sokak] shutting down…');
-  s.wallets.flush();
   await s.close();
+  // after close: the players' last saves happen while the rooms shut down
+  s.wallets.flush();
   process.exit(0);
 };
 process.on('SIGTERM', shutdown);

@@ -88,6 +88,9 @@ interface Avatar {
   castZ: number;
   /** anonymous wallet token, '' = no persistence */
   device: string;
+  /** what this session last wrote to the wallet: saves add the difference, so two tabs
+      on one device can't overwrite each other's losses */
+  saved: { money: number; played: number; won: number };
 }
 
 interface TableRuntime {
@@ -231,9 +234,10 @@ export class KahvehaneRoom extends Room<KahveState> {
       if (!w || now - w.lastBonus > DAY_MS) {
         if (w) bonus = DAILY_BONUS;
         p.money += bonus;
-        store.set(device, { money: p.money, lastBonus: now, seen: now, played: p.played, won: p.won });
+        store.set(device, { ...(w ?? {}), money: p.money, lastBonus: now, seen: now, played: p.played, won: p.won });
       }
     }
+    const lastCredit = (device && store?.get(device)?.lastCredit) || -1e12;
     this.state.players.set(p.id, p);
     const n = this.avatars.size;
     this.avatars.set(p.id, {
@@ -248,13 +252,14 @@ export class KahvehaneRoom extends Room<KahveState> {
       lastChatAt: 0,
       lastEmoteAt: 0,
       lastOrderAt: 0,
-      lastCreditAt: -1e12,
+      lastCreditAt: lastCredit,
       lastShopAt: 0,
       lastUseAt: 0,
       cast: 0,
       castX: 0,
       castZ: 0,
       device,
+      saved: { money: p.money, played: p.played, won: p.won },
     });
     if (bonus) this.clock.setTimeout(() => this.avatars.get(p.id)?.client?.send(KMSG.notice, `🎁 Günlük bonus: +${bonus} ₺. Hoş geldin!`), 1500);
     if (options.quick) this.quickSeat(p.id, undefined);
@@ -284,13 +289,27 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.removePlayer(p.id);
   }
 
+  /** Add this session's change since its last save to the device wallet (only when something changed). */
   private saveWallet(id: string): void {
     const a = this.avatars.get(id);
     const p = this.state.players.get(id);
     const store = this.cls.wallets;
     if (!a?.device || !p || !store) return;
+    const dm = p.money - a.saved.money;
+    const dp = p.played - a.saved.played;
+    const dw = p.won - a.saved.won;
     const w = store.get(a.device);
-    store.set(a.device, { money: p.money, lastBonus: w?.lastBonus ?? Date.now(), seen: Date.now(), played: p.played, won: p.won });
+    const credit = a.lastCreditAt > (w?.lastCredit ?? -1e12) ? a.lastCreditAt : w?.lastCredit;
+    if (!dm && !dp && !dw && credit === w?.lastCredit && w) return;
+    store.set(a.device, {
+      money: Math.max(0, (w?.money ?? a.saved.money) + dm),
+      lastBonus: w?.lastBonus ?? Date.now(),
+      seen: Date.now(),
+      played: Math.min(65535, (w?.played ?? a.saved.played) + dp),
+      won: Math.min(65535, (w?.won ?? a.saved.won) + dw),
+      lastCredit: credit && credit > 0 ? credit : undefined,
+    });
+    a.saved = { money: p.money, played: p.played, won: p.won };
   }
 
   private removePlayer(id: string): void {
@@ -877,6 +896,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (now - a.lastCreditAt < CREDIT_COOLDOWN_MS) return this.error(id, 'Kahveci biraz bekle diyor…');
     a.lastCreditAt = now;
     p.money += CREDIT_AMOUNT;
+    this.saveWallet(id);
   }
 
   // ------------------------------------------------------------ tick

@@ -283,6 +283,26 @@ describe('kahvehane', () => {
     await a.leave();
   });
 
+  it('wallet: two tabs on one device cannot undo each other\'s losses', async () => {
+    const device = 'ef'.repeat(16);
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'SekmeA', device });
+    await until(() => !!st(a).players?.get(a.id));
+    const b = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'SekmeB', device });
+    await until(() => !!st(b).players?.get(b.id));
+    const room = matchMaker.getLocalRoomById(a.room.roomId) as KahvehaneRoom;
+    // tab A loses 300 at the table, tab B just sits there
+    room.state.players.get(a.id)!.money -= 300;
+    await sleep(2300); // a meta tick saves both sessions
+    await a.leave();
+    await sleep(100);
+    await b.leave(); // B leaves last: it must not write back the old balance
+    await sleep(150);
+    const c = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'SekmeC', device });
+    await until(() => !!st(c).players?.get(c.id));
+    expect(me(c).money).toBe(START_MONEY - 300);
+    await c.leave();
+  });
+
   it('lobby leaderboard: the richest online players of public salons', async () => {
     const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Zengin' });
     await until(() => !!st(a).players?.get(a.id));

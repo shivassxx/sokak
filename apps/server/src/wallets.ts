@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 /**
@@ -14,6 +14,8 @@ export interface Wallet {
   /** finished okey matches and wins (for the level) */
   played?: number;
   won?: number;
+  /** last "veresiye" (so leaving and coming back doesn't skip the wait) */
+  lastCredit?: number;
 }
 
 const KEEP_MS = 60 * 24 * 3600 * 1000;
@@ -59,7 +61,10 @@ export class WalletStore {
     if (!this.file) return;
     try {
       mkdirSync(path.dirname(this.file), { recursive: true });
-      writeFileSync(this.file, JSON.stringify(Object.fromEntries(this.data)));
+      // write a temp file and rename it over the old one: a crash mid-write never leaves broken JSON
+      const tmp = `${this.file}.tmp`;
+      writeFileSync(tmp, JSON.stringify(Object.fromEntries(this.data)));
+      renameSync(tmp, this.file);
     } catch {
       /* disk full / read-only: keep going in memory */
     }
