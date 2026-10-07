@@ -100,6 +100,8 @@ interface TableRuntime {
   until: number;
   /** bots that noticed a theft: seat → time they shout "Hile var!" */
   botAccuse: Map<number, number>;
+  /** the turn (its deadline) a bot already hurried the slow human on */
+  nagged: number;
 }
 
 const MAX_QUEUED = 8;
@@ -149,7 +151,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       const t = new KTable();
       t.id = i;
       this.state.tables.push(t);
-      this.runtime.push({ game: null, botAt: 0, dealer: 0, until: 0, botAccuse: new Map() });
+      this.runtime.push({ game: null, botAt: 0, dealer: 0, until: 0, botAccuse: new Map(), nagged: 0 });
     }
     this.onMessage(MSG.input, (c, m: InputMsg) => this.handleInput(c, m));
     this.onMessage(KMSG.sit, (c, m: { table?: unknown; seat?: unknown }) => this.sit(c.sessionId, m?.table, m?.seat));
@@ -500,6 +502,7 @@ export class KahvehaneRoom extends Room<KahveState> {
         this.saveWallet(pl.id);
       }
       t.lastMatch = JSON.stringify({ totals, winners, pot: t.pot, payout });
+      if (this.cls.rng() < 0.6) this.clock.setTimeout(() => this.botSay(ti, 'Bir el daha!'), 1800);
       t.pot = 0;
       t.status = 'result';
       rt.until = Date.now() + this.cls.timing.result;
@@ -651,6 +654,15 @@ export class KahvehaneRoom extends Room<KahveState> {
     return botMin + this.cls.rng() * (botMax - botMin);
   }
 
+  /** A random bot at the table says one of the preset phrases (makes bot tables feel alive). */
+  private botSay(ti: number, phrase: (typeof QUICK_CHAT_OKEY)[number]): void {
+    const bots = [...(this.state.tables[ti]?.seats ?? [])].filter((id) => id && this.state.players.get(id)?.isBot);
+    const q = QUICK_CHAT_OKEY.indexOf(phrase);
+    if (!bots.length || q < 0) return;
+    const id = bots[Math.floor(this.cls.rng() * bots.length)]!;
+    this.broadcast(MSG.chat, { id, q } satisfies ChatMsg);
+  }
+
   private sendHand(ti: number, seat: number): void {
     if (ti < 0 || seat < 0) return;
     const g = this.runtime[ti]!.game;
@@ -691,6 +703,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.money -= cost;
     const msg: ServedMsg = { from: id, to, item: item.id };
     this.broadcast(KMSG.served, msg);
+    // bots say thanks for a round on the house
+    if (m.to === 'table' && p.table >= 0) this.clock.setTimeout(() => this.botSay(p.table, 'Eyvallah!'), 1500);
   }
 
   // ------------------------------------------------------------ lobby helpers
@@ -901,6 +915,11 @@ export class KahvehaneRoom extends Room<KahveState> {
     }
     const sid = t.seats[g.turn]!;
     const pl = this.state.players.get(sid);
+    // a person thinking for long: a bot at the table hurries them, once per turn
+    if (pl && !pl.isBot && pl.connected && rt.nagged !== t.turnEndsAt && t.turnEndsAt - now < this.cls.timing.turn * 0.35) {
+      rt.nagged = t.turnEndsAt;
+      if (this.cls.rng() < 0.6) this.botSay(ti, 'Hadi oyna!');
+    }
     if (pl?.isBot || !pl?.connected) {
       if (now < rt.botAt) return;
       rt.botAt = now + this.botDelay() * 0.6;

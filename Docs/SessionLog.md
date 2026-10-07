@@ -40,6 +40,7 @@
 - **Perf:** shared prop geometries, lighter chair seats (main kahve mesh 122k → 103k triangles).
 - Verified with Playwright: lobby → quick play → bots → 5 draw/discard turns; reload mid-match keeps the hand; walk to market, buy, smoke; simitçi → bench → eat (seen from a second client); ledge sitting; invite link to a private salon; voice between two browser contexts; phone-landscape lobby/hall.
 - Later in the night: rack arrangement kept across a reload, gull feeding, fishing (server-timed bites, float + line rendering, catch announcements; NPC rods were pointing backwards — rod rotation solved numerically for the 'fish' pose).
+- Bots talk at the table (hurry a slow human, ask for a rematch, thank for tea; tested).
 - Table talk: 💬 preset phrases while seated, shown above the speaker's name plate (there was no chat at the table before).
 - 101 rule "göstergeyi göster" (−101 on your first turn with the twin), bots use it, UI button + toast, 2 rules tests.
 - Spectator mode for running tables (corner camera, live scores panel).

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { matchMaker } from '@colyseus/core';
 import { NetBot } from '@sokak/bots/client';
-import { FISH, KAHVE_ROOM, KMSG, MENU, SEA_Z, SHOPS, SHOP_ITEMS, SIT_SPOTS, START_MONEY, TABLES, TABLE_COUNT, type TableView } from '@sokak/shared';
+import { FISH, KAHVE_ROOM, KMSG, MENU, MSG, QUICK_CHAT_OKEY, SEA_Z, SHOPS, SHOP_ITEMS, SIT_SPOTS, START_MONEY, TABLES, TABLE_COUNT, type TableView } from '@sokak/shared';
 import { startServer, type StartedServer } from '../src/app';
 import { until, sleep } from './helpers';
 import type { KahvehaneRoom } from '../src/rooms/KahvehaneRoom';
@@ -104,6 +104,9 @@ describe('kahvehane', () => {
     const served = a.messages.find((m) => m.type === KMSG.served)!.msg as { to: string[] };
     expect(served.to.length).toBe(2);
     await until(() => me(a).money === before - MENU.find((m) => m.id === 'cay')!.price * 2);
+    // the bot at the table says thanks
+    const bot = [...table(a, 2).seats].find((id: string) => id && id !== a.id);
+    await until(() => a.messages.some((m) => m.type === MSG.chat && (m.msg as { id: string; q: number }).id === bot && QUICK_CHAT_OKEY[(m.msg as { q: number }).q] === 'Eyvallah!'), 4000);
     // veresiye only when broke
     a.room.send(KMSG.credit);
     await until(() => a.messages.filter((m) => m.type === KMSG.okeyError).length > 0);
