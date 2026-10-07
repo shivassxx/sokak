@@ -88,7 +88,7 @@ Linke tıklayınca saniyeler içinde açılan, telefonda ve bilgisayarda çalı�
    ```
 7. Testler ve üretim derlemesi:
    ```bash
-   pnpm test          # 115 test (gece çalışması sonunda)
+   pnpm test          # 116 test (gece çalışması sonunda)
    pnpm typecheck
    pnpm build
    pnpm check:size    # indirme boyutu kontrolü
@@ -257,6 +257,13 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - Çaycı markete veya sahile çay götürürken duvarların içinden geçiyordu. Artık engellerin etrafından dolaşan bir yol buluyor.
 - Telefonda yatay ekranda üst çubuk taşıyordu. Masadayken üstteki düğmeler ipucu satırının altında kalıyordu. "Otur" ve "Alışveriş" yazıları elindeki eşyanın çubuğuyla üst üste biniyordu. Üçü de düzeltildi.
 - Bankta veya duvarda otururken karakter havaya kalkabiliyordu. Bu da düzeltildi.
+- **Kod incelemesinde bulunanlar:** gece yaptığım değişiklikleri ayrı bir inceleme ajanına kontrol ettirdim ve bulguları düzelttim:
+  - Aynı cihazla iki sekmede oynayıp bir sekmede kaybedilen parayı diğer sekmeyle geri almak mümkündü (sonsuz para). Artık her oturum cüzdana sadece kendi kazancını ya da kaybını ekliyor; bunun için test de var.
+  - Mikrofon izni sorulurken sesli sohbet kapatılır ya da kahveden çıkılırsa mikrofon açık kalabiliyordu. Düzeltildi.
+  - İki kişi sesli sohbeti aynı anda açınca bazen ses gitmiyordu. Düzeltildi; iki tarayıcı arasında iki yönde de ses doğrulandı.
+  - Sunucu kayıt sırasında çökerse cüzdan dosyası bozulabiliyordu. Artık dosya güvenli şekilde yazılıyor.
+  - Veresiye bekleme süresi çıkıp girince sıfırlanıyordu. Artık cüzdanla birlikte saklanıyor.
+  - Elde tutulan eşyalar ve şamandıralar bellekten temizlenmiyordu. Düzeltildi.
 - **Sunucu kurulum dosyası (Docker) okey paketini kurmuyordu.** Düzeltildi. Cüzdan dosyası artık kalıcı `data` klasörüne yazılıyor. İmaj gerçekten derlendi; kapsayıcının içinde bir salona girildi, liderlik tablosu ve cüzdan kaydı çalıştı.
 
 **Modern kıraathane**
@@ -315,9 +322,9 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - Liderlik tablosu sadece o an çevrimiçi olanları gösteriyor. Geçmişe dönük sıralama için takma adları saklamak gerekirdi; bunu yapmadım.
 
 **Nasıl test edildi**
-- 115 otomatik test geçiyor (bazıları yeni kontroller içeriyor). Gece eklenen testler:
+- 116 otomatik test geçiyor (bazıları yeni kontroller içeriyor). Gece eklenen testler:
   - Market alışverişi ve kullanma, bank ve sahil duvarı oturma.
-  - Cüzdanın aynı cihazda korunması, hızlı oturma ve botla başlatma.
+  - Cüzdanın aynı cihazda korunması, iki sekmeyle kaybın geri alınamaması, hızlı oturma ve botla başlatma.
   - Maç bitince insan oyuncunun maç/galibiyet sayısının artması (botların artmaması), lobinin sadece kendi cüzdanını okuyabilmesi.
   - Liderlik tablosu, sayfa yenilemeden sonra elin geri gelmesi.
   - Balık tutma: denizden uzakta olta atılamaması, erken çekince kaçması, vurunca çekince balık çıkması, uzaklaşınca oltanın toplanması.

@@ -461,7 +461,11 @@ export class Character {
 
   /** Put a small prop (tea glass …) in the right hand. */
   hold(obj: THREE.Object3D | null): void {
-    for (const c of [...this.propGroup.children]) if (c.userData.held) this.propGroup.remove(c);
+    for (const c of [...this.propGroup.children])
+      if (c.userData.held) {
+        this.propGroup.remove(c);
+        disposeTree(c);
+      }
     this.holding = !!obj;
     if (!obj) return;
     obj.userData.held = true;
@@ -852,8 +856,26 @@ export class Character {
       (this.label.material as THREE.SpriteMaterial).map?.dispose();
       this.label.material.dispose();
     }
+    if (this.speakIcon) {
+      this.speakIcon.material.map?.dispose();
+      this.speakIcon.material.dispose();
+    }
+    this.hold(null);
     this.material.dispose();
   }
+}
+
+/** Free the GPU side of a prop built just for one character (held items). */
+function disposeTree(o: THREE.Object3D): void {
+  o.traverse((x) => {
+    const m = x as THREE.Mesh;
+    if (!m.isMesh) return;
+    m.geometry.dispose();
+    for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+      (mat as THREE.MeshStandardMaterial).map?.dispose();
+      mat.dispose();
+    }
+  });
 }
 
 /** Soft warm rim so characters read against busy backgrounds. */

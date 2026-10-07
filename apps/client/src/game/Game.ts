@@ -85,6 +85,9 @@ const INTERP_DELAY = 110;
 const FLOAT_RED = new THREE.MeshStandardMaterial({ color: 0xe0362c, roughness: 0.4 });
 const FLOAT_WHITE = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.4 });
 const FLOAT_LINE = new THREE.LineBasicMaterial({ color: 0xf0f0f0, transparent: true, opacity: 0.75 });
+const FLOAT_TOP = new THREE.SphereGeometry(0.07, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+const FLOAT_BOTTOM = new THREE.SphereGeometry(0.07, 10, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2);
+const FLOAT_STICK = new THREE.CylinderGeometry(0.008, 0.008, 0.16, 4);
 const _tipW = new THREE.Vector3();
 const _camDir = new THREE.Vector3();
 /** dev/test only: run the game without drawing (multi-client browser tests) */
@@ -417,9 +420,9 @@ export class Game {
       return;
     }
     const bob = new THREE.Group();
-    const red = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), FLOAT_RED);
-    const white = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), FLOAT_WHITE);
-    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.16, 4), FLOAT_RED);
+    const red = new THREE.Mesh(FLOAT_TOP, FLOAT_RED);
+    const white = new THREE.Mesh(FLOAT_BOTTOM, FLOAT_WHITE);
+    const stick = new THREE.Mesh(FLOAT_STICK, FLOAT_RED);
     stick.position.y = 0.1;
     bob.add(red, white, stick);
     const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 8 }, () => new THREE.Vector3())), FLOAT_LINE);
