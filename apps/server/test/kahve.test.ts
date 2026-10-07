@@ -369,6 +369,8 @@ describe('kahvehane', () => {
     const row = { name: 'Haftalik', wins: won ? 1 : 0, played: 1, net };
     expect(board.top).toContainEqual(row);
     expect(board.me).toMatchObject({ ...row, rank: expect.any(Number) });
+    // this week's top 3 get a 🏆 on their name plate
+    if (board.me.rank <= 3) await until(() => me(a).trophy === board.me.rank);
     // bots never appear; nobody else's request gets a rank
     expect(board.top.some((r: any) => r.name.includes('🤖'))).toBe(false);
     expect(((await (await fetch(url)).json()) as any).me).toBeNull();

@@ -311,7 +311,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     for (const id of game.remoteIds()) if (!ids.has(id)) game.removeRemote(id);
     for (const p of Object.values(view.players)) {
       if (p.id === me) continue;
-      game.upsertRemote(p.id, p, p.name, p.isBot ? '#cfe3f7' : '#ffffff');
+      game.upsertRemote(p.id, p, p.trophy ? `🏆 ${p.name}` : p.name, p.isBot ? '#cfe3f7' : '#ffffff');
       const spot = p.spot >= 0 ? SIT_SPOTS[p.spot] : undefined;
       if (p.isBot && p.table >= 0) {
         const sp = seatPosition(p.table, p.seat);

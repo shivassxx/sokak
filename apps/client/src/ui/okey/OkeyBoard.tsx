@@ -405,6 +405,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
               <div className="plate-in">
                 <span className="dotc" style={{ background: p?.color ?? '#999' }} />
                 <b>{p?.name ?? '—'}</b>
+                {!!p?.trophy && <span className="tag cup" title={`Haftanın en iyileri: ${p.trophy}.`}>🏆</span>}
                 {p?.isBot ? <span className="tag bot">bot</span> : p && <span className="tag lvl" title={levelTitle(levelOf(p.played, p.won))}>⭐{levelOf(p.played, p.won)}</span>}
                 {view.opened[s] && <span className="tag open">{view.opened[s] === 'pairs' ? 'çift' : 'açtı'}</span>}
                 {table.handNo > 1 && <span className="score-pill">{table.totals[s]} p</span>}

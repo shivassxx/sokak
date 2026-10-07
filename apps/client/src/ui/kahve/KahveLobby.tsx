@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import { START_MONEY, levelOf, levelTitle, type LeaderInfo, type SalonInfo } from '@sokak/shared';
-import { getWallet, listLeaders, listSalons, type KahveJoin } from '../../net/connection';
+import { useEffect, useState, type CSSProperties } from 'react';
+import { START_MONEY, levelOf, levelTitle, type LeaderInfo, type SalonInfo, type WeeklyBoard, type WeeklyLeader } from '@sokak/shared';
+import { getWallet, getWeeklyLeaders, listLeaders, listSalons, type KahveJoin } from '../../net/connection';
 import type { Prefs } from '../prefs';
 
 interface Props {
@@ -11,12 +11,73 @@ interface Props {
   onBack: () => void;
 }
 
+const tl = (n: number) => `${n.toLocaleString('tr-TR')} ₺`;
+/** signed play money: +1.250 ₺ / −300 ₺ */
+const signed = (n: number) => (n > 0 ? `+${tl(n)}` : n < 0 ? `−${tl(-n)}` : tl(0));
+const netClass = (n: number) => (n > 0 ? 'net up' : n < 0 ? 'net down' : 'net');
+/** "5–11 Ekim" (or "29 Eylül – 5 Ekim") from the week's Monday and Sunday */
+function weekRange(start: string, end: string): string {
+  const d = (s: string) => new Date(`${s}T12:00:00Z`);
+  const fmt = (s: string, o: Intl.DateTimeFormatOptions) => d(s).toLocaleDateString('tr-TR', { ...o, timeZone: 'UTC' });
+  if (start.slice(0, 7) === end.slice(0, 7)) return `${d(start).getUTCDate()}–${fmt(end, { day: 'numeric', month: 'long' })}`;
+  return `${fmt(start, { day: 'numeric', month: 'long' })} – ${fmt(end, { day: 'numeric', month: 'long' })}`;
+}
+
+function WeeklyRow({ rank, r, me }: { rank: number; r: WeeklyLeader; me: boolean }) {
+  return (
+    <li className={me ? 'me' : undefined}>
+      <span className="rank">{rank}</span>
+      <b>{r.name}</b>
+      {me && <span className="you">sen</span>}
+      <span className="muted" title={`${r.played} maç`}>
+        {r.wins} galibiyet
+      </span>
+      <span className={netClass(r.net)}>{signed(r.net)}</span>
+    </li>
+  );
+}
+
+/** "Haftanın en iyileri": this week's top 10 by net winnings, your own rank, last week's champion. */
+function WeeklyPanel({ board }: { board: WeeklyBoard | null | undefined }) {
+  if (board === undefined) return <p className="hint">Yükleniyor…</p>;
+  if (board === null) return <p className="hint">Sıralama şu an alınamadı.</p>;
+  const me = board.me;
+  return (
+    <div className="weekly">
+      <p className="weekly-info">
+        {weekRange(board.start, board.end)} · maçlardan kazanılan net para · Pazartesi sıfırlanır
+        {board.champion && (
+          <span className="champion">
+            👑 Geçen haftanın şampiyonu: <b>{board.champion.name}</b> ({signed(board.champion.net)})
+          </span>
+        )}
+      </p>
+      {board.top.length === 0 ? (
+        <p className="hint">Bu hafta henüz maç bitmedi, ilk sen ol!</p>
+      ) : (
+        <ol className="leaders weekly-list" style={{ '--rows': Math.ceil(board.top.length / 2) } as CSSProperties}>
+          {board.top.map((r, i) => (
+            <WeeklyRow key={`${r.name}-${i}`} rank={i + 1} r={r} me={me?.rank === i + 1} />
+          ))}
+        </ol>
+      )}
+      {me && me.rank > board.top.length && (
+        <ol className="leaders weekly-list mine">
+          <WeeklyRow rank={me.rank} r={me} me />
+        </ol>
+      )}
+    </div>
+  );
+}
+
 /** Online-okey style lobby: salons in Üsküdar, quick play, new (private) salon. */
 export function KahveLobby({ prefs, busy, error, onJoin, onBack }: Props) {
   const [salons, setSalons] = useState<SalonInfo[] | null>(null);
   const [offline, setOffline] = useState(false);
   const [priv, setPriv] = useState(false);
   const [leaders, setLeaders] = useState<LeaderInfo[]>([]);
+  const [weekly, setWeekly] = useState<WeeklyBoard | null | undefined>(undefined);
+  const [board, setBoard] = useState<'week' | 'rich'>('week');
   const [wallet, setWallet] = useState<{ money: number; played: number; won: number } | null | undefined>(undefined);
   useEffect(() => {
     getWallet()
@@ -38,14 +99,21 @@ export function KahveLobby({ prefs, busy, error, onJoin, onBack }: Props) {
       listLeaders()
         .then((l) => alive && setLeaders(l))
         .catch(() => {});
+    const loadWeekly = () =>
+      getWeeklyLeaders()
+        .then((b) => alive && setWeekly(b))
+        .catch(() => alive && setWeekly((w) => w ?? null));
     void load();
     void loadLeaders();
+    void loadWeekly();
     const iv2 = setInterval(loadLeaders, 10000);
+    const iv3 = setInterval(loadWeekly, 30000);
     const iv = setInterval(load, 4000);
     return () => {
       alive = false;
       clearInterval(iv);
       clearInterval(iv2);
+      clearInterval(iv3);
     };
   }, []);
 
@@ -130,20 +198,29 @@ export function KahveLobby({ prefs, busy, error, onJoin, onBack }: Props) {
             </li>
           ))}
         </ul>
-        {leaders.length > 0 && (
-          <>
-            <h2 className="lobby-sub">🏆 Şu an Üsküdar'ın en zenginleri</h2>
-            <ol className="leaders">
-              {leaders.map((l, i) => (
-                <li key={`${l.name}-${i}`}>
-                  <span className="rank">{i + 1}</span>
-                  <b>{l.name}</b>
-                  <span className="muted">{l.salon}</span>
-                  <span className="money">{l.money.toLocaleString('tr-TR')} ₺</span>
-                </li>
-              ))}
-            </ol>
-          </>
+        <div className="board-tabs" role="tablist">
+          <button role="tab" aria-selected={board === 'week'} className={board === 'week' ? 'on' : ''} onClick={() => setBoard('week')}>
+            🏆 Haftanın en iyileri
+          </button>
+          <button role="tab" aria-selected={board === 'rich'} className={board === 'rich' ? 'on' : ''} onClick={() => setBoard('rich')}>
+            💰 Şu an en zenginler
+          </button>
+        </div>
+        {board === 'week' ? (
+          <WeeklyPanel board={weekly} />
+        ) : leaders.length > 0 ? (
+          <ol className="leaders">
+            {leaders.map((l, i) => (
+              <li key={`${l.name}-${i}`}>
+                <span className="rank">{i + 1}</span>
+                <b>{l.name}</b>
+                <span className="muted">{l.salon}</span>
+                <span className="money">{tl(l.money)}</span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="hint">Şu an açık salonlarda kimse yok.</p>
         )}
         {error && <div className="error">{error}</div>}
         <p className="fineprint">Para tamamen sanal, oyun içidir. Hesap yok: bakiyen bu cihazda saklanır, her gün ilk girişte 250 ₺ bonus.</p>

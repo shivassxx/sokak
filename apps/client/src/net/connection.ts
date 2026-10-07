@@ -1,5 +1,5 @@
 import { Client, type Room } from 'colyseus.js';
-import { KAHVE_ROOM, SERVER_PORT, type JoinOptions, type LeaderInfo, type SalonInfo } from '@sokak/shared';
+import { KAHVE_ROOM, SERVER_PORT, type JoinOptions, type LeaderInfo, type SalonInfo, type WeeklyBoard } from '@sokak/shared';
 
 export function serverEndpoint(): string {
   const env = import.meta.env.VITE_SERVER_URL as string | undefined;
@@ -88,6 +88,17 @@ export async function listLeaders(): Promise<LeaderInfo[]> {
   const r = await fetch(`${httpEndpoint()}/api/leaders`, { cache: 'no-store' });
   if (!r.ok) throw new Error('leaders');
   return (await r.json()) as LeaderInfo[];
+}
+
+/** "Haftanın en iyileri": this week's top 10 (+ this device's rank and last week's champion). */
+export async function getWeeklyLeaders(week: 'current' | 'last' = 'current'): Promise<WeeklyBoard> {
+  const q = new URLSearchParams();
+  if (week === 'last') q.set('week', 'last');
+  const t = deviceToken();
+  if (t) q.set('device', t);
+  const r = await fetch(`${httpEndpoint()}/api/leaders/weekly?${q}`, { cache: 'no-store' });
+  if (!r.ok) throw new Error('weekly');
+  return (await r.json()) as WeeklyBoard;
 }
 
 export interface KahveJoin {
