@@ -129,6 +129,17 @@ export function iskele(b: Builder, x0: number, x1: number, z0: number, z1: numbe
     b.box(x, 0, z0 - 0.02, 1.6, 3.4, 0.08, 0x3b4250);
     b.add(new THREE.CylinderGeometry(0.8, 0.8, 0.08, 14, 1, false, 0, Math.PI), 0x3b4250, x, 3.4, z0 - 0.02, Math.PI / 2, 0, Math.PI / 2);
   }
+  // the promenade side: tall arched windows and a door under the name board
+  for (let k = 0; k < 4; k++) {
+    const z = z0 + 2.4 + k * ((d - 4.8) / 3);
+    if (k === 1) {
+      b.box(x0 - 0.03, 0, z, 0.08, 2.9, 1.8, 0x2a3036);
+      b.box(x0 - 0.05, 2.9, z, 0.1, 0.12, 2.0, 0xd9cdb4);
+    } else {
+      b.box(x0 - 0.03, 0.9, z, 0.08, 2.1, 1.3, 0x3b4250);
+      b.add(new THREE.CylinderGeometry(0.65, 0.65, 0.08, 14, 1, false, 0, Math.PI), 0x3b4250, x0 - 0.03, 3.0, z, 0, 0, Math.PI / 2);
+    }
+  }
   b.box(cx, 5.2, cz, w + 0.8, 0.3, d + 0.8, 0x5a6b70);
   const roof = new THREE.CylinderGeometry(0.01, d * 0.62, 2.6, 4, 1);
   roof.rotateY(Math.PI / 4);
@@ -136,7 +147,6 @@ export function iskele(b: Builder, x0: number, x1: number, z0: number, z1: numbe
   b.pat = PAT.roof;
   b.add(roof, 0x6d7f86, cx, 6.8, cz);
   b.pat = PAT.none;
-  b.cyl(cx, 7.6, z0 + 1, 0.7, 0.12, 0xf2ece0, 20);
 }
 
 // ------------------------------------------------------------------ Kız Kulesi

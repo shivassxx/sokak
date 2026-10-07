@@ -270,6 +270,7 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - Denizin karşısında **Kız Kulesi** duruyor. Önünden vapur geçiyor, martılar uçuyor.
 - Ufukta Tarihi Yarımada'nın silueti görünüyor: Ayasofya, Sultanahmet, Topkapı, Süleymaniye ve Galata Kulesi. Uzaktan da seçilebilsin diye biraz büyük çizildi.
 - Arkada renkli Üsküdar evleri ve tepede bir cami var. Deniz animasyonlu, üstünde güneş parıltısı var.
+- Vapur iskelesinin cephesinde lacivert "ÜSKÜDAR · Vapur İskelesi" tabelası, saat, kemerli pencereler ve kapı var.
 - Sahilde bir bölümde korkuluk yok, alçak taş duvar var. Buraya oturup bacaklarını denize sarkıtabilir, Kız Kulesi'ne karşı çay içebilirsin.
 
 **Market ve dışarıdaki sosyal aktiviteler**

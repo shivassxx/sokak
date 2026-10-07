@@ -494,6 +494,55 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   glowDecal(neon('ÇAY', '#ff6fb5'), -1, 3.3, HALL.z0 + 0.05, 2.2, 0.7);
   glowDecal(neon('OKEY · TAVLA', '#7fe3ff', 1024, 160), HALL.x0 + 0.08, 3.4, -12, 4.4, 0.7, Math.PI / 2);
   glowDecal(neon('MARKET', '#ffffff', 512, 128), (M.x0 + M.x1) / 2, 3.6, 0.2, 5, 1.1);
+  // the ferry pier's name boards and clock
+  const pier = KAHVE_OBJECTS.find((o) => o.kind === 'pier');
+  if (pier) {
+    const board = (big: string, small: string) =>
+      canvasTex(1024, 192, (ctx) => {
+        ctx.fillStyle = '#1d3a63';
+        ctx.fillRect(0, 0, 1024, 192);
+        ctx.strokeStyle = '#e9e1cf';
+        ctx.lineWidth = 8;
+        ctx.strokeRect(10, 10, 1004, 172);
+        ctx.fillStyle = '#ffffff';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '800 104px "Baloo 2", sans-serif';
+        ctx.fillText(big, 512, 84);
+        ctx.font = '700 38px "Baloo 2", sans-serif';
+        ctx.fillText(small, 512, 158);
+      });
+    const px0 = pier.x - pier.w / 2;
+    const pz0 = pier.z - pier.d / 2;
+    decal(scene, board('ÜSKÜDAR', 'VAPUR İSKELESİ'), px0 - 0.07, 3.95, pier.z, 6.4, 1.2, -Math.PI / 2);
+    decal(scene, board('ÜSKÜDAR', 'KARAKÖY · EMİNÖNÜ · BEŞİKTAŞ'), pier.x, 4.35, pz0 - 0.07, 6.4, 1.2, Math.PI);
+    const clock = canvasTex(256, 256, (ctx) => {
+      ctx.fillStyle = '#f6f1e4';
+      ctx.beginPath();
+      ctx.arc(128, 128, 120, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 10;
+      ctx.strokeStyle = '#1d3a63';
+      ctx.stroke();
+      ctx.fillStyle = '#1d3a63';
+      for (let h = 0; h < 12; h++) {
+        const a = (h / 12) * Math.PI * 2;
+        ctx.fillRect(128 + Math.sin(a) * 96 - 4, 128 - Math.cos(a) * 96 - 4, 8, 8);
+      }
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 9;
+      ctx.beginPath();
+      ctx.moveTo(128, 128);
+      ctx.lineTo(128 + Math.sin(-0.9) * 54, 128 - Math.cos(-0.9) * 54);
+      ctx.stroke();
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.moveTo(128, 128);
+      ctx.lineTo(128 + Math.sin(1.9) * 86, 128 - Math.cos(1.9) * 86);
+      ctx.stroke();
+    });
+    decal(scene, clock, px0 - 0.07, 4.85, pier.z, 0.7, 0.7, -Math.PI / 2);
+  }
   const poster = (kind: 0 | 1) =>
     canvasTex(360, 480, (ctx) => {
       const g = ctx.createLinearGradient(0, 0, 0, 480);
