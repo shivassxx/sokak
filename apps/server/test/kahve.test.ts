@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { matchMaker } from '@colyseus/core';
 import { NetBot } from './netBot';
-import { DAILY_MISSIONS, FISH, KAHVE_ROOM, KMSG, MENU, MSG, QUICK_CHAT_OKEY, SEA_Z, SHOPS, SHOP_ITEMS, SIT_SPOTS, START_MONEY, TABLES, TABLE_COUNT, type TableView } from '@sokak/shared';
+import { DAILY_MISSIONS, FISH, achievementById, KAHVE_ROOM, KMSG, MENU, MSG, QUICK_CHAT_OKEY, SEA_Z, SHOPS, SHOP_ITEMS, SIT_SPOTS, START_MONEY, TABLES, TABLE_COUNT, type TableView } from '@sokak/shared';
 import { startServer, type StartedServer } from '../src/app';
 import { until, sleep } from './helpers';
 import type { KahvehaneRoom } from '../src/rooms/KahvehaneRoom';
@@ -252,16 +252,17 @@ describe('kahvehane', () => {
     room.debugPlace(a.id, market.x, market.z);
     await sleep(80);
     a.room.send(KMSG.buy, { shop: 'market', item: 'su' });
-    const su = SHOP_ITEMS.find((i) => i.id === 'su')!;
-    await until(() => me(a).money === START_MONEY - su.price);
+    // the first market purchase also unlocks the "Bakkal müşterisi" achievement
+    const spent = SHOP_ITEMS.find((i) => i.id === 'su')!.price - achievementById('market')!.reward;
+    await until(() => me(a).money === START_MONEY - spent);
     await a.leave();
     await sleep(150);
     const b = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Cuzdan', device });
     await until(() => !!st(b).players?.get(b.id));
-    expect(me(b).money).toBe(START_MONEY - su.price);
+    expect(me(b).money).toBe(START_MONEY - spent);
     // the lobby can read this device's wallet, nobody else's
     const w = await (await fetch(`http://127.0.0.1:${server.port}/api/wallet?device=${device}`)).json();
-    expect(w).toEqual({ money: START_MONEY - su.price, played: 0, won: 0 });
+    expect(w).toEqual({ money: START_MONEY - spent, played: 0, won: 0 });
     expect(await (await fetch(`http://127.0.0.1:${server.port}/api/wallet?device=${'cd'.repeat(16)}`)).json()).toBeNull();
     await b.leave();
   });

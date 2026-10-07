@@ -60,6 +60,7 @@ import { footsteps, goalRoar, gullCry, play, seaside } from '../../game/audio';
 import { useToasts } from '../toasts';
 import { AnnounceBanner } from './AnnounceBanner';
 import { TvWatch } from './TvWatch';
+import { AchievementsHud } from '../Achievements';
 import { Social } from '../Social';
 import { SettingsButton } from '../Settings';
 import { TouchControls, isTouch } from '../TouchControls';
@@ -749,6 +750,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             📋<span className="lbl"> Görevler</span> <b className="count">{DAILY_MISSIONS.filter((d) => (myMissions.progress[d.id] ?? 0) >= d.goal).length}/{DAILY_MISSIONS.length}</b>
           </button>
         )}
+        {myP && <AchievementsHud room={room} />}
         <button className="btn small" title="Çaycı" onClick={() => setMenuOpen((o) => !o)}>
           ☕<span className="lbl"> Çaycı!</span>
         </button>

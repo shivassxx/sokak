@@ -71,6 +71,8 @@ export interface JoinOptions {
   private?: boolean;
   /** kahvehane: anonymous random device token for the play-money wallet */
   device?: string;
+  /** kahvehane: came in through a friend's invite link (for the "Ahbap masası" achievement) */
+  invited?: boolean;
 }
 
 /** client → server, one per simulation step */

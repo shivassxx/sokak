@@ -126,7 +126,7 @@ export function App() {
       busy={busy}
       error={error}
       onStart={(p: Prefs) => {
-        if (invite) void run(() => joinKahve(p, { roomId: invite }));
+        if (invite) void run(() => joinKahve(p, { roomId: invite, invited: true }));
         else {
           setError(null);
           setLobby(p);

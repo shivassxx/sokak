@@ -84,6 +84,7 @@ import {
   type TvBroadcast,
   type UsedMsg,
 } from '@sokak/shared';
+import { ACH_MSG, inHall, isTvStream, tvMatchAt, type AchCounter, type AchUnlockMsg } from '@sokak/shared';
 import { OkeyGame, botAction, partnerOf, teamOf, teamTotals, type OkeyEvent, type Result } from '@sokak/okey';
 import { MATCH_LENGTHS, TavlaMatch, autoTurn, botStep, type Result as TavlaResult, type Side, type TavlaEvent } from '@sokak/tavla';
 import { KPlayer, KTable, KahveState, TTable } from './kahveSchema';
@@ -122,6 +123,8 @@ interface Avatar {
   missions: MissionState;
   /** riding the vapur: deck-local position (yaw is then deck-local too) */
   deck: { x: number; z: number } | null;
+  /** joined through a friend's invite link */
+  invited: boolean;
 }
 
 interface TableRuntime {
@@ -188,6 +191,9 @@ export class KahvehaneRoom extends Room<KahveState> {
   /** devices kicked by staff: they cannot come back to this salon */
   private staffBanned = new Set<string>();
   private tvUnsub: (() => void) | null = null;
+  /** başarımlar: last TV goal handed out ("broadcast:time") and the next check */
+  private tvGoalSeen = '';
+  private tvCheckAt = 0;
 
   override onCreate(options: JoinOptions = {}): void {
     this.roomId = generateRoomId();
@@ -273,6 +279,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       if (now - a.lastChatAt < 1200) return;
       a.lastChatAt = now;
       this.broadcast(MSG.chat, { id: c.sessionId, q } as ChatMsg);
+      this.ach(c.sessionId, 'chat');
     });
     // the shared TV: mirror the current broadcast so late joiners get it; clients simulate the rest
     const tv = this.cls.tv;
@@ -346,6 +353,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       saved: { money: p.money, played: p.played, won: p.won },
       missions: { day: missionDay(), progress: {} },
       deck: null,
+      invited: options.invited === true,
     });
     p.missions = JSON.stringify(this.missionState(p.id));
     p.trophy = this.trophyOf(device);
@@ -447,6 +455,40 @@ export class KahvehaneRoom extends Room<KahveState> {
     const store = this.cls.wallets;
     if (!a?.device || !p || p.isBot || !store) return;
     if (store.recordMatch(a.device, p.name, { won, net })) p.trophy = this.trophyOf(a.device);
+  }
+
+  /**
+   * Başarımlar: count an event for a device player. The store unlocks and pays
+   * (once per device, whatever tab); the money is mirrored into this session.
+   */
+  private ach(id: string, counter: AchCounter, n = 1): void {
+    const a = this.avatars.get(id);
+    const p = this.state.players.get(id);
+    const store = this.cls.wallets;
+    if (!a?.device || !p || p.isBot || !store) return;
+    for (const d of store.bumpAch(a.device, counter, n)) {
+      p.money += d.reward;
+      a.saved.money += d.reward;
+      a.client?.send(ACH_MSG, { id: d.id, reward: d.reward } satisfies AchUnlockMsg);
+    }
+  }
+
+  /** Humans at a finished table; "friend" counts when one of them came by invite link. */
+  private achTable(ids: string[]): void {
+    const humans = ids.filter((x) => this.isHuman(x));
+    if (humans.length >= 2 && humans.some((x) => this.avatars.get(x)?.invited)) for (const x of humans) this.ach(x, 'friend');
+  }
+
+  /** ⚽ a goal on the hall TV: everyone inside the hall saw it. */
+  private checkTvGoal(now: number): void {
+    const b = this.cls.tv?.current();
+    // only simulated derbies have known goals; a real stream is opaque to the server
+    const g = b && !isTvStream(b) ? tvMatchAt(b, now).goal : null;
+    if (!b || !g) return;
+    const key = `${b.id}:${g.t}`;
+    if (key === this.tvGoalSeen) return;
+    this.tvGoalSeen = key;
+    for (const a of this.avatars.values()) if (!a.deck && inHall(a.body.x, a.body.z)) this.ach(a.id, 'tvGoal');
   }
 
   /** 🏆 on the name plate for this week's top 3. */
@@ -679,7 +721,12 @@ export class KahvehaneRoom extends Room<KahveState> {
         this.saveWallet(pl.id);
         this.recordWeekly(pl.id, winners.includes(s), payout[s]!);
         this.mission(pl.id, 'match');
+        this.ach(pl.id, 'okeyPlayed');
+        if (winners.includes(s)) this.ach(pl.id, 'okeyWon');
+        if (winners.includes(s) && t.partners) this.ach(pl.id, 'esliWon');
+        if (t.hands >= 7) this.ach(pl.id, 'longMatch');
       }
+      this.achTable([...t.seats]);
       const winnerTeams = teams ? [0, 1].filter((k) => teams[k] === min) : undefined;
       t.lastMatch = JSON.stringify({ totals, winners, pot: t.pot, payout, teams: teams ?? undefined, winnerTeams });
       if (this.cls.rng() < 0.6) this.clock.setTimeout(() => this.botSay(ti, 'Bir el daha!'), 1800);
@@ -777,6 +824,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       if (e.type === 'turn') turnChanged = true;
       if (e.type === 'caught') {
         this.transfer(t.seats[e.thief]!, t.seats[e.by]!, STEAL_FINE);
+        this.ach(t.seats[e.by]!, 'caught');
       } else if (e.type === 'falseAccusation') {
         const accused = e.accused ?? (g.turn !== e.by ? g.turn : null);
         if (accused !== null) this.transfer(t.seats[e.by]!, t.seats[accused]!, FALSE_ACCUSE_FINE);
@@ -800,6 +848,13 @@ export class KahvehaneRoom extends Room<KahveState> {
       }
       if (e.type === 'caught' || e.type === 'falseAccusation') this.runtime[ti]!.botAccuse.clear();
       if (e.type === 'handEnd') {
+        const f = e.result.finisher;
+        if (f !== null) {
+          const fid = t.seats[f]!;
+          if (e.result.okeyFinish) this.ach(fid, 'okeyFinish');
+          if (g.opened[f] === 'pairs') this.ach(fid, 'cifteFinish');
+          if (g.openedThisTurn) this.ach(fid, 'eldenFinish');
+        }
         this.tableEvent(ti, { type: 'handEnd', result: e.result, hands: g.hands });
         this.onHandEnd(ti, e.result);
         continue;
@@ -887,6 +942,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.money -= cost;
     const msg: ServedMsg = { from: id, to, item: item.id };
     this.broadcast(KMSG.served, msg);
+    if (item.id === 'cay') for (const x of to) this.ach(x, 'tea');
     // bots say thanks for a round on the house
     if (m.to === 'table' && (p.table >= 0 || p.tavla >= 0)) {
       const ti = p.table;
@@ -983,6 +1039,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.holding = item.id;
     p.uses = item.uses;
     p.fish = 0;
+    if (shop.id === 'market') this.ach(id, 'market');
+    if (item.id === 'cay') this.ach(id, 'tea');
   }
 
   private useItem(id: string): void {
@@ -998,7 +1056,10 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (p.uses <= 0) p.holding = '';
     this.broadcast(KMSG.used, { id, item } satisfies UsedMsg);
     // by the water a simit goes to the gulls (the client shows the dive)
-    if (item === 'simit' && (bySea(a.body.x, a.body.z) || p.aboard)) this.mission(id, 'gulls');
+    if (item === 'simit' && (bySea(a.body.x, a.body.z) || p.aboard)) {
+      this.mission(id, 'gulls');
+      this.ach(id, 'gulls');
+    }
   }
 
   /** Q with a rod: cast → (a bite after a few seconds) → pull in time to land something. */
@@ -1042,7 +1103,10 @@ export class KahvehaneRoom extends Room<KahveState> {
     const fish = FISH.find((f) => (r -= f.w) < 0) ?? FISH[0]!;
     spend();
     this.broadcast(KMSG.used, { id, item: 'olta', fish: fish.id } satisfies UsedMsg);
-    if (fish.id !== 'ayakkabi') this.mission(id, 'fish');
+    if (fish.id !== 'ayakkabi') {
+      this.mission(id, 'fish');
+      this.ach(id, 'fish');
+    }
   }
 
   private sitSpot(id: string, raw: unknown): void {
@@ -1059,6 +1123,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     a.queue = [];
     a.queueSeq = [];
     a.client?.send(MSG.teleport, { x: s.x, y: 0, z: s.z, yaw: s.yaw } satisfies TeleportMsg);
+    // the sahil ledge facing Kız Kulesi (no day cycle: any time is sunset here)
+    if (s.label === 'Sahil duvarı') this.ach(id, 'ledge');
   }
 
   private leaveSpot(id: string): void {
@@ -1101,6 +1167,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     a.cast++;
     p.aboard = true;
     this.placeOnDeck(a, v);
+    this.ach(id, 'vapur');
   }
 
   /** "İn": only while the vapur lies at the pier. */
@@ -1169,6 +1236,10 @@ export class KahvehaneRoom extends Room<KahveState> {
     }
     for (let ti = 0; ti < TABLE_COUNT; ti++) this.tickTable(ti, now);
     for (let ti = 0; ti < TAVLA_COUNT; ti++) this.tickTavla(ti, now);
+    if (now >= this.tvCheckAt) {
+      this.tvCheckAt = now + 1000;
+      this.checkTvGoal(now);
+    }
     this.sendSnapshots(now);
   }
 
@@ -1456,6 +1527,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     rt.autoEndAt = 0;
     t.lastGame = JSON.stringify({ winner: e.winner, value: e.value, mars: e.mars, score: [...m.score] } satisfies TavlaGameResultView);
     this.cls.analyticsSink?.tavlaGamePlayed?.();
+    if (e.mars) this.ach(t.seats[e.winner]!, 'tavlaMars');
     if (!m.over) {
       t.status = 'between';
       rt.until = Date.now() + this.cls.timing.between;
@@ -1473,7 +1545,10 @@ export class KahvehaneRoom extends Room<KahveState> {
       this.saveWallet(pl.id);
       this.recordWeekly(pl.id, s === w, payout[s]!);
       this.mission(pl.id, 'match');
+      this.ach(pl.id, 'tavlaPlayed');
+      if (s === w) this.ach(pl.id, 'tavlaWon');
     }
+    this.achTable([...t.seats]);
     t.lastMatch = JSON.stringify({ score: [...m.score], winner: w, pot: t.pot, payout } satisfies TavlaMatchResultView);
     t.pot = 0;
     t.status = 'result';

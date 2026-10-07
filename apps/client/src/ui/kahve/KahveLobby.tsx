@@ -1,7 +1,10 @@
-import { useEffect, useState, type CSSProperties } from 'react';
+import { Suspense, lazy, useEffect, useState, type CSSProperties } from 'react';
 import { START_MONEY, levelOf, levelTitle, type LeaderInfo, type SalonInfo, type WeeklyBoard, type WeeklyLeader } from '@sokak/shared';
-import { getWallet, getWeeklyLeaders, listLeaders, listSalons, type KahveJoin } from '../../net/connection';
+import { getAchievements, getWallet, getWeeklyLeaders, listLeaders, listSalons, type KahveJoin } from '../../net/connection';
 import type { Prefs } from '../prefs';
+
+// the başarımlar panel (and its CSS) is only downloaded when opened
+const AchievementsPanel = lazy(() => import('../Achievements'));
 
 interface Props {
   prefs: Prefs;
@@ -79,10 +82,15 @@ export function KahveLobby({ prefs, busy, error, onJoin, onBack }: Props) {
   const [weekly, setWeekly] = useState<WeeklyBoard | null | undefined>(undefined);
   const [board, setBoard] = useState<'week' | 'rich'>('week');
   const [wallet, setWallet] = useState<{ money: number; played: number; won: number } | null | undefined>(undefined);
+  const [achCount, setAchCount] = useState<string | null>(null);
+  const [achOpen, setAchOpen] = useState(false);
   useEffect(() => {
     getWallet()
       .then(setWallet)
       .catch(() => setWallet(undefined));
+    getAchievements()
+      .then((s) => setAchCount(s.total ? `${s.got.length}/${s.total}` : null))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -164,8 +172,16 @@ export function KahveLobby({ prefs, busy, error, onJoin, onBack }: Props) {
                 )}
               </p>
             )}
+            <button className="btn small" style={{ margin: '6px 0 0 6px', verticalAlign: 'top' }} onClick={() => setAchOpen(true)}>
+              🏅 Başarımlar{achCount && <b className="count"> {achCount}</b>}
+            </button>
           </div>
         </div>
+        {achOpen && (
+          <Suspense fallback={null}>
+            <AchievementsPanel onClose={() => setAchOpen(false)} />
+          </Suspense>
+        )}
         <div className="lobby-actions">
           <button className="btn big primary" disabled={busy} onClick={() => onJoin({ quick: true })}>
             ⚡ Hızlı oyna
