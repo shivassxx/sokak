@@ -23,12 +23,14 @@ export async function startServer(port: number, opts: {
     analyticsFile?: string | null;
     statsToken?: string;
     walletFile?: string | null;
+    /** clock of the wallet store (weekly leaderboard), injectable for tests */
+    now?: () => number;
     kahve?: { timing?: Partial<typeof KahvehaneRoom.timing>; rng?: () => number };
   } = {}): Promise<StartedServer> {
   const app = express();
   app.disable('x-powered-by');
   const analytics = new Analytics(opts.analyticsFile ?? null);
-  const wallets = new WalletStore(opts.walletFile ?? null);
+  const wallets = new WalletStore(opts.walletFile ?? null, { now: opts.now });
   app.get('/health', (_req, res) => {
     res.json({ ok: true });
   });
@@ -73,6 +75,14 @@ export async function startServer(port: number, opts: {
     } catch {
       res.json([]);
     }
+  });
+  // weekly leaderboard ("Haftanın en iyileri"): names and results only, never device tokens;
+  // ?device= adds the asker's own rank, ?week=last gives last week's final standings
+  app.get('/api/leaders/weekly', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store');
+    const device = WalletStore.validToken(req.query.device) ? req.query.device : undefined;
+    res.json(wallets.weekly(req.query.week === 'last' ? 'last' : 'current', device));
   });
   // aggregate counts only; protected by a token when STATS_TOKEN is set
   app.get('/stats', (req, res) => {

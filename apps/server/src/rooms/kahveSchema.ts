@@ -28,6 +28,8 @@ export class KPlayer extends Schema {
   @type('uint16') won = 0;
   /** today's mission progress, JSON MissionState */
   @type('string') missions = '';
+  /** rank 1–3 on this week's leaderboard (🏆 on the name plate), 0 otherwise */
+  @type('uint8') trophy = 0;
 }
 
 export class KTable extends Schema {

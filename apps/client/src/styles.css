@@ -301,6 +301,7 @@ kbd { font: 800 11px/1 'Baloo 2', system-ui; padding: 3px 6px; border-radius: 6p
   .okey-info { font-size: 11px; top: 46px; padding: 4px 8px; }
   .plate-in { font-size: 11px; padding: 2px 8px; }
   .plate-in .tag { display: none; }
+  .plate-in .tag.cup { display: inline; }
   .hud-top .btn.small { padding: 4px 9px; font-size: 13px; }
   .kahve .hud-top .lbl, .kahve .salon-name { display: none; }
   .richest { display: none; }
@@ -376,6 +377,23 @@ kbd { font: 800 11px/1 'Baloo 2', system-ui; padding: 3px 6px; border-radius: 6p
 .leaders li:nth-child(3) .rank { background: #e8b48a; }
 .leaders .muted { font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .leaders .money { font-weight: 800; color: var(--sun-dark); white-space: nowrap; }
+/* lobby: weekly leaderboard / richest-online tabs */
+.board-tabs { display: flex; gap: 6px; margin: 16px 0 8px; flex-wrap: wrap; }
+.board-tabs button { font: inherit; font-size: 15px; font-weight: 800; color: var(--ink); background: #fff; border: 2px solid #f0e2c8; border-radius: 999px; padding: 5px 14px; cursor: pointer; }
+.board-tabs button.on { background: #ffd166; border-color: #e8b440; }
+.weekly-info { margin: 0 0 8px; font-size: 13px; color: #7a6a5a; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; text-align: left; }
+.weekly-info .champion { color: var(--ink); background: #fff3d6; border-radius: 999px; padding: 2px 10px; }
+.leaders b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaders li.me { background: #fff8e1; box-shadow: inset 0 0 0 2px #ffd166; }
+.leaders .you { font-size: 11px; font-weight: 800; background: #ffd166; border-radius: 999px; padding: 0 6px; flex: none; }
+.leaders .net { font-weight: 800; white-space: nowrap; }
+.leaders .net.up { color: #1d7a43; }
+.leaders .net.down { color: #b23a2a; }
+.weekly-list { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: column; grid-template-rows: repeat(var(--rows, 5), auto); }
+.weekly-list.mine { margin-top: 6px; }
+@media (max-width: 560px) { .weekly-list { grid-template-columns: minmax(0, 1fr); grid-auto-flow: row; grid-template-rows: none; } }
+.weekly-list.mine li .rank { background: #f4e6cc; width: auto; min-width: 22px; padding: 0 5px; border-radius: 11px; }
+.tag.cup { background: #ffe08a; padding: 1px 4px; }
 .lobby-card .fineprint { color: #7a6a5a; text-shadow: none; margin-top: 14px; }
 
 .voice-panel { right: 12px; top: 64px; width: min(340px, calc(100% - 24px)); z-index: 7; }

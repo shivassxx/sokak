@@ -67,6 +67,30 @@ export interface LeaderInfo {
   salon: string;
 }
 
+/** One row of the weekly leaderboard (never carries a device token). */
+export interface WeeklyLeader {
+  name: string;
+  /** matches won / finished this week */
+  wins: number;
+  played: number;
+  /** play money won from matches minus bets paid this week (can be negative) */
+  net: number;
+}
+
+/** GET /api/leaders/weekly[?week=last][&device=…] */
+export interface WeeklyBoard {
+  /** ISO week in Istanbul time, e.g. "2026-W41", and its Monday / Sunday (YYYY-MM-DD) */
+  week: string;
+  start: string;
+  end: string;
+  /** top 10 by net winnings (ties: more wins first) */
+  top: WeeklyLeader[];
+  /** the asking device's own row and rank, null if it has no finished match that week */
+  me: (WeeklyLeader & { rank: number }) | null;
+  /** current week only: last week's winner ("Geçen haftanın şampiyonu") */
+  champion?: WeeklyLeader | null;
+}
+
 /** Someone used their held item (smoke, eat, drink, read). */
 export interface UsedMsg {
   id: string;
@@ -171,6 +195,8 @@ export interface KPlayerView {
   won: number;
   /** today's mission progress (JSON MissionState) */
   missions: string;
+  /** rank 1–3 on this week's leaderboard ("Haftanın en iyileri"), 0 otherwise */
+  trophy: number;
 }
 
 export interface KTableView {

@@ -270,6 +270,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       missions: { day: missionDay(), progress: {} },
     });
     p.missions = JSON.stringify(this.missionState(p.id));
+    p.trophy = this.trophyOf(device);
     if (bonus) this.clock.setTimeout(() => this.avatars.get(p.id)?.client?.send(KMSG.notice, `🎁 Günlük bonus: +${bonus} ₺. Hoş geldin!`), 1500);
     if (options.quick) this.quickSeat(p.id, undefined);
   }
@@ -359,6 +360,21 @@ export class KahvehaneRoom extends Room<KahveState> {
     a.saved = { money: p.money, played: p.played, won: p.won };
   }
 
+  /** Weekly leaderboard: count a finished (or walked-out) match of a device player. */
+  private recordWeekly(id: string, won: boolean, net: number): void {
+    const a = this.avatars.get(id);
+    const p = this.state.players.get(id);
+    const store = this.cls.wallets;
+    if (!a?.device || !p || p.isBot || !store) return;
+    if (store.recordMatch(a.device, p.name, { won, net })) p.trophy = this.trophyOf(a.device);
+  }
+
+  /** 🏆 on the name plate for this week's top 3. */
+  private trophyOf(device: string): number {
+    const r = device ? (this.cls.wallets?.weeklyRank(device) ?? 0) : 0;
+    return r >= 1 && r <= 3 ? r : 0;
+  }
+
   private removePlayer(id: string): void {
     const p = this.state.players.get(id);
     if (!p) return;
@@ -441,6 +457,9 @@ export class KahvehaneRoom extends Room<KahveState> {
     const playing = t.status !== 'open';
     p.table = -1;
     p.seat = -1;
+    // walking out of a running match counts as a lost match on the weekly board
+    // (the bet is gone), so leaving when behind can't keep a clean record
+    if (playing && t.status !== 'result' && !p.isBot) this.recordWeekly(id, false, -t.bet);
     if (playing) {
       const bot = this.createBot(ti, seat);
       t.seats[seat] = bot.id;
@@ -567,6 +586,7 @@ export class KahvehaneRoom extends Room<KahveState> {
         pl.played = Math.min(65535, pl.played + 1);
         if (winners.includes(s)) pl.won = Math.min(65535, pl.won + 1);
         this.saveWallet(pl.id);
+        this.recordWeekly(pl.id, winners.includes(s), payout[s]!);
         this.mission(pl.id, 'match');
       }
       t.lastMatch = JSON.stringify({ totals, winners, pot: t.pot, payout });
@@ -780,7 +800,14 @@ export class KahvehaneRoom extends Room<KahveState> {
 
   // ------------------------------------------------------------ lobby helpers
   private updateMeta(): void {
-    for (const a of this.avatars.values()) if (a.device) this.saveWallet(a.id);
+    for (const a of this.avatars.values()) {
+      if (!a.device) continue;
+      this.saveWallet(a.id);
+      // ranks move when people in other salons finish matches too
+      const p = this.state.players.get(a.id);
+      const tr = this.trophyOf(a.device);
+      if (p && p.trophy !== tr) p.trophy = tr;
+    }
     const humans = [...this.state.players.values()].filter((p) => !p.isBot).length;
     let playing = 0;
     let waiting = 0;
