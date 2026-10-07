@@ -7,3 +7,4 @@ export * from './profanity';
 export * from './kahve';
 export * from './kahveProtocol';
 export * from './kahveTypes';
+export * from './vapur';

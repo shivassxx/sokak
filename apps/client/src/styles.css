@@ -320,6 +320,8 @@ kbd { font: 800 11px/1 'Baloo 2', system-ui; padding: 3px 6px; border-radius: 6p
 .watch-panel { flex-wrap: wrap; justify-content: center; white-space: normal !important; max-width: min(560px, calc(100vw - 24px)); padding: 6px 12px; font-size: 14px; gap: 8px; }
 .watch-seats { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 2px; font-size: 12px; color: #6a5a4a; }
 .watch-seats b { color: var(--sun-dark); }
+.vapur-prompt { white-space: normal !important; max-width: min(560px, calc(100vw - 24px)); flex-wrap: wrap; justify-content: center; }
+.vapur-prompt small { display: block; font-size: 12px; color: #6a5a4a; margin-top: 2px; }
 .pill.lvl { background: rgba(255,224,138,.92); color: #6a4a10; font-weight: 800; }
 .tag.lvl { background: #ffe08a; color: #6a4a10; }
 .me-card { margin: 6px 0 0; font-size: 14px; background: #fff3d6; border-radius: 12px; padding: 6px 10px; display: inline-block; }

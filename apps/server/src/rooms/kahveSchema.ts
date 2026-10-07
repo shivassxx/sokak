@@ -30,6 +30,8 @@ export class KPlayer extends Schema {
   @type('string') missions = '';
   /** rank 1–3 on this week's leaderboard (🏆 on the name plate), 0 otherwise */
   @type('uint8') trophy = 0;
+  /** riding the vapur (position is on its deck) */
+  @type('boolean') aboard = false;
 }
 
 export class KTable extends Schema {

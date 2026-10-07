@@ -67,3 +67,9 @@
 - Tests: `apps/server/test/weekly.test.ts` (week ids incl. year boundary, net accounting, tie-break, top 10 + own rank, nickname update, Monday rollover, last week / champion, prune on save/load, no tokens) and a kahve integration test (device player's full bot match → weekly board with the right net, walk-out counts −bet, trophy). 69 tests total; build OK; size check OK.
 - Verified with Playwright on a seeded wallet file: lobby at 1280×720 and 844×390 (no horizontal overflow).
 - Privacy decision recorded in `Docs/Decisions.md` ("Weekly leaderboard").
+## Vapur rides (2026-10-07)
+- Shared absolute-time vapur timeline (`packages/shared/src/vapur.ts`): docked 30 s, loop round Kız Kulesi 95 s; deck frame helpers, deck walking.
+- Server: `board` / `alight` messages, `aboard` in the player schema, riders follow the boat each tick, deck-frame snapshots, drop → back on the pier, vapur çaycısı shop, guards (no fishing/sitting/kahve orders aboard). `KahvehaneRoom.vapurNow` / `startServer({ kahve: { vapurNow } })` for tests.
+- Client: boat pose from the shared function at server time; local rider predicted on the deck and rendered on the boat every frame; remote riders placed in deck coordinates; HUD lines ("Vapurdasın · Kız Kulesi turu · İskeleye dönüş 1:12", "Vapura bin (E)"), following gulls, simit from the deck, horn, çaycı NPC on board.
+- Tests: `packages/shared/test/vapur.test.ts` (8), `apps/server/test/vapur.test.ts` (8); 78 tests total. Build OK, 3.23 MB gzip.
+- Screenshots: /tmp/claude-0/agent-shots/vapur/.

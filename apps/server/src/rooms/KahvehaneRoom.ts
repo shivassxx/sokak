@@ -2,6 +2,8 @@ import { Room, type Client } from '@colyseus/core';
 import {
   AVATARS,
   BET_OPTIONS,
+  BOARD_REACH,
+  BOARD_SPOT,
   CREDIT_AMOUNT,
   CREDIT_COOLDOWN_MS,
   DAILY_MISSIONS,
@@ -40,6 +42,10 @@ import {
   TURN_SECONDS,
   cleanNickname,
   createBody,
+  deckSpot,
+  deckToWorld,
+  stepDeck,
+  vapurState,
   isOffensive,
   isValidNicknameLength,
   randomNickname,
@@ -98,6 +104,8 @@ interface Avatar {
   saved: { money: number; played: number; won: number };
   /** mission progress for players without a device wallet */
   missions: MissionState;
+  /** riding the vapur: deck-local position (yaw is then deck-local too) */
+  deck: { x: number; z: number } | null;
 }
 
 interface TableRuntime {
@@ -136,6 +144,8 @@ export class KahvehaneRoom extends Room<KahveState> {
   /** override for tests (ms) */
   static timing = { botMin: 700, botMax: 1600, between: 6000, result: 9000, turn: TURN_SECONDS * 1000, biteMin: 3000, biteMax: 9000, biteWindow: 1700 };
   static wallets: WalletStore | null = null;
+  /** clock of the shared vapur timeline (epoch ms); tests override it */
+  static vapurNow: () => number = () => Date.now();
   static analyticsSink: { tableStarted?(players: number, bet: number): void; handPlayed?(): void } | null = null;
 
   private get cls(): typeof KahvehaneRoom {
@@ -185,6 +195,18 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.onMessage(KMSG.sitSpot, (c, m: { spot?: unknown }) => this.sitSpot(c.sessionId, m?.spot));
     this.onMessage(KMSG.quickSeat, (c, m: { table?: unknown }) => this.quickSeat(c.sessionId, m?.table));
     this.onMessage(KMSG.fillBots, (c) => this.fillBotsAndStart(c.sessionId));
+    this.onMessage(KMSG.board, (c) => this.board(c.sessionId));
+    this.onMessage(KMSG.alight, (c) => this.alight(c.sessionId));
+    // local screenshot / browser testing only (opt-in env var, never set in production)
+    if (process.env.SOKAK_DEV_TELEPORT === '1')
+      this.onMessage('devTeleport', (c, m: { x?: unknown; z?: unknown }) => {
+        const a = this.avatars.get(c.sessionId);
+        const x = Number(m?.x);
+        const z = Number(m?.z);
+        if (!a || a.deck || !Number.isFinite(x) || !Number.isFinite(z)) return;
+        a.body = createBody(x, z);
+        a.client?.send(MSG.teleport, { x, y: 0, z, yaw: a.yaw } satisfies TeleportMsg);
+      });
     // voice chat: opt-in flag + relaying WebRTC signalling between two opted-in players
     this.onMessage(KMSG.voice, (c, on: unknown) => {
       const p = this.state.players.get(c.sessionId);
@@ -268,6 +290,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       device,
       saved: { money: p.money, played: p.played, won: p.won },
       missions: { day: missionDay(), progress: {} },
+      deck: null,
     });
     p.missions = JSON.stringify(this.missionState(p.id));
     p.trophy = this.trophyOf(device);
@@ -278,6 +301,8 @@ export class KahvehaneRoom extends Room<KahveState> {
   override async onLeave(client: Client, consented: boolean): Promise<void> {
     const p = this.state.players.get(client.sessionId);
     if (!p) return;
+    // a dropped rider is put back on the pier (they come back there if they reconnect)
+    if (p.aboard) this.leaveVapur(p.id, false);
     if (!consented) {
       p.connected = false;
       const a = this.avatars.get(p.id);
@@ -412,6 +437,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const a = this.avatars.get(id);
     const ti = Number(tableRaw);
     if (!p || !a || !Number.isInteger(ti) || ti < 0 || ti >= TABLE_COUNT || p.table >= 0) return;
+    if (p.aboard) return this.error(id, 'Vapurdasın! Önce iskelede in.');
     const t = this.state.tables[ti]!;
     if (t.status !== 'open') return this.error(id, 'Bu masada oyun sürüyor.');
     const tc = TABLES[ti]!;
@@ -785,6 +811,8 @@ export class KahvehaneRoom extends Room<KahveState> {
       if (!this.state.players.has(m.to)) return;
       to = [m.to];
     }
+    if (to.some((x) => this.state.players.get(x)?.aboard))
+      return this.error(id, to.includes(id) ? 'Çaycı Rıza vapura yetişemez! Vapurdaki çaycıdan al.' : 'O vapurda, çaycı Rıza oraya yetişemez!');
     const cost = item.price * to.length;
     if (p.money < cost) return this.error(id, 'Paran yetmiyor. Veresiye isteyebilirsin.');
     a.lastOrderAt = now;
@@ -834,6 +862,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const p = this.state.players.get(id);
     const a = this.avatars.get(id);
     if (!p || !a || p.table >= 0) return;
+    if (p.aboard) return this.error(id, 'Vapurdasın! Önce iskelede in.');
     if (p.spot >= 0) this.leaveSpot(id);
     let ti = Number(raw);
     if (!Number.isInteger(ti) || ti < 0 || ti >= TABLE_COUNT) {
@@ -870,7 +899,10 @@ export class KahvehaneRoom extends Room<KahveState> {
     const now = Date.now();
     if (now - a.lastShopAt < 600) return;
     a.lastShopAt = now;
-    if (Math.hypot(a.body.x - shop.x, a.body.z - shop.z) > SHOP_REACH + 0.6) return this.error(id, `${shop.name}'e biraz daha yaklaş.`);
+    // the vapur çaycısı stands on the deck: deck-local distance, only for riders
+    const at = shop.deck ? a.deck : a.body;
+    if (!at) return this.error(id, 'Vapur çaycısı sadece vapurda.');
+    if (Math.hypot(at.x - shop.x, at.z - shop.z) > SHOP_REACH + 0.6) return this.error(id, `${shop.name}'e biraz daha yaklaş.`);
     if (p.money < item.price) return this.error(id, 'Paran yetmiyor.');
     p.money -= item.price;
     p.holding = item.id;
@@ -891,7 +923,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (p.uses <= 0) p.holding = '';
     this.broadcast(KMSG.used, { id, item } satisfies UsedMsg);
     // by the water a simit goes to the gulls (the client shows the dive)
-    if (item === 'simit' && bySea(a.body.x, a.body.z)) this.mission(id, 'gulls');
+    if (item === 'simit' && (bySea(a.body.x, a.body.z) || p.aboard)) this.mission(id, 'gulls');
   }
 
   /** Q with a rod: cast → (a bite after a few seconds) → pull in time to land something. */
@@ -907,6 +939,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       if (p.uses <= 0) p.holding = '';
     };
     if (p.fish === 0) {
+      if (p.aboard) return this.error(id, 'Vapurdan olta atılmaz, kaptan kızar!');
       if (!bySea(a.body.x, a.body.z)) return this.error(id, 'Olta atmak için sahile in, denize karşı dur.');
       const cast = ++a.cast;
       p.fish = 1;
@@ -942,7 +975,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const a = this.avatars.get(id);
     const i = Number(raw);
     const s = SIT_SPOTS[i];
-    if (!p || !a || !s || p.table >= 0 || p.spot >= 0) return;
+    if (!p || !a || !s || p.table >= 0 || p.spot >= 0 || p.aboard) return;
     if (Math.hypot(a.body.x - s.x, a.body.z - s.z) > SPOT_REACH + 0.6) return this.error(id, 'Biraz daha yaklaş.');
     if ([...this.state.players.values()].some((o) => o.spot === i)) return this.error(id, 'Orası dolu.');
     p.spot = i;
@@ -969,6 +1002,64 @@ export class KahvehaneRoom extends Room<KahveState> {
     a.client?.send(MSG.teleport, { x, y: 0, z, yaw: s.yaw } satisfies TeleportMsg);
   }
 
+  // ------------------------------------------------------------ the vapur
+  /** "Vapura bin": at the pier's sea end while the vapur is docked. */
+  private board(id: string): void {
+    const p = this.state.players.get(id);
+    const a = this.avatars.get(id);
+    if (!p || !a || p.aboard || p.table >= 0) return;
+    const v = vapurState(this.cls.vapurNow());
+    if (Math.hypot(a.body.x - BOARD_SPOT.x, a.body.z - BOARD_SPOT.z) > BOARD_REACH + 0.6) return this.error(id, 'Vapura binmek için iskeleye yaklaş.');
+    if (!v.boardable) return this.error(id, 'Vapur seferde. İskeleye yanaşınca binebilirsin.');
+    if (p.spot >= 0) this.leaveSpot(id);
+    // a free spot along the stern rail / the walkways
+    const riders = [...this.avatars.values()].filter((o) => o.deck);
+    let k = 0;
+    while (k < 40 && riders.some((o) => Math.hypot(o.deck!.x - deckSpot(k).x, o.deck!.z - deckSpot(k).z) < 0.6)) k++;
+    const s = deckSpot(k);
+    a.deck = { x: s.x, z: s.z };
+    a.yaw = s.yaw;
+    a.queue = [];
+    a.queueSeq = [];
+    // the line comes in when you leave the shore
+    p.fish = 0;
+    a.cast++;
+    p.aboard = true;
+    this.placeOnDeck(a, v);
+  }
+
+  /** "İn": only while the vapur lies at the pier. */
+  private alight(id: string): void {
+    const p = this.state.players.get(id);
+    if (!p?.aboard) return;
+    if (!vapurState(this.cls.vapurNow()).boardable) return this.error(id, 'Vapur iskeleye yanaşınca inebilirsin.');
+    this.leaveVapur(id);
+  }
+
+  /** Off the boat, back on the pier (alighting, or dropped while riding). */
+  private leaveVapur(id: string, notify = true): void {
+    const p = this.state.players.get(id);
+    const a = this.avatars.get(id);
+    if (p) p.aboard = false;
+    if (!a?.deck) return;
+    a.deck = null;
+    a.body = createBody(BOARD_SPOT.x, BOARD_SPOT.z);
+    a.yaw = BOARD_SPOT.yaw;
+    a.queue = [];
+    a.queueSeq = [];
+    if (notify) a.client?.send(MSG.teleport, { x: BOARD_SPOT.x, y: 0, z: BOARD_SPOT.z, yaw: BOARD_SPOT.yaw } satisfies TeleportMsg);
+  }
+
+  /** A rider's world body follows the vapur (others use it for distances, voice, gulls). */
+  private placeOnDeck(a: Avatar, v: ReturnType<typeof vapurState>): void {
+    const w = deckToWorld(v, a.deck!.x, a.deck!.z);
+    a.body.x = w.x;
+    a.body.y = w.y;
+    a.body.z = w.z;
+    a.body.vy = 0;
+    a.body.onGround = true;
+  }
+
   private credit(id: string): void {
     const p = this.state.players.get(id);
     const a = this.avatars.get(id);
@@ -984,13 +1075,17 @@ export class KahvehaneRoom extends Room<KahveState> {
   // ------------------------------------------------------------ tick
   private tick(): void {
     const now = Date.now();
+    const vapur = vapurState(this.cls.vapurNow());
     for (const a of this.avatars.values()) {
       const p = this.state.players.get(a.id);
       for (let k = 0; k < 3 && a.queue.length; k++) {
         const input = a.queue.shift()!;
         a.lastSeq = a.queueSeq.shift()!;
-        if (p && p.table < 0 && p.spot < 0) stepBody(a.body, input, SIM_DT, KAHVE_WORLD);
+        // riders walk on the deck; their input is already in the deck frame
+        if (a.deck) stepDeck(a.deck, input.mx, input.mz, SIM_DT);
+        else if (p && p.table < 0 && p.spot < 0) stepBody(a.body, input, SIM_DT, KAHVE_WORLD);
       }
+      if (a.deck) this.placeOnDeck(a, vapur);
       // walking off reels the line in
       if (p && p.fish > 0 && Math.hypot(a.body.x - a.castX, a.body.z - a.castZ) > 1.2) {
         p.fish = 0;
@@ -1079,12 +1174,16 @@ export class KahvehaneRoom extends Room<KahveState> {
     const all: PlayerSnap[] = [];
     for (const a of this.avatars.values()) {
       const p = this.state.players.get(a.id);
-      all.push([a.id, r2(a.body.x), r2(a.body.y), r2(a.body.z), r2(a.yaw), p && (p.table >= 0 || p.spot >= 0) ? 4 : 0]);
+      // riders are sent in deck coordinates: every client places them on its own (exact) vapur
+      if (a.deck) all.push([a.id, r2(a.deck.x), 0, r2(a.deck.z), r2(a.yaw), 8]);
+      else all.push([a.id, r2(a.body.x), r2(a.body.y), r2(a.body.z), r2(a.yaw), p && (p.table >= 0 || p.spot >= 0) ? 4 : 0]);
     }
     for (const a of this.avatars.values()) {
       if (!a.client) continue;
       const b = a.body;
-      const msg: SnapshotMsg = { t, a: a.lastSeq, me: [b.x, b.y, b.z, b.vy, b.onGround ? 1 : 0, b.stamina, b.tired ? 1 : 0, -1], p: all.filter((x) => x[0] !== a.id) };
+      const me: NonNullable<SnapshotMsg['me']> = [b.x, b.y, b.z, b.vy, b.onGround ? 1 : 0, b.stamina, b.tired ? 1 : 0, -1];
+      if (a.deck) me.push(a.deck.x, a.deck.z);
+      const msg: SnapshotMsg = { t, a: a.lastSeq, me, p: all.filter((x) => x[0] !== a.id) };
       a.client.send(MSG.snapshot, msg);
     }
   }
@@ -1097,6 +1196,16 @@ export class KahvehaneRoom extends Room<KahveState> {
   debugPlace(id: string, x: number, z: number): void {
     const a = this.avatars.get(id);
     if (a) a.body = createBody(x, z);
+  }
+
+  debugDeck(id: string): { x: number; z: number } | null {
+    const d = this.avatars.get(id)?.deck;
+    return d ? { ...d } : null;
+  }
+
+  debugBody(id: string): { x: number; y: number; z: number } | null {
+    const b = this.avatars.get(id)?.body;
+    return b ? { x: b.x, y: b.y, z: b.z } : null;
   }
 }
 

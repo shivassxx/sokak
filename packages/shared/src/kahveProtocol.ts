@@ -27,6 +27,9 @@ export const KMSG = {
   signal: 'signal',
   /** client is wired up (after a reload / reconnect): resend private state */
   resync: 'resync',
+  /** get on the vapur (docked, at the pier) / get off it (docked) */
+  board: 'board',
+  alight: 'alight',
 } as const;
 
 /** WebRTC signalling relayed by the server between two voice users. */
@@ -197,6 +200,8 @@ export interface KPlayerView {
   missions: string;
   /** rank 1–3 on this week's leaderboard ("Haftanın en iyileri"), 0 otherwise */
   trophy: number;
+  /** riding the vapur */
+  aboard: boolean;
 }
 
 export interface KTableView {
