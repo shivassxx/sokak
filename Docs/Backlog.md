@@ -3,7 +3,7 @@
 Ideas that are out of scope for now. The game is 101 Okey only (Saklambaç was removed on 2026-10-07).
 
 ## Kahvehane / 101 Okey
-- Playable tavla at the tavla tables (today only the regulars play).
+- Tavla: spectating a tavla game (like okey's "İzle"), tavla tables in the "Masalar" quick-seat list, smooth checker slides in 3D.
 - Take the vapur across to Karaköy (a second map), fishing with the amcas.
 - Persistent weekly leaderboard (needs storing nicknames; decide on privacy first).
 - Partner (eşli) 101 and a rising opening threshold as table options.
