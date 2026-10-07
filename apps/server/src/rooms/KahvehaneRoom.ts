@@ -82,6 +82,7 @@ import { OkeyGame, botAction, type OkeyEvent, type Result } from '@sokak/okey';
 import { MATCH_LENGTHS, TavlaMatch, autoTurn, botStep, type Result as TavlaResult, type Side, type TavlaEvent } from '@sokak/tavla';
 import { KPlayer, KTable, KahveState, TTable } from './kahveSchema';
 import { generateRoomId } from '../roomId';
+import type { TvChannel } from '../tv';
 import { WalletStore } from '../wallets';
 
 /** daily play-money bonus for returning devices */
@@ -166,6 +167,8 @@ export class KahvehaneRoom extends Room<KahveState> {
   static wallets: WalletStore | null = null;
   /** clock of the shared vapur timeline (epoch ms); tests override it */
   static vapurNow: () => number = () => Date.now();
+  /** the shared TV channel (staff put derbies on); null in rooms without one */
+  static tv: TvChannel | null = null;
   static analyticsSink: { tableStarted?(players: number, bet: number): void; handPlayed?(): void; tavlaStarted?(players: number, bet: number): void; tavlaGamePlayed?(): void } | null = null;
 
   private get cls(): typeof KahvehaneRoom {

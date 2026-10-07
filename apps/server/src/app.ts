@@ -8,11 +8,13 @@ import { KAHVE_ROOM, type LeaderInfo, type SalonInfo, type SalonMeta } from '@so
 import { KahvehaneRoom } from './rooms/KahvehaneRoom';
 import { Analytics } from './analytics';
 import { WalletStore } from './wallets';
+import { TvChannel } from './tv';
 
 export interface StartedServer {
   port: number;
   analytics: Analytics;
   wallets: WalletStore;
+  tv: TvChannel;
   gameServer: Server;
   close(): Promise<void>;
 }
@@ -31,6 +33,7 @@ export async function startServer(port: number, opts: {
   app.disable('x-powered-by');
   const analytics = new Analytics(opts.analyticsFile ?? null);
   const wallets = new WalletStore(opts.walletFile ?? null, { now: opts.now });
+  const tv = new TvChannel();
   app.get('/health', (_req, res) => {
     res.json({ ok: true });
   });
@@ -125,6 +128,7 @@ export async function startServer(port: number, opts: {
         static override rng = kahveRng;
         static override vapurNow = vapurNow;
         static override wallets = wallets;
+        static override tv = tv;
         static override analyticsSink = {
           tableStarted: (players: number, bet: number) => analytics.tableStarted(players, bet),
           handPlayed: () => analytics.okeyHandPlayed(),
@@ -142,6 +146,7 @@ export async function startServer(port: number, opts: {
     port: actualPort,
     analytics,
     wallets,
+    tv,
     gameServer,
     close: () => gameServer.gracefullyShutdown(false),
   };
