@@ -48,6 +48,20 @@
 .tv-meta { width: 100%; font-size: 13px; color: #e9d6bd; }
 .team-tag { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; }
 .team-tag i { width: 18px; height: 18px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255,255,255,.7); }
+.tv-stream-title { min-width: 0; overflow-wrap: anywhere; }
+.tv-modes { margin: 4px 0; flex-wrap: wrap; }
+
+/* Kanallar (owner): real stream links */
+.channel-note { margin: 0; background: #fff3d6; border-left: 4px solid #f2b632; border-radius: 10px; padding: 8px 12px; font-weight: 600; }
+.channel-detect { flex: 1; min-width: 200px; display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; overflow-wrap: anywhere; }
+.type-badge { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: 12px; font-weight: 800; vertical-align: middle; }
+.type-badge.video { background: #d7f0e0; color: #1f6b40; }
+.type-badge.embed { background: #dde6f8; color: #2a4680; }
+.admin-list small.channel-url { font-family: ui-monospace, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.admin-list li > div:first-child { min-width: 0; flex: 1; }
+.channel-preview { background: #1b130d; color: #fff; border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.channel-preview .admin-row { justify-content: space-between; }
+.channel-preview .admin-hint { color: #e9d6bd; }
 
 /* owner tabs */
 .admin-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }

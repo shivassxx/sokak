@@ -1,11 +1,12 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { matchMaker } from '@colyseus/core';
-import { KAHVE_ROOM, TV_TEAMS, isOffensive, tvTeam, type StaffSalonInfo } from '@sokak/shared';
+import { KAHVE_ROOM, TV_TEAMS, isOffensive, isTvStream, tvTeam, type StaffSalonInfo, type TvBroadcast } from '@sokak/shared';
 import { OWNER_USERNAME, SESSION_MS, type StaffStore, type StaffUserView } from './staff';
 import type { TvChannel } from './tv';
 import type { Analytics } from './analytics';
 
 const match = (home: string, away: string): string => `${tvTeam(home)?.name ?? home} – ${tvTeam(away)?.name ?? away}`;
+const onAir = (b: TvBroadcast): string => (isTvStream(b) ? `📡 ${b.title}` : match(b.home, b.away));
 
 const COOKIE = 'sokak_staff';
 const MAX_GRANT = 100_000;
@@ -95,12 +96,28 @@ export function adminRouter(deps: { staff: StaffStore; tv: TvChannel; analytics:
   });
 
   // ------------------------------------------------------------ TV (owner and admins)
+  // admins see the owner's channels by title only: they pick one, they never handle links
   r.get('/tv', any, (_req, res) => {
-    res.json({ current: tv.current(), teams: TV_TEAMS });
+    res.json({ current: tv.current(), teams: TV_TEAMS, channels: staff.listChannels().map((c) => ({ id: c.id, title: c.title, type: c.type })) });
   });
 
   r.post('/tv/start', any, (req, res) => {
     const { user } = authed(res);
+    if (req.body?.url !== undefined) {
+      res.status(400).json({ error: 'Yayın adresi doğrudan verilemez; bir kanal seç.' });
+      return;
+    }
+    if (req.body?.channelId !== undefined) {
+      const ch = staff.channel(req.body.channelId);
+      if (!ch) {
+        res.status(404).json({ error: 'Kanal bulunamadı.' });
+        return;
+      }
+      const sb = tv.startStream(ch, user.username);
+      staff.log(user.username, 'tv/start', onAir(sb));
+      res.json({ current: sb });
+      return;
+    }
     const b = tv.start(str(req.body?.home, 40), str(req.body?.away, 40), user.username);
     if (!b) {
       res.status(400).json({ error: 'İki farklı takım seç.' });
@@ -114,8 +131,48 @@ export function adminRouter(deps: { staff: StaffStore; tv: TvChannel; analytics:
     const { user } = authed(res);
     const was = tv.current();
     tv.stop();
-    if (was) staff.log(user.username, 'tv/stop', match(was.home, was.away));
+    if (was) staff.log(user.username, 'tv/stop', onAir(was));
     res.json({ current: null });
+  });
+
+  // ------------------------------------------------------------ TV channels (owner): real stream links
+  r.get('/channels', owner, (_req, res) => {
+    res.json(staff.listChannels());
+  });
+
+  r.post('/channels', owner, (req, res) => {
+    const { user } = authed(res);
+    const title = req.body?.title;
+    if (typeof title === 'string' && isOffensive(title)) {
+      res.status(400).json({ error: 'Kanal adı uygunsuz bir kelime içeriyor.' });
+      return;
+    }
+    const out = staff.addChannel(title, req.body?.url, req.body?.type, user.username);
+    if (out === 'title') {
+      res.status(400).json({ error: 'Kanal adı 1–60 karakter olmalı.' });
+      return;
+    }
+    if (out === 'url') {
+      res.status(400).json({ error: 'Geçerli bir https:// yayın adresi gir (en fazla 500 karakter).' });
+      return;
+    }
+    if (out === 'full') {
+      res.status(400).json({ error: 'En fazla 50 kanal eklenebilir.' });
+      return;
+    }
+    staff.log(user.username, 'channels/add', `${out.title} (${out.type}) ${out.url}`);
+    res.json(out);
+  });
+
+  r.delete('/channels/:id', owner, (req, res) => {
+    const { user } = authed(res);
+    const c = staff.removeChannel(str(req.params.id, 40));
+    if (!c) {
+      res.status(404).json({ error: 'Kanal bulunamadı.' });
+      return;
+    }
+    staff.log(user.username, 'channels/remove', c.title);
+    res.json({ ok: true });
   });
 
   // ------------------------------------------------------------ staff accounts (owner)

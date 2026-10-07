@@ -2,6 +2,7 @@ import { appendFile, mkdir } from 'node:fs/promises';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { TV_CHANNELS_MAX, cleanStreamTitle, normalizeStreamUrl, type TvStreamChannel } from '@sokak/shared';
 
 /**
  * Staff accounts (owner + admins) for the admin panel. Players never have accounts;
@@ -67,6 +68,8 @@ interface Session {
 
 export class StaffStore {
   private users = new Map<string, StaffUser>();
+  /** the owner's TV channels (real stream links), stored next to the users */
+  private channels: TvStreamChannel[] = [];
   private sessions = new Map<string, Session>();
   private failures = new Map<string, number[]>();
   private logBuf: StaffLogEntry[] = [];
@@ -81,8 +84,14 @@ export class StaffStore {
     this.logFile = file ? `${file.replace(/\.json$/i, '')}-log.jsonl` : null;
     if (file && existsSync(file)) {
       try {
-        const raw = JSON.parse(readFileSync(file, 'utf8')) as { users?: StaffUser[] };
+        const raw = JSON.parse(readFileSync(file, 'utf8')) as { users?: StaffUser[]; channels?: TvStreamChannel[] };
         for (const u of raw.users ?? []) if (u && validUsername(u.username) && typeof u.passwordHash === 'string') this.users.set(u.username, u);
+        for (const c of raw.channels ?? []) {
+          // re-validate on load: a hand-edited file cannot sneak a bad link in
+          const link = c && typeof c.id === 'string' ? normalizeStreamUrl(c.url, c.type) : null;
+          const title = c ? cleanStreamTitle(c.title) : null;
+          if (link && title) this.channels.push({ id: c.id, title, url: link.url, type: link.type, createdAt: Number(c.createdAt) || 0, createdBy: String(c.createdBy ?? '') });
+        }
       } catch {
         /* corrupt file: owner bootstrap below still gets them in */
       }
@@ -225,6 +234,36 @@ export class StaffStore {
     return typeof password === 'string' && !!u && checkPassword(password.slice(0, 200), u.passwordHash);
   }
 
+  // ------------------------------------------------------------ TV channels (owner only, checked by the routes)
+  listChannels(): TvStreamChannel[] {
+    return this.channels.map((c) => ({ ...c }));
+  }
+
+  channel(id: unknown): TvStreamChannel | null {
+    const c = typeof id === 'string' ? this.channels.find((x) => x.id === id) : undefined;
+    return c ? { ...c } : null;
+  }
+
+  addChannel(title: unknown, url: unknown, type: unknown, by: string): TvStreamChannel | 'title' | 'url' | 'full' {
+    const t = cleanStreamTitle(title);
+    if (!t) return 'title';
+    const link = normalizeStreamUrl(url, type);
+    if (!link) return 'url';
+    if (this.channels.length >= TV_CHANNELS_MAX) return 'full';
+    const c: TvStreamChannel = { id: randomBytes(6).toString('hex'), title: t, url: link.url, type: link.type, createdAt: this.now(), createdBy: by };
+    this.channels.push(c);
+    this.save();
+    return { ...c };
+  }
+
+  removeChannel(id: string): TvStreamChannel | null {
+    const i = this.channels.findIndex((c) => c.id === id);
+    if (i < 0) return null;
+    const [c] = this.channels.splice(i, 1);
+    this.save();
+    return c!;
+  }
+
   // ------------------------------------------------------------ action log
   log(by: string, action: string, detail?: string): void {
     const e: StaffLogEntry = { t: this.now(), by, action, ...(detail ? { detail: detail.slice(0, 300) } : {}) };
@@ -247,7 +286,7 @@ export class StaffStore {
     try {
       mkdirSync(path.dirname(this.file), { recursive: true });
       const tmp = `${this.file}.tmp`;
-      writeFileSync(tmp, JSON.stringify({ users: [...this.users.values()] }, null, 1), { mode: 0o600 });
+      writeFileSync(tmp, JSON.stringify({ users: [...this.users.values()], channels: this.channels }, null, 1), { mode: 0o600 });
       renameSync(tmp, this.file);
     } catch (e) {
       console.warn('[staff] save failed', e);

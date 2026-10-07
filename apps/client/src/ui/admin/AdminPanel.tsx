@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from 'react';
-import type { StaffSalonInfo, TvBroadcast, TvTeam } from '@sokak/shared';
+import { TV_STREAM_TITLE_MAX, TV_STREAM_URL_MAX, isTvStream, normalizeStreamUrl, type StaffSalonInfo, type TvBroadcast, type TvStreamChannel, type TvStreamType, type TvTeam } from '@sokak/shared';
+import { StreamPlayer } from '../StreamPlayer';
 import './admin.css';
 
 /**
@@ -60,7 +61,11 @@ const ACTION_TR: Record<string, string> = {
   'salons/close': 'Salon kapattı',
   announce: 'Duyuru yaptı',
   'wallet/grant': 'Para verdi/aldı',
+  'channels/add': 'Kanal ekledi',
+  'channels/remove': 'Kanal sildi',
 };
+const TYPE_TR: Record<TvStreamType, string> = { video: 'Video / HLS (TV ekranında oynar)', embed: 'Gömülü oynatıcı (“Maçı izle” penceresinde)' };
+type ChannelRow = Pick<TvStreamChannel, 'id' | 'title' | 'type'>;
 const time = (t: number) => new Date(t).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 export function AdminPanel() {
@@ -139,8 +144,9 @@ function Login({ onLogin }: { onLogin: (m: Me) => void }) {
   );
 }
 
-type Tab = 'users' | 'salons' | 'announce' | 'stats' | 'log';
+type Tab = 'channels' | 'users' | 'salons' | 'announce' | 'stats' | 'log';
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'channels', label: 'Kanallar' },
   { id: 'users', label: 'Yetkililer' },
   { id: 'salons', label: 'Salonlar · Para' },
   { id: 'announce', label: 'Duyuru' },
@@ -149,14 +155,16 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 function Dashboard({ me, onError }: { me: Me; onError: (e: unknown) => void }) {
-  const [tab, setTab] = useState<Tab>(() => (/^#(users|salons|announce|stats|log)$/.exec(location.hash)?.[1] as Tab) ?? 'users');
+  const [tab, setTab] = useState<Tab>(() => (/^#(channels|users|salons|announce|stats|log)$/.exec(location.hash)?.[1] as Tab) ?? 'users');
+  // the TV card reloads its channel list when the owner changes it
+  const [channelsRev, setChannelsRev] = useState(0);
   const pick = (t: Tab) => {
     setTab(t);
     history.replaceState(null, '', `#${t}`);
   };
   return (
     <main className="admin-main">
-      <TvCard onError={onError} />
+      <TvCard onError={onError} rev={channelsRev} />
       {me.role === 'owner' ? (
         <section className="card admin-owner">
           <nav className="admin-tabs" role="tablist">
@@ -166,6 +174,7 @@ function Dashboard({ me, onError }: { me: Me; onError: (e: unknown) => void }) {
               </button>
             ))}
           </nav>
+          {tab === 'channels' && <Channels onError={onError} onChange={() => setChannelsRev((r) => r + 1)} />}
           {tab === 'users' && <Users me={me} onError={onError} />}
           {tab === 'salons' && <Salons onError={onError} />}
           {tab === 'announce' && <Announce onError={onError} />}
@@ -173,7 +182,7 @@ function Dashboard({ me, onError }: { me: Me; onError: (e: unknown) => void }) {
           {tab === 'log' && <Log onError={onError} />}
         </section>
       ) : (
-        <p className="admin-note">Yönetici olarak kıraathane televizyonunda maç açıp kapatabilirsin.</p>
+        <p className="admin-note">Yönetici olarak kıraathane televizyonunda maç açıp kapatabilirsin. Gerçek yayın kanallarını kıraathane sahibi ekler.</p>
       )}
     </main>
   );
@@ -205,9 +214,12 @@ function useAction(onError: (e: unknown) => void, flash: (t: string, bad?: boole
 }
 
 // ------------------------------------------------------------------ TV
-function TvCard({ onError }: { onError: (e: unknown) => void }) {
+function TvCard({ onError, rev }: { onError: (e: unknown) => void; rev: number }) {
   const [teams, setTeams] = useState<TvTeam[]>([]);
+  const [channels, setChannels] = useState<ChannelRow[] | null>(null);
   const [cur, setCur] = useState<TvBroadcast | null>(null);
+  const [mode, setMode] = useState<'stream' | 'sim' | null>(null);
+  const [channelId, setChannelId] = useState('');
   const [home, setHome] = useState('');
   const [away, setAway] = useState('');
   const [busy, setBusy] = useState(false);
@@ -215,12 +227,17 @@ function TvCard({ onError }: { onError: (e: unknown) => void }) {
   const [flashEl, flash] = useFlash();
   const run = useAction(onError, flash);
   const load = useCallback(async () => {
-    const r = await api<{ current: TvBroadcast | null; teams: TvTeam[] }>('GET', 'tv').catch((e) => (onError(e), null));
+    const r = await api<{ current: TvBroadcast | null; teams: TvTeam[]; channels?: ChannelRow[] }>('GET', 'tv').catch((e) => (onError(e), null));
     if (!r) return;
+    const chs = r.channels ?? [];
     setTeams(r.teams);
+    setChannels(chs);
     setCur(r.current);
     setHome((h) => h || r.teams[0]?.id || '');
     setAway((a) => a || r.teams[1]?.id || '');
+    setChannelId((c) => (chs.some((x) => x.id === c) ? c : (chs[0]?.id ?? '')));
+    // real streams are the default as soon as the owner has added a channel
+    setMode((m) => m ?? (chs.length ? 'stream' : 'sim'));
   }, [onError]);
   useEffect(() => {
     void load();
@@ -229,67 +246,102 @@ function TvCard({ onError }: { onError: (e: unknown) => void }) {
       void load();
     }, 10000);
     return () => clearInterval(i);
-  }, [load]);
+  }, [load, rev]);
   const team = (id: string) => teams.find((t) => t.id === id);
   const start = async () => {
     setBusy(true);
-    const r = await run(() => api<{ current: TvBroadcast }>('POST', 'tv/start', { home, away }), 'Maç başladı! Bütün salonlarda televizyonda.');
+    const r =
+      mode === 'stream'
+        ? await run(() => api<{ current: TvBroadcast }>('POST', 'tv/start', { channelId }), 'Yayın başladı! Bütün salonlarda televizyonda.')
+        : await run(() => api<{ current: TvBroadcast }>('POST', 'tv/start', { home, away }), 'Maç başladı! Bütün salonlarda televizyonda.');
     if (r) setCur(r.current);
     setBusy(false);
   };
   const stop = async () => {
     setBusy(true);
-    if (await run(() => api('POST', 'tv/stop'), 'Maç bitirildi.')) setCur(null);
+    if (await run(() => api('POST', 'tv/stop'), 'Yayın bitirildi.')) setCur(null);
     setBusy(false);
   };
   const mins = cur ? Math.max(0, Math.floor((now - cur.startedAt) / 60000)) : 0;
+  const stream = isTvStream(cur) ? cur : null;
   return (
     <section className="card admin-tv">
       <h2>📺 Kıraathane televizyonu</h2>
       {cur ? (
         <div className="tv-now">
           <span className="tv-live">CANLI</span>
-          <TeamTag t={team(cur.home)} />
-          <b className="tv-vs">–</b>
-          <TeamTag t={team(cur.away)} />
+          {stream ? (
+            <b className="tv-stream-title">📡 {stream.title}</b>
+          ) : (
+            <>
+              <TeamTag t={team(cur.home)} />
+              <b className="tv-vs">–</b>
+              <TeamTag t={team(cur.away)} />
+            </>
+          )}
           <span className="tv-meta">
             {mins} dk önce başladı · {cur.by}
           </span>
         </div>
       ) : (
-        <p className="admin-hint">Şu an televizyonda maç yok.</p>
+        <p className="admin-hint">Şu an televizyonda yayın yok.</p>
       )}
-      <div className="tv-pick">
-        <label className="field">
-          <span>Ev sahibi</span>
-          <select value={home} onChange={(e) => setHome(e.target.value)}>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>Deplasman</span>
-          <select value={away} onChange={(e) => setAway(e.target.value)}>
-            {teams.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="admin-tabs tv-modes" role="tablist">
+        <button role="tab" aria-selected={mode === 'stream'} className={`chip ${mode === 'stream' ? 'on' : ''}`} onClick={() => setMode('stream')}>
+          Gerçek yayın (kanal seç)
+        </button>
+        <button role="tab" aria-selected={mode === 'sim'} className={`chip ${mode === 'sim' ? 'on' : ''}`} onClick={() => setMode('sim')}>
+          Simülasyon derbi
+        </button>
       </div>
+      {mode === 'stream' ? (
+        channels && channels.length ? (
+          <label className="field">
+            <span>Kanal</span>
+            <select value={channelId} onChange={(e) => setChannelId(e.target.value)}>
+              {channels.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title} · {c.type === 'video' ? 'video' : 'gömülü'}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <p className="admin-hint">Henüz kanal yok. Kanalları kıraathane sahibi “Kanallar” sekmesinden ekler.</p>
+        )
+      ) : (
+        <div className="tv-pick">
+          <label className="field">
+            <span>Ev sahibi</span>
+            <select value={home} onChange={(e) => setHome(e.target.value)}>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Deplasman</span>
+            <select value={away} onChange={(e) => setAway(e.target.value)}>
+              {teams.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      )}
       <div className="admin-row">
-        <button className="btn big" disabled={busy || !home || !away || home === away} onClick={() => void start()}>
-          {cur ? 'Yeni maç başlat' : 'Maçı Başlat'}
+        <button className="btn big" disabled={busy || (mode === 'stream' ? !channelId : !home || !away || home === away)} onClick={() => void start()}>
+          {mode === 'stream' ? (cur ? 'Bu yayını aç' : 'Yayını Başlat') : cur ? 'Yeni maç başlat' : 'Maçı Başlat'}
         </button>
         <button className="btn warn" disabled={busy || !cur} onClick={() => void stop()}>
-          Maçı Bitir
+          Yayını Bitir
         </button>
       </div>
-      {home && home === away && <div className="error">İki farklı takım seç.</div>}
+      {mode === 'sim' && home && home === away && <div className="error">İki farklı takım seç.</div>}
       {flashEl}
     </section>
   );
@@ -306,6 +358,132 @@ function TeamTag({ t }: { t?: TvTeam }) {
 }
 
 // ------------------------------------------------------------------ owner tabs
+function Channels({ onError, onChange }: { onError: (e: unknown) => void; onChange: () => void }) {
+  const [rows, setRows] = useState<TvStreamChannel[] | null>(null);
+  const [title, setTitle] = useState('');
+  const [url, setUrl] = useState('');
+  const [type, setType] = useState<'auto' | TvStreamType>('auto');
+  const [preview, setPreview] = useState<{ url: string; type: TvStreamType; title: string } | null>(null);
+  const [flashEl, flash] = useFlash();
+  const run = useAction(onError, flash);
+  const load = useCallback(() => void api<TvStreamChannel[]>('GET', 'channels').then(setRows, onError), [onError]);
+  useEffect(load, [load]);
+  const detected = url.trim() ? normalizeStreamUrl(url, type === 'auto' ? undefined : type) : null;
+  const add = async (e: FormEvent) => {
+    e.preventDefault();
+    const r = await run(() => api<TvStreamChannel>('POST', 'channels', { title, url, ...(type === 'auto' ? {} : { type }) }), `${title.trim()} kanalı eklendi.`);
+    if (r) {
+      setTitle('');
+      setUrl('');
+      setType('auto');
+      load();
+      onChange();
+    }
+  };
+  const remove = async (c: TvStreamChannel) => {
+    if (!confirm(`“${c.title}” kanalını silmek istiyor musun?`)) return;
+    if (await run(() => api('DELETE', `channels/${encodeURIComponent(c.id)}`), `${c.title} silindi.`)) {
+      if (preview?.url === c.url) setPreview(null);
+      load();
+      onChange();
+    }
+  };
+  return (
+    <div className="admin-pane">
+      <p className="channel-note">Yayın hakkına sahip olduğun ya da herkese açık, gömülmesine izin verilen yayınları ekle.</p>
+      <form className="admin-form" onSubmit={(e) => void add(e)}>
+        <h3>Kanal ekle</h3>
+        <label className="field">
+          <span>Başlık</span>
+          <input placeholder="ör. Derbi: GS–FB" value={title} maxLength={TV_STREAM_TITLE_MAX} onChange={(e) => setTitle(e.target.value)} />
+        </label>
+        <label className="field">
+          <span>Yayın adresi (https)</span>
+          <input
+            placeholder="https://… (.m3u8, .mp4, YouTube ya da gömülü oynatıcı linki)"
+            value={url}
+            maxLength={TV_STREAM_URL_MAX}
+            inputMode="url"
+            autoCapitalize="none"
+            spellCheck={false}
+            onChange={(e) => setUrl(e.target.value)}
+          />
+        </label>
+        <div className="admin-row">
+          <label className="field">
+            <span>Tür</span>
+            <select value={type} onChange={(e) => setType(e.target.value as 'auto' | TvStreamType)}>
+              <option value="auto">Otomatik algıla</option>
+              <option value="video">Video / HLS</option>
+              <option value="embed">Gömülü oynatıcı</option>
+            </select>
+          </label>
+          <div className="channel-detect">
+            {!url.trim() ? (
+              <small className="admin-hint">Linki yapıştırınca türü burada görünür.</small>
+            ) : detected ? (
+              <>
+                <span className={`type-badge ${detected.type}`}>{TYPE_TR[detected.type]}</span>
+                {detected.url !== url.trim() && <small className="admin-hint">Kaydedilecek adres: {detected.url}</small>}
+              </>
+            ) : (
+              <span className="error">Geçersiz adres: yalnızca https:// linkleri (en fazla {TV_STREAM_URL_MAX} karakter).</span>
+            )}
+          </div>
+        </div>
+        <div className="admin-row">
+          <button type="button" className="btn" disabled={!detected} onClick={() => detected && setPreview({ ...detected, title: title.trim() || 'Önizleme' })}>
+            Test et
+          </button>
+          <button className="btn primary" disabled={!detected || !title.trim()}>
+            Kanalı ekle
+          </button>
+        </div>
+      </form>
+      {flashEl}
+      {preview && (
+        <div className="channel-preview">
+          <div className="admin-row">
+            <b>Önizleme: {preview.title}</b>
+            <button className="btn small" onClick={() => setPreview(null)}>
+              Kapat
+            </button>
+          </div>
+          <StreamPlayer url={preview.url} type={preview.type} />
+          <small className="admin-hint">Görüntü burada açılıyorsa oyunda da açılır. Video türü yayınlar TV ekranında, gömülü olanlar “Maçı izle” penceresinde oynar.</small>
+        </div>
+      )}
+      {!rows ? (
+        <div className="admin-hint">Yükleniyor…</div>
+      ) : !rows.length ? (
+        <p className="admin-hint">Henüz kanal yok.</p>
+      ) : (
+        <ul className="admin-list">
+          {rows.map((c) => (
+            <li key={c.id}>
+              <div>
+                <b>{c.title}</b> <span className={`type-badge ${c.type}`}>{c.type === 'video' ? 'Video' : 'Gömülü'}</span>
+                <small className="channel-url">{c.url}</small>
+                <small>
+                  {time(c.createdAt)} · ekleyen: {c.createdBy}
+                </small>
+              </div>
+              <div className="admin-row">
+                <button className="btn small" onClick={() => setPreview({ url: c.url, type: c.type, title: c.title })}>
+                  Test et
+                </button>
+                <button className="btn small warn" onClick={() => void remove(c)}>
+                  Sil
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function Users({ me, onError }: { me: Me; onError: (e: unknown) => void }) {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [name, setName] = useState('');

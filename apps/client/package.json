@@ -15,6 +15,7 @@
     "@sokak/shared": "workspace:*",
     "@sokak/tavla": "workspace:*",
     "colyseus.js": "0.16.22",
+    "hls.js": "1.7.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "three": "0.186.1"

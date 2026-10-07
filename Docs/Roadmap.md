@@ -21,3 +21,4 @@
 - [x] Home: pick one of the realistic avatars instead of the cartoon look editor.
 - [x] ⚙️ Ayarlar: graphics quality (Düşük / Orta / Yüksek / Otomatik with live fps-based tuning), fps counter, volume.
 - [ ] Real-device fps check of the quality tiers (mid-range phone, GTX 1050 Ti).
+- [x] Real match streams on the kıraathane TV: owner-managed channels (video/HLS on the 3D screen, embeds in a "📺 Maçı izle" overlay), admins pick a channel; simulated derby kept as the second option.

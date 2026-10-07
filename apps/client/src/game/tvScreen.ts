@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { tvMatchAt, tvTeam, type TvBroadcast, type TvMatchState, type TvTeam } from '@sokak/shared';
+import { isTvStream, tvMatchAt, tvTeam, type TvBroadcast, type TvMatchState, type TvTeam } from '@sokak/shared';
 
 /**
  * The kıraathane TVs' picture: one 512×288 canvas texture shared by every TV in the hall.
@@ -7,6 +7,8 @@ import { tvMatchAt, tvTeam, type TvBroadcast, type TvMatchState, type TvTeam } f
  * staff-started derby it draws the simulated match from `tvMatchAt` at server time:
  * a broadcast-camera pitch, both teams, the ball, the score bug, a "CANLI · DERBİ" badge,
  * the commentary line, the "GOOOL!" overlay and the half/full-time stats cards.
+ * During a real stream it shows a "CANLI · <title>" card (while the video loads, or for an
+ * embed / unusable stream that is watched in the 2D overlay instead).
  * It redraws at about 15 fps (slower when nobody can see it), never every frame.
  */
 const W = 512;
@@ -59,6 +61,9 @@ export class TvScreen {
     this.texture.minFilter = THREE.LinearFilter;
   }
 
+  /** what the stream card says: the video is loading, or it is watched in the overlay */
+  streamLoading = false;
+
   setBroadcast(b: TvBroadcast | null): void {
     if (b?.id === this.broadcast?.id) return;
     this.broadcast = b;
@@ -77,6 +82,11 @@ export class TvScreen {
     const elapsed = this.acc;
     this.acc = 0;
     this.nowMs = nowMs;
+    if (isTvStream(this.broadcast)) {
+      this.drawStream(this.broadcast.title);
+      this.texture.needsUpdate = true;
+      return;
+    }
     const s = this.broadcast && this.teams ? tvMatchAt(this.broadcast, nowMs) : null;
     if (s && !s.done) this.drawMatch(s, this.teams!, Math.min(0.5, elapsed));
     else this.drawReplay(Math.min(0.5, elapsed));
@@ -440,6 +450,58 @@ export class TvScreen {
       c.fillStyle = teams[0].colors[0] === '#111111' ? '#dddddd' : teams[0].colors[0];
       c.fillRect(W / 2 - bw / 2, y + 6, (bw * a) / tot, 4);
     });
+  }
+
+  // ------------------------------------------------------------------ real stream card
+  private drawStream(title: string): void {
+    const c = this.ctx;
+    const g = c.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, '#0d1b33');
+    g.addColorStop(1, '#3a0d18');
+    c.fillStyle = g;
+    c.fillRect(0, 0, W, H);
+    // soft moving light so the screen does not look frozen
+    const lx = W / 2 + Math.sin(this.t * 0.6) * 160;
+    const glow = c.createRadialGradient(lx, H * 0.45, 10, lx, H * 0.45, 260);
+    glow.addColorStop(0, 'rgba(255,255,255,0.10)');
+    glow.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = glow;
+    c.fillRect(0, 0, W, H);
+    this.liveBadge(c, 14, 14);
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillStyle = '#ffffff';
+    c.font = '800 30px system-ui, sans-serif';
+    c.fillText(title, W / 2, 112, W - 48);
+    c.fillStyle = '#ffd23a';
+    c.font = '700 18px system-ui, sans-serif';
+    if (this.streamLoading) {
+      const dots = '.'.repeat(1 + (Math.floor(this.t * 2) % 3));
+      c.fillText(`Yayın yükleniyor${dots}`, W / 2, 170);
+    } else {
+      c.fillText("İzlemek için TV'ye yaklaş", W / 2, 162);
+      c.fillStyle = '#c8102e';
+      c.fillRect(W / 2 - 104, 192, 208, 44);
+      c.fillStyle = '#ffffff';
+      c.font = '800 20px system-ui, sans-serif';
+      c.fillText('📺 Maçı izle', W / 2, 215);
+    }
+  }
+
+  /** the blinking red "● CANLI" badge (also used over the live video) */
+  liveBadge(c: CanvasRenderingContext2D, x: number, y: number): void {
+    const blink = Math.sin(this.t * 5) > -0.3;
+    c.fillStyle = '#c8102e';
+    c.fillRect(x, y, 92, 28);
+    c.fillStyle = blink ? '#ffffff' : 'rgba(255,255,255,0.35)';
+    c.beginPath();
+    c.arc(x + 14, y + 14, 5, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#ffffff';
+    c.font = '800 15px system-ui, sans-serif';
+    c.textAlign = 'left';
+    c.textBaseline = 'middle';
+    c.fillText('CANLI', x + 26, y + 15);
   }
 
   // ------------------------------------------------------------------ normal programme
