@@ -167,6 +167,18 @@ export interface UsedMsg {
   fish?: string;
 }
 
+/** "Masa ayarları" (host of an open table): okey bet/hands/mode/turn, tavla bet/points. Invalid values are ignored. */
+export interface TableConfigMsg {
+  bet?: unknown;
+  hands?: unknown;
+  /** okey: 'tekli' | 'esli' */
+  mode?: unknown;
+  /** okey: turn seconds, one of TURN_OPTIONS */
+  turn?: unknown;
+  /** tavla: match length */
+  points?: unknown;
+}
+
 /** Client → server okey actions. */
 export type OkeyAction =
   | { t: 'draw' }
@@ -201,6 +213,8 @@ export interface TableView {
   shown: boolean[];
   /** discards made by each seat this hand */
   turnsDone: number[];
+  /** eşli 101 (seats 0+2 vs 1+3) */
+  partners?: boolean;
 }
 
 export interface HandResultView {
@@ -209,6 +223,8 @@ export interface HandResultView {
   multiplier: number;
   reason: 'finished' | 'deckEmpty';
   okeyFinish: boolean;
+  /** eşli: this hand's team totals [seats 0+2, seats 1+3] */
+  teams?: number[];
 }
 
 export interface MatchResultView {
@@ -217,6 +233,9 @@ export interface MatchResultView {
   pot: number;
   /** money change per seat */
   payout: number[];
+  /** eşli: match team totals [seats 0+2, seats 1+3] and the winning team(s) */
+  teams?: number[];
+  winnerTeams?: number[];
 }
 
 export interface OrderMsg {
@@ -276,6 +295,10 @@ export interface KTableView {
   status: 'open' | 'playing' | 'between' | 'result';
   bet: number;
   hands: number;
+  /** eşli 101 (partners opposite each other) */
+  partners: boolean;
+  /** turn time in seconds (TURN_OPTIONS) */
+  turnSecs: number;
   handNo: number;
   seats: string[];
   hostId: string;

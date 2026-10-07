@@ -45,6 +45,7 @@ import {
   TAVLA_REACH,
   TAVLA_TABLES,
   TICK_MS,
+  TURN_OPTIONS,
   TURN_SECONDS,
   cleanNickname,
   createBody,
@@ -74,6 +75,7 @@ import {
   type SnapshotMsg,
   type SalonMeta,
   type SignalMsg,
+  type TableConfigMsg,
   type TavlaAction,
   type TavlaEventMsg,
   type TavlaGameResultView,
@@ -82,7 +84,7 @@ import {
   type TvBroadcast,
   type UsedMsg,
 } from '@sokak/shared';
-import { OkeyGame, botAction, type OkeyEvent, type Result } from '@sokak/okey';
+import { OkeyGame, botAction, partnerOf, teamOf, teamTotals, type OkeyEvent, type Result } from '@sokak/okey';
 import { MATCH_LENGTHS, TavlaMatch, autoTurn, botStep, type Result as TavlaResult, type Side, type TavlaEvent } from '@sokak/tavla';
 import { KPlayer, KTable, KahveState, TTable } from './kahveSchema';
 import { generateRoomId } from '../roomId';
@@ -214,7 +216,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.onMessage(MSG.input, (c, m: InputMsg) => this.handleInput(c, m));
     this.onMessage(KMSG.sit, (c, m: { table?: unknown; seat?: unknown }) => this.sit(c.sessionId, m?.table, m?.seat));
     this.onMessage(KMSG.stand, (c) => this.stand(c.sessionId));
-    this.onMessage(KMSG.tableConfig, (c, m: { bet?: unknown; hands?: unknown; points?: unknown }) => this.configure(c.sessionId, m));
+    this.onMessage(KMSG.tableConfig, (c, m: TableConfigMsg) => this.configure(c.sessionId, m));
     this.onMessage(KMSG.tableStart, (c) => this.startMatch(c.sessionId));
     this.onMessage(KMSG.tableBot, (c, m: { seat?: unknown; remove?: boolean }) => this.tableBot(c.sessionId, m));
     this.onMessage(KMSG.okey, (c, a: OkeyAction) => this.okeyAction(c.sessionId, a));
@@ -601,7 +603,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     t.seats[seat] = this.createBot(p.table, seat).id;
   }
 
-  private configure(id: string, m: { bet?: unknown; hands?: unknown; points?: unknown }): void {
+  /** "Masa ayarları": only the host of an open table; invalid values are ignored. */
+  private configure(id: string, m: TableConfigMsg): void {
     const p = this.state.players.get(id);
     if (p && p.tavla >= 0) return this.tavlaConfigure(id, m);
     if (!p || p.table < 0) return;
@@ -609,6 +612,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (t.hostId !== id || t.status !== 'open') return;
     if ((BET_OPTIONS as readonly number[]).includes(Number(m?.bet))) t.bet = Number(m.bet);
     if ((HAND_OPTIONS as readonly number[]).includes(Number(m?.hands))) t.hands = Number(m.hands);
+    if (m?.mode === 'tekli' || m?.mode === 'esli') t.partners = m.mode === 'esli';
+    if (TURN_OPTIONS.some((o) => o.secs === Number(m?.turn))) t.turnSecs = Number(m.turn);
   }
 
   // ------------------------------------------------------------ match flow
@@ -636,7 +641,7 @@ export class KahvehaneRoom extends Room<KahveState> {
   private dealHand(ti: number): void {
     const t = this.state.tables[ti]!;
     const rt = this.runtime[ti]!;
-    rt.game = new OkeyGame(rt.dealer, this.cls.rng);
+    rt.game = new OkeyGame(rt.dealer, this.cls.rng, { partners: t.partners });
     rt.dealer = (rt.dealer + 1) % 4;
     t.handNo++;
     t.status = 'playing';
@@ -653,10 +658,12 @@ export class KahvehaneRoom extends Room<KahveState> {
     t.lastHand = JSON.stringify(result);
     this.cls.analyticsSink?.handPlayed?.();
     if (t.handNo >= t.hands) {
-      // match over: lowest total wins the pot (split on ties)
+      // match over: lowest total wins the pot (split on ties);
+      // eşli: lowest team total, the two winners split the pot, both losers paid their bet
       const totals = [...t.totals];
-      const min = Math.min(...totals);
-      const winners = [0, 1, 2, 3].filter((s) => totals[s] === min);
+      const teams = t.partners ? teamTotals(totals) : null;
+      const min = teams ? Math.min(...teams) : Math.min(...totals);
+      const winners = [0, 1, 2, 3].filter((s) => (teams ? teams[teamOf(s)] : totals[s]) === min);
       const share = Math.floor(t.pot / winners.length);
       const payout = [0, 1, 2, 3].map((s) => (winners.includes(s) ? share : 0) - t.bet);
       for (const s of winners) {
@@ -673,7 +680,8 @@ export class KahvehaneRoom extends Room<KahveState> {
         this.recordWeekly(pl.id, winners.includes(s), payout[s]!);
         this.mission(pl.id, 'match');
       }
-      t.lastMatch = JSON.stringify({ totals, winners, pot: t.pot, payout });
+      const winnerTeams = teams ? [0, 1].filter((k) => teams[k] === min) : undefined;
+      t.lastMatch = JSON.stringify({ totals, winners, pot: t.pot, payout, teams: teams ?? undefined, winnerTeams });
       if (this.cls.rng() < 0.6) this.clock.setTimeout(() => this.botSay(ti, 'Bir el daha!'), 1800);
       t.pot = 0;
       t.status = 'result';
@@ -777,7 +785,7 @@ export class KahvehaneRoom extends Room<KahveState> {
         // nobody is told directly: each opponent may notice "fishy hands" (55 %),
         // everyone can also spot the changed top tile of the pile
         for (let s = 0; s < 4; s++) {
-          if (s === e.seat) continue;
+          if (s === e.seat || (g.partners && s === partnerOf(e.seat))) continue;
           const pl = this.state.players.get(t.seats[s]!);
           if (!pl) continue;
           const noticed = this.cls.rng() < 0.55;
@@ -816,7 +824,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     const g = this.runtime[ti]!.game;
     t.view = g ? JSON.stringify(g.publicView()) : '';
     if (g && newTurn && g.phase !== 'ended') {
-      t.turnEndsAt = Date.now() + this.cls.timing.turn;
+      // the table's turn time scales the room's base timer (tests and SOKAK_TIMERS=fast shorten it)
+      t.turnEndsAt = Date.now() + (this.cls.timing.turn * t.turnSecs) / TURN_SECONDS;
       this.runtime[ti]!.botAt = Date.now() + this.botDelay();
     }
   }
@@ -1180,7 +1189,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const sid = t.seats[g.turn]!;
     const pl = this.state.players.get(sid);
     // a person thinking for long: a bot at the table hurries them, once per turn
-    if (pl && !pl.isBot && pl.connected && rt.nagged !== t.turnEndsAt && t.turnEndsAt - now < this.cls.timing.turn * 0.35) {
+    if (pl && !pl.isBot && pl.connected && rt.nagged !== t.turnEndsAt && t.turnEndsAt - now < ((this.cls.timing.turn * t.turnSecs) / TURN_SECONDS) * 0.35) {
       rt.nagged = t.turnEndsAt;
       if (this.cls.rng() < 0.6) this.botSay(ti, 'Hadi oyna!');
     }
@@ -1214,7 +1223,7 @@ export class KahvehaneRoom extends Room<KahveState> {
           break;
         case 'discard': {
           // now and then a bot tries its luck stealing from the player opposite
-          const opp = (s + 2) % 4;
+          const opp = g.partners ? (s + 1) % 4 : (s + 2) % 4;
           if (pl?.isBot && !g.stealUsed[s] && g.topDiscard(opp) !== null && this.cls.rng() < 0.06) {
             r = g.steal(s, act.tile, opp, now);
             break;

@@ -9,7 +9,10 @@ import {
   botAction,
   candidateMelds,
   okeyFaceFor,
+  partnerOf,
   playFace,
+  teamOf,
+  teamTotals,
   rawFace,
   tileValue,
   type OkeyCtx,
@@ -74,8 +77,8 @@ describe('tiles', () => {
 });
 
 /** A game with hand-crafted hands. */
-function rigged(hands: number[][], dealer = 0, deck: number[] = []): OkeyGame {
-  const g = new OkeyGame(dealer, seeded(1));
+function rigged(hands: number[][], dealer = 0, deck: number[] = [], partners = false): OkeyGame {
+  const g = new OkeyGame(dealer, seeded(1), { partners });
   (g as unknown as { ctx: OkeyCtx }).ctx.okey = ctx.okey;
   g.hands = hands.map((h) => [...h]);
   g.deck = [...deck];
@@ -295,10 +298,97 @@ describe('gösterge', () => {
   });
 });
 
+describe('eşli (partners)', () => {
+  it('teams are opposite seats', () => {
+    expect([0, 1, 2, 3].map(teamOf)).toEqual([0, 1, 0, 1]);
+    expect([0, 1, 2, 3].map(partnerOf)).toEqual([2, 3, 0, 1]);
+    expect(teamTotals([-101, 8, 0, 202])).toEqual([-101, 210]);
+  });
+
+  it("finisher's partner writes no tile points; team totals are the partners' sum", () => {
+    const g = rigged(
+      [
+        [T(1, 1), T(1, 2), T(1, 3), T(2, 9)],
+        [T(0, 5), T(3, 3)],
+        [T(0, 2)],
+        [T(2, 12)],
+      ],
+      0,
+      [T(3, 11)],
+      true,
+    );
+    g.opened[0] = 'series';
+    g.opened[1] = 'series';
+    g.penalties[2] = 101; // the partner's own fine still counts
+    g.layMeld(0, [T(1, 1), T(1, 2), T(1, 3)]);
+    g.discard(0, T(2, 9));
+    expect(g.result!.scores).toEqual([-101, 8, 101, 202]);
+    expect(g.result!.teams).toEqual([0, 210]);
+    expect(g.publicView().partners).toBe(true);
+  });
+
+  it('okey finish doubles the opponents; the partner still writes nothing', () => {
+    const g = rigged([[T(1, 1), T(1, 2), T(1, 3), OKEY], [T(0, 5)], [T(0, 2)], [T(2, 12)]], 0, [], true);
+    g.opened[0] = 'series';
+    g.layMeld(0, [T(1, 1), T(1, 2), T(1, 3)]);
+    g.discard(0, OKEY);
+    expect(g.result!.scores).toEqual([-202, 404, 0, 404]);
+    expect(g.result!.teams).toEqual([-202, 808]);
+  });
+
+  it('deck running out: every seat pays and teams add up', () => {
+    const g = rigged([[T(1, 4), T(2, 2)], [T(0, 5)], [T(0, 7)], [T(0, 8)]], 0, [], true);
+    g.opened[2] = 'series';
+    g.discard(0, T(1, 4));
+    g.declareDeckEmpty(1);
+    expect(g.result!.scores).toEqual([202, 202, 7, 202]);
+    expect(g.result!.teams).toEqual([209, 404]);
+  });
+
+  it('tekli results carry no team totals', () => {
+    const g = rigged([[T(1, 4), T(2, 2)], [T(0, 5)], [T(0, 7)], [T(0, 8)]], 0, []);
+    g.discard(0, T(1, 4));
+    g.declareDeckEmpty(1);
+    expect(g.result!.teams).toBeUndefined();
+  });
+
+  it('a partner may işle onto the partner\'s meld', () => {
+    const g = rigged([[T(1, 4), T(2, 2)], [T(0, 5)], [], []], 0, [T(3, 3)], true);
+    g.opened[0] = 'series';
+    g.melds.push({ id: 7, owner: 2, kind: 'run', tiles: [T(1, 1), T(1, 2), T(1, 3)] });
+    expect(g.addToMeld(0, T(1, 4), 7).ok).toBe(true);
+  });
+
+  it('no stealing from or accusing your partner', () => {
+    const g = rigged([[T(1, 4), T(2, 2), T(2, 3)], [T(0, 5)], [T(0, 9)], [T(3, 3)]], 0, [T(3, 11)], true);
+    g.discards[1] = [T(0, 1)];
+    g.discards[2] = [T(2, 4)];
+    expect(g.steal(0, T(1, 4), 2, 1000).ok).toBe(false);
+    expect(g.steal(0, T(1, 4), 1, 1000).ok).toBe(true);
+    expect(g.accuse(2, 2000).ok).toBe(false); // the thief's partner
+    const r = g.accuse(1, 2000);
+    expect(r.ok && r.events[0]!.type).toBe('caught');
+  });
+
+  it('bots do not hand the next opponent an işlek tile', () => {
+    const g = rigged([[T(3, 9), T(1, 4), T(1, 5)], [T(0, 5)], [T(0, 9)], [T(3, 3)]], 0, [T(3, 11)], true);
+    g.opened[1] = 'series';
+    g.melds.push({ id: 3, owner: 1, kind: 'run', tiles: [T(3, 6), T(3, 7), T(3, 8)] });
+    const a = botAction(g, 0);
+    expect(a.type).toBe('discard');
+    expect(a.type === 'discard' && a.tile).not.toBe(T(3, 9));
+    // in tekli the same hand throws the loose 9
+    const t = rigged([[T(3, 9), T(1, 4), T(1, 5)], [T(0, 5)], [T(0, 9)], [T(3, 3)]], 0, [T(3, 11)]);
+    t.opened[1] = 'series';
+    t.melds.push({ id: 3, owner: 1, kind: 'run', tiles: [T(3, 6), T(3, 7), T(3, 8)] });
+    expect(botAction(t, 0)).toEqual({ type: 'discard', tile: T(3, 9) });
+  });
+});
+
 describe('bots', () => {
-  it('four bots play complete hands without errors', () => {
-    for (let seed = 1; seed <= 12; seed++) {
-      const g = new OkeyGame(seed % 4, seeded(seed * 97));
+  it('four bots play complete hands without errors (tekli and eşli)', () => {
+    for (let seed = 1; seed <= 16; seed++) {
+      const g = new OkeyGame(seed % 4, seeded(seed * 97), { partners: seed > 12 });
       let guard = 0;
       while (g.phase !== 'ended' && guard++ < 5000) {
         const s = g.turn;

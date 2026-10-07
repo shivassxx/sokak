@@ -216,7 +216,15 @@ export function botAction(g: OkeyGame, seat: number): BotAction {
   const options = hand.filter((t) => !g.isOkey(t));
   const pool = options.length ? options : hand;
   const safe = pool.filter((t) => !(g.opened[seat] && g.isIslek(t)) && t !== g.takenFromLeft);
-  const list = safe.length ? safe : pool;
+  let list = safe.length ? safe : pool;
+  if (g.partners) {
+    // eşli: do not hand the next player (always an opponent) a tile they can işle right away
+    const next = (seat + 1) % 4;
+    if (g.opened[next] && g.opened[next] !== 'pairs') {
+      const unfed = list.filter((t) => !g.isIslek(t));
+      if (unfed.length) list = unfed;
+    }
+  }
   let pick = list[0]!;
   let bestScore = Infinity;
   for (const t of list) {

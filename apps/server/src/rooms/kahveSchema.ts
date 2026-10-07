@@ -1,4 +1,5 @@
 import { ArraySchema, MapSchema, Schema, type } from '@colyseus/schema';
+import { TURN_SECONDS } from '@sokak/shared';
 
 export class KPlayer extends Schema {
   @type('string') id = '';
@@ -42,6 +43,10 @@ export class KTable extends Schema {
   @type('string') status = 'open';
   @type('uint16') bet = 0;
   @type('uint8') hands = 1;
+  /** eşli 101: seats 0+2 vs 1+3 */
+  @type('boolean') partners = false;
+  /** turn time in seconds (TURN_OPTIONS) */
+  @type('uint8') turnSecs = TURN_SECONDS;
   @type('uint8') handNo = 0;
   @type(['string']) seats = new ArraySchema<string>('', '', '', '');
   @type('string') hostId = '';

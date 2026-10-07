@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { asPair, asSeries, playFace, sameFace, type OkeyCtx } from '@sokak/okey';
-import { TABLES, levelOf, levelTitle, seatPosition, type HandResultView, type KPlayerView, type KTableView, type MatchResultView, type Meld, type OkeyAction, type TableView } from '@sokak/shared';
+import { TABLES, TEAM_COLORS, TEAM_NAMES, levelOf, levelTitle, seatPosition, turnLabel, type HandResultView, type KPlayerView, type KTableView, type MatchResultView, type Meld, type OkeyAction, type TableView } from '@sokak/shared';
 import type { Game } from '../../game/Game';
 import { Tile } from './Tile';
 import { installWoodCss } from './woodTexture';
@@ -141,6 +141,11 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
   const plan = useMemo(() => (ctx ? openPlan(rack, ctx) : null), [rack, ctx?.okey.color, ctx?.okey.num]); // eslint-disable-line react-hooks/exhaustive-deps
   const seatPlayer = (s: number) => players[table.seats[s] ?? ''];
   const name = (s: number) => seatPlayer(s)?.name ?? '—';
+  // eşli: seats 0+2 vs 1+3
+  const partners = !!table.partners;
+  const partnerSeat = (mySeat + 2) % 4;
+  const teamTotal = (k: number) => table.totals[k]! + table.totals[k + 2]!;
+  const teamLabel = (k: number) => (k === mySeat % 2 ? `${TEAM_NAMES[k]} (siz)` : TEAM_NAMES[k]!);
   const remaining = Math.max(0, Math.ceil((table.turnEndsAt - serverNow()) / 1000));
   const suspicious = !!suspicion && suspicion.until > Date.now();
   const wasMyTurn = useRef(false);
@@ -361,14 +366,14 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
   if (view.phase === 'ended') hint = 'El bitti.';
   else if (drawPhase) hint = `Sıra sende! Ortadaki desteden ya da soldaki oyuncunun (${name(leftSeat)}) attığı taştan birini al.`;
   else if (playPhase) {
-    if (stealMode) hint = '🤫 Vereceğin taşı seç, sonra karşıdaki ya da sağdaki yığına dokun.';
+    if (stealMode) hint = partners ? '🤫 Vereceğin taşı seç, sonra sağdaki rakibin yığınına dokun.' : '🤫 Vereceğin taşı seç, sonra karşıdaki ya da sağdaki yığına dokun.';
     else if (!opened && plan?.mode === 'series' && plan.points >= 101) hint = `Perlerin ${plan.points} puan: "Elini aç" diyebilirsin! Sonra bir taş at.`;
     else if (!opened) hint = 'Taşlarını diz (aynı renk sıralı ya da aynı sayı farklı renk), sonra atacağın taşı sağ köşedeki yığına sürükle.';
     else hint = 'Yerdeki perlere taş işleyebilirsin. Sonra bir taşı sağ köşedeki yığına at.';
   } else hint = `Sıra: ${name(view.turn)}. Bu arada taşlarını dizebilirsin.`;
 
   const pileLabel = (s: number) => {
-    if (stealMode && s !== mySeat && s !== leftSeat && playPhase) return 'Çal';
+    if (stealMode && s !== mySeat && s !== leftSeat && !(partners && s === partnerSeat) && playPhase) return 'Çal';
     if (s === leftSeat && drawPhase) return 'Al';
     if (s === mySeat && playPhase) return 'At';
     return null;
@@ -405,6 +410,11 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
               <div className="plate-in">
                 <span className="dotc" style={{ background: p?.color ?? '#999' }} />
                 <b>{p?.name ?? '—'}</b>
+                {partners && (
+                  <span className="tag team" style={{ background: TEAM_COLORS[s % 2] }} title={TEAM_NAMES[s % 2]}>
+                    {s === partnerSeat ? '🤝 Eş' : 'Rakip'}
+                  </span>
+                )}
                 {!!p?.trophy && <span className="tag cup" title={`Haftanın en iyileri: ${p.trophy}.`}>🏆</span>}
                 {p?.isBot ? <span className="tag bot">bot</span> : p && <span className="tag lvl" title={levelTitle(levelOf(p.played, p.won))}>⭐{levelOf(p.played, p.won)}</span>}
                 {view.opened[s] && <span className="tag open">{view.opened[s] === 'pairs' ? 'çift' : 'açtı'}</span>}
@@ -434,6 +444,19 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
         <span>
           El {table.handNo}/{table.hands}
         </span>
+        <span>
+          {partners ? '👥 Eşli' : 'Tekli'} · {turnLabel(table.turnSecs)}
+        </span>
+        {partners && table.handNo > 1 && (
+          <span>
+            {[0, 1].map((k) => (
+              <b key={k} className="team-score" style={{ color: TEAM_COLORS[k] }}>
+                {k ? ' – ' : ''}
+                {teamTotal(k)}
+              </b>
+            ))}
+          </span>
+        )}
         <span>Kasa {table.pot} ₺</span>
         <button className="btn tiny" onClick={() => setHelp(true)}>
           ❔ Nasıl oynanır?
@@ -451,6 +474,11 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
         <div className="me-bar">
           {said(table.seats[mySeat]) && <span className="me-say">{said(table.seats[mySeat])}</span>}
           <span className={`me-name ${myTurn ? 'turn' : ''}`}>{name(mySeat)}</span>
+          {partners && (
+            <span className="tag team" style={{ background: TEAM_COLORS[mySeat % 2] }}>
+              {TEAM_NAMES[mySeat % 2]} · eşin {name(partnerSeat)}
+            </span>
+          )}
           {table.handNo > 1 && <span className="score-pill">{table.totals[mySeat]} p</span>}
           {opened && <span className="tag open">Elin açık ({opened === 'pairs' ? 'çift' : 'seri'})</span>}
           {view.penalties[mySeat]! > 0 && <span className="pen">Ceza +{view.penalties[mySeat]}</span>}
@@ -584,6 +612,11 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
               <b>Gösterge:</b> ilk sıranda elinde göstergenin eşi varsa <b>Göstergeyi göster</b> de, puanından 101 düşer.
             </li>
             <li>Elindeki taşları ilk bitiren eli kazanır. Maç sonunda puanı en düşük olan kasayı alır.</li>
+            {partners && (
+              <li>
+                <b>Eşli:</b> karşındaki eşin. İkinizin puanı toplanır; eşin bitirirse elindeki taşlar yazılmaz. Eşinin perlerine de işleyebilirsin. Eşinden taş çalınmaz.
+              </li>
+            )}
           </ol>
         </div>
       )}
@@ -596,8 +629,27 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
           </p>
           <table>
             <tbody>
-              {[0, 1, 2, 3].map((s) => (
-                <tr key={s} className={s === mySeat ? 'me' : ''}>
+              {(partners ? [mySeat % 2, 1 - (mySeat % 2)] : [-1]).map((k) => [
+                k >= 0 && (
+                  <tr key={`t${k}`} className="team-row">
+                    <td>
+                      <span className="dotc" style={{ background: TEAM_COLORS[k] }} /> {teamLabel(k)}
+                    </td>
+                    <td className="muted">
+                      bu el {lastHand.scores[k]! + lastHand.scores[k + 2]! > 0 ? '+' : ''}
+                      {lastHand.scores[k]! + lastHand.scores[k + 2]!}
+                    </td>
+                    <td className="score">{teamTotal(k)}</td>
+                    {lastMatch && (
+                      <td className={lastMatch.payout[k]! > 0 ? 'win' : 'lose'}>
+                        {lastMatch.payout[k]! > 0 ? '+' : ''}
+                        {lastMatch.payout[k]! * 2} ₺
+                      </td>
+                    )}
+                  </tr>
+                ),
+                ...(k >= 0 ? [k, k + 2] : [0, 1, 2, 3]).map((s) => (
+                <tr key={s} className={`${s === mySeat ? 'me' : ''} ${k >= 0 ? 'team-member' : ''}`}>
                   <td>{name(s)}</td>
                   <td className="muted">
                     bu el {lastHand.scores[s]! > 0 ? '+' : ''}
@@ -611,12 +663,16 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
                     </td>
                   )}
                 </tr>
-              ))}
+                )),
+              ])}
             </tbody>
           </table>
           {lastMatch ? (
             <p className="hint ok">
-              Kasa ({lastMatch.pot} ₺) → {lastMatch.winners.map(name).join(', ')}
+              Kasa ({lastMatch.pot} ₺) →{' '}
+              {lastMatch.winnerTeams?.length === 1 ? `${TEAM_NAMES[lastMatch.winnerTeams[0]!]}: ` : ''}
+              {lastMatch.winners.map(name).join(', ')}
+              {partners && lastMatch.winnerTeams?.length === 1 && (lastMatch.winnerTeams[0] === mySeat % 2 ? ' 🎉 Eşinle kazandınız!' : '')}
             </p>
           ) : (
             <p className="hint">Yeni el birazdan dağıtılıyor…</p>

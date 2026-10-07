@@ -91,3 +91,10 @@
 - Tests: `packages/shared/test/tv.test.ts` (9: determinism, phases, minute, score = goal events, end at full time, goal overlay, line-ups), `apps/server/test/tv.test.ts` (2: start/stop reaches joined clients, late joiner and new salon see the running derby, disposed rooms unsubscribe). 123 tests; build OK; 3.25 MB gzip, 130 KB before the lobby.
 - Screenshots: /tmp/claude-0/agent-shots/tv/ (hall during a derby, close-up with the score bug, goal overlay in the hall and close up, full-time stats, normal programme).
 - Left for the admin-panel branch: HTTP routes that call `tv.start` / `tv.stop`.
+## Eşli 101 + Masa ayarları (2026-10-07, agent worktree)
+- Engine (`packages/okey`): `OkeyGame(dealer, rng, { partners })`, `teamOf` / `partnerOf` / `teamTotals`, `HandResult.teams`, `publicView().partners`. The finisher's partner scores only their own fines. No stealing from or accusing your partner. The bot avoids feeding the next opponent an işlek tile. 9 new unit tests, and the bot-vs-bot run also covers eşli.
+- Shared: `HAND_OPTIONS` 1/3/5/7/9, `TURN_OPTIONS` (Hızlı/Normal/Yavaş), `TEAM_NAMES`/`TEAM_COLORS`, `TableConfigMsg`, `KTableView.partners/turnSecs`, `MatchResultView.teams/winnerTeams`.
+- Server: `KTable.partners`/`turnSecs`, validated `configure`, eşli games, per-table turn time, team settlement, steal/hint partner rules.
+- Client: "Masa ayarları" in the table lobby (mode, bet, hands, turn time, team badges, "Eşin"), eşli/turn info on the board, partner/rival badges on the plates, a team badge in the me-bar, team rows and team totals in the hand/match result, an eşli line in "Nasıl oynanır?".
+- Tests: `apps/server/test/esli.test.ts` (settings validation + host only; a fast eşli bot match with team settlement and money conservation). 130 tests total; build OK; size check OK (3.25 MB gzip).
+- Screenshots: /tmp/claude-0/agent-shots/esli/.
