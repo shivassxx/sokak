@@ -901,81 +901,130 @@ export function skylineTexture(): THREE.CanvasTexture {
   return canvasTex(W, H, (ctx) => {
     ctx.clearRect(0, 0, W, H);
     const base = 400;
-    // far hills
-    ctx.fillStyle = 'rgba(92,72,108,0.85)';
+    let seed = 7;
+    const rnd = () => hash(seed++ * 0.731);
+    // aerial perspective: each layer further back is lighter and bluer (sunset haze)
+    const HAZE = ['rgba(176,146,164,0.55)', 'rgba(146,116,140,0.82)', 'rgba(112,86,114,0.95)'];
+    const LAND = 'rgb(92,70,100)';
+    // far hills across the Golden Horn
+    ctx.fillStyle = HAZE[0]!;
     ctx.beginPath();
     ctx.moveTo(0, base);
-    for (let x = 0; x <= W; x += 64) ctx.lineTo(x, base - 60 - Math.sin(x * 0.0021) * 45 - Math.sin(x * 0.009) * 14);
+    for (let x = 0; x <= W; x += 32) ctx.lineTo(x, base - 58 - Math.sin(x * 0.0019) * 40 - Math.sin(x * 0.0083) * 12);
     ctx.lineTo(W, H);
     ctx.lineTo(0, H);
     ctx.fill();
-    // city mass
-    ctx.fillStyle = 'rgba(70,52,86,0.95)';
-    ctx.beginPath();
-    ctx.moveTo(0, base + 10);
-    for (let x = 0; x <= W; x += 16) ctx.lineTo(x, base - 16 - ((x * 7919) % 30) - Math.sin(x * 0.004) * 24);
-    ctx.lineTo(W, H);
-    ctx.lineTo(0, H);
-    ctx.fill();
-    const mosque = (cx: number, r: number, minarets: number, spread: number) => {
-      ctx.fillStyle = 'rgba(60,44,76,1)';
-      ctx.fillRect(cx - r * 1.6, base - r * 1.1, r * 3.2, r * 1.2);
-      ctx.beginPath();
-      ctx.arc(cx, base - r * 1.05, r, Math.PI, 0);
-      ctx.fill();
-      for (const s of [-1, 1]) {
-        ctx.beginPath();
-        ctx.arc(cx + s * r * 1.1, base - r * 0.9, r * 0.5, Math.PI, 0);
-        ctx.fill();
+    /** a dense band of blocks (apartments, han roofs), with lit windows on the nearest band */
+    const blocks = (color: string, y0: number, hMin: number, hMax: number, wMin: number, wMax: number, lights: number) => {
+      ctx.fillStyle = color;
+      const rects: [number, number, number, number][] = [];
+      for (let x = 0; x < W; ) {
+        const w = wMin + rnd() * (wMax - wMin);
+        const hill = Math.sin(x * 0.0021) * 18 + Math.sin(x * 0.0007 + 1) * 14;
+        const h = hMin + rnd() * (hMax - hMin) + hill;
+        ctx.fillRect(x, y0 - h, w + 1, h + 40);
+        if (rnd() < 0.3) ctx.fillRect(x + w * 0.2, y0 - h - 4, w * 0.6, 4);
+        rects.push([x, y0 - h, w, h]);
+        x += w;
       }
-      ctx.fillRect(cx - 2, base - r * 2.2, 4, r * 0.2);
-      const mw = Math.max(4, r * 0.09);
-      for (let k = 0; k < minarets; k++) {
-        const mx = cx + (k - (minarets - 1) / 2) * spread;
-        const mh = r * 3.0;
-        ctx.fillRect(mx - mw, base - mh, mw * 2, mh);
-        ctx.beginPath();
-        ctx.moveTo(mx - mw * 1.2, base - mh);
-        ctx.lineTo(mx, base - mh - r * 0.8);
-        ctx.lineTo(mx + mw * 1.2, base - mh);
-        ctx.fill();
-        ctx.fillRect(mx - mw * 1.8, base - mh * 0.72, mw * 3.6, 5);
+      for (let k = 0; k < lights; k++) {
+        const r = rects[Math.floor(rnd() * rects.length)]!;
+        const lx = r[0] + 2 + rnd() * Math.max(1, r[2] - 6);
+        const ly = r[1] + 4 + rnd() * Math.max(1, r[3] - 8);
+        ctx.fillStyle = rnd() < 0.7 ? 'rgba(255,206,130,0.9)' : 'rgba(255,236,196,0.7)';
+        ctx.fillRect(lx, ly, 2.5, 2);
       }
     };
-    // the historic peninsula reads from Salacak: bigger than life so it carries at this distance
-    mosque(820, 72, 4, 110); // Ayasofya-like
-    mosque(1300, 78, 6, 80); // Sultanahmet-like
-    // Topkapı on Sarayburnu: long low roofs, the Adalet tower and the point's trees
-    ctx.fillStyle = 'rgba(62,46,78,1)';
-    for (let k = 0; k < 9; k++) ctx.fillRect(1560 + k * 46, base - 34 - (k % 3) * 8, 40, 40 + (k % 3) * 8);
-    ctx.fillRect(1700, base - 120, 22, 120);
-    ctx.beginPath();
-    ctx.moveTo(1694, base - 120);
-    ctx.lineTo(1711, base - 165);
-    ctx.lineTo(1728, base - 120);
-    ctx.fill();
-    for (let k = 0; k < 14; k++) {
+    blocks(HAZE[1]!, base - 8, 12, 40, 10, 26, 0);
+    // tree-covered slopes and cypress groves
+    const trees = (cx: number, n: number, spread: number, color: string) => {
+      ctx.fillStyle = color;
+      for (let k = 0; k < n; k++) {
+        const x = cx + (rnd() - 0.5) * spread;
+        ctx.beginPath();
+        if (rnd() < 0.4) ctx.ellipse(x, base - 30 - rnd() * 10, 4, 22 + rnd() * 12, 0, 0, Math.PI * 2);
+        else ctx.arc(x, base - 22 - rnd() * 14, 10 + rnd() * 8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+    /** minaret: shaft, one to three şerefe balconies, a pencil cap and an alem */
+    const minaret = (x: number, y: number, h: number, w: number, serefe: number) => {
+      ctx.fillRect(x - w / 2, y - h, w, h);
+      for (let k = 0; k < serefe; k++) ctx.fillRect(x - w * 0.95, y - h * (0.58 + k * 0.13), w * 1.9, Math.max(2, w * 0.35));
       ctx.beginPath();
-      ctx.arc(1600 + k * 30, base - 28 - (k % 4) * 6, 18, 0, Math.PI * 2);
+      ctx.moveTo(x - w * 0.62, y - h);
+      ctx.lineTo(x, y - h - w * 4.2);
+      ctx.lineTo(x + w * 0.62, y - h);
+      ctx.fill();
+      ctx.fillRect(x - 0.6, y - h - w * 4.2 - 5, 1.2, 5);
+    };
+    const dome = (cx: number, y: number, r: number, flat = 0.82, drum = 0.22) => {
+      ctx.fillRect(cx - r * 0.98, y - r * drum, r * 1.96, r * drum + 1);
+      ctx.beginPath();
+      ctx.ellipse(cx, y - r * drum, r, r * flat, 0, Math.PI, Math.PI * 2);
+      ctx.fill();
+      ctx.fillRect(cx - 1, y - r * drum - r * flat - 8, 2, 8);
+    };
+    /** an imperial mosque: courtyard mass, cascading semi-domes and small domes, minarets */
+    const mosque = (cx: number, y: number, r: number, minarets: number, spread: number, serefe: number) => {
+      ctx.fillStyle = LAND;
+      ctx.fillRect(cx - r * 2.3, y - r * 0.7, r * 4.6, r * 0.7 + 2);
+      for (const sx of [-1, 1]) {
+        dome(cx + sx * r * 0.95, y - r * 0.55, r * 0.55, 0.7, 0.15);
+        dome(cx + sx * r * 1.75, y - r * 0.45, r * 0.32, 0.8, 0.2);
+        for (let k = 0; k < 3; k++) dome(cx + sx * (r * 2.0 + k * r * 0.32), y - r * 0.3, r * 0.14, 0.9, 0.3);
+      }
+      dome(cx, y - r * 0.75, r, 0.78, 0.3);
+      for (let k = 0; k < minarets; k++) {
+        const t = minarets === 1 ? 0 : k / (minarets - 1) - 0.5;
+        const mx = cx + t * spread * 2;
+        const tall = Math.abs(t) > 0.3 ? 1 : 0.86;
+        minaret(mx, y, r * 3.0 * tall, Math.max(4, r * 0.085), serefe - (tall < 1 ? 1 : 0));
+      }
+    };
+    // Sarayburnu and the Topkapı ridge: cypresses, pavilion roofs, the Adalet tower
+    trees(1620, 60, 420, 'rgb(84,72,96)');
+    ctx.fillStyle = LAND;
+    for (let k = 0; k < 9; k++) {
+      const x = 1560 + k * 46;
+      const hh = 26 + (k % 3) * 8;
+      ctx.fillRect(x, base - hh, 40, hh);
+      ctx.beginPath();
+      ctx.moveTo(x - 4, base - hh);
+      ctx.lineTo(x + 20, base - hh - 12);
+      ctx.lineTo(x + 44, base - hh);
       ctx.fill();
     }
-    mosque(2150, 66, 4, 120); // Süleymaniye-like
-    mosque(2650, 46, 2, 90); // Yeni Cami-like
-    // Galata tower
-    ctx.fillStyle = 'rgba(66,48,82,1)';
-    ctx.fillRect(3300, base - 250, 50, 250);
-    ctx.fillRect(3294, base - 262, 62, 14);
+    ctx.fillRect(1700, base - 124, 20, 124);
+    ctx.fillRect(1696, base - 128, 28, 8);
     ctx.beginPath();
-    ctx.moveTo(3288, base - 262);
-    ctx.lineTo(3325, base - 345);
-    ctx.lineTo(3362, base - 262);
+    ctx.moveTo(1694, base - 128);
+    ctx.lineTo(1710, base - 176);
+    ctx.lineTo(1726, base - 128);
     ctx.fill();
-    // twinkling windows
-    for (let k = 0; k < 700; k++) {
-      const x = (k * 2654435761) % W;
-      const y = base - 5 + ((k * 40503) % 60);
-      ctx.fillStyle = k % 3 ? 'rgba(255,214,140,0.85)' : 'rgba(255,240,200,0.6)';
-      ctx.fillRect(x, y, 3, 2);
+    // the historic peninsula as seen from Salacak, exaggerated so it carries at this distance
+    mosque(820, base, 70, 4, 105, 1); // Ayasofya: four minarets, a flatter dome
+    mosque(1300, base - 4, 74, 6, 120, 3); // Sultanahmet: six minarets with three balconies
+    trees(2050, 36, 300, 'rgb(84,72,96)');
+    mosque(2150, base - 26, 66, 4, 110, 3); // Süleymaniye on its hill
+    mosque(2650, base + 2, 48, 2, 70, 2); // Yeni Cami by the water
+    // Galata across the Horn: cylinder, gallery, conical cap
+    ctx.fillStyle = 'rgb(98,76,106)';
+    ctx.fillRect(3302, base - 248, 46, 248);
+    ctx.fillRect(3296, base - 262, 58, 14);
+    for (let k = 0; k < 7; k++) ctx.fillRect(3298 + k * 8, base - 270, 4, 8);
+    ctx.beginPath();
+    ctx.moveTo(3292, base - 270);
+    ctx.lineTo(3325, base - 352);
+    ctx.lineTo(3358, base - 270);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,206,130,0.8)';
+    for (let k = 0; k < 6; k++) ctx.fillRect(3306 + k * 7, base - 256, 3, 4);
+    // the nearest band of the city with lit windows, then the shore lights
+    blocks(HAZE[2]!, base + 6, 6, 26, 8, 22, 900);
+    for (let x = 4; x < W; x += 9 + rnd() * 14) {
+      ctx.fillStyle = rnd() < 0.8 ? 'rgba(255,214,150,0.95)' : 'rgba(255,255,235,0.8)';
+      ctx.fillRect(x, base + 2 + rnd() * 3, 2, 2);
     }
     // fade both ends into the haze instead of a hard edge
     ctx.globalCompositeOperation = 'destination-out';
