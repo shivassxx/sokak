@@ -28,6 +28,17 @@ export const SEATS = 4;
 /** seconds during which "Hile var!" can catch a tile theft */
 export const STEAL_WINDOW_MS = 6000;
 
+/** Eşli (partner) play: seats 0+2 are team 0, seats 1+3 team 1. */
+export const teamOf = (seat: number): number => seat % 2;
+export const partnerOf = (seat: number): number => (seat + 2) % SEATS;
+/** Team totals [team 0, team 1] of per-seat scores. */
+export const teamTotals = (scores: readonly number[]): [number, number] => [scores[0]! + scores[2]!, scores[1]! + scores[3]!];
+
+export interface GameOptions {
+  /** eşli 101: partners opposite each other, team scores */
+  partners?: boolean;
+}
+
 export interface Meld {
   id: number;
   owner: number;
@@ -61,6 +72,8 @@ export interface HandResult {
   multiplier: number;
   reason: 'finished' | 'deckEmpty';
   okeyFinish: boolean;
+  /** eşli only: team totals of `scores` [seats 0+2, seats 1+3] */
+  teams?: [number, number];
 }
 
 export interface StealRecord {
@@ -104,11 +117,14 @@ export class OkeyGame {
   lastSteal: StealRecord | null = null;
   result: HandResult | null = null;
   private nextMeldId = 1;
+  readonly partners: boolean;
 
   constructor(
     readonly dealer: number,
     rng: () => number,
+    opts: GameOptions = {},
   ) {
+    this.partners = !!opts.partners;
     const order = shuffled(TILE_COUNT, rng);
     // gösterge: first non-fake tile from the shuffled pile
     const gi = order.findIndex((t) => !isFake(t));
@@ -395,6 +411,7 @@ export class OkeyGame {
     if (e) return fail(e);
     if (this.stealUsed[seat]) return fail('Bu elde zaten taş çaldın.');
     if (pileSeat === seat || pileSeat === this.leftOf(seat)) return fail('Solundakini zaten alabilirsin, başka birinden çal.');
+    if (this.partners && pileSeat === partnerOf(seat)) return fail('Eşinden taş çalınmaz, rakibinden çal.');
     const pile = this.discards[pileSeat];
     if (!pile || pile.length === 0) return fail('Orada taş yok.');
     if (!this.hasTiles(seat, [myTile])) return fail('Bu taş elinde değil.');
@@ -411,6 +428,7 @@ export class OkeyGame {
   accuse(by: number, now: number): Result {
     if (this.phase === 'ended') return fail('El bitti.');
     const s = this.lastSteal;
+    if (this.partners && s && !s.resolved && s.thief === partnerOf(by) && now - s.at <= STEAL_WINDOW_MS) return fail('Eşini ihbar edemezsin.');
     if (s && !s.resolved && s.thief !== by && now - s.at <= STEAL_WINDOW_MS) {
       s.resolved = true;
       // undo the swap when both tiles are still where they were left
@@ -432,6 +450,8 @@ export class OkeyGame {
     const multiplier = okeyFinish || elden ? 2 : 1;
     const scores = [0, 1, 2, 3].map((s) => {
       if (s === seat) return -OPEN_POINTS * multiplier + this.penalties[s]!;
+      // eşli: the finisher's partner writes no tile points (only own fines/bonuses)
+      if (this.partners && s === partnerOf(seat)) return this.penalties[s]!;
       return this.handPenalty(s) * multiplier + this.penalties[s]!;
     });
     return this.end({ finisher: seat, scores, multiplier, reason: 'finished', okeyFinish });
@@ -451,6 +471,7 @@ export class OkeyGame {
   }
 
   private end(result: HandResult): OkeyEvent[] {
+    if (this.partners) result.teams = teamTotals(result.scores);
     this.phase = 'ended';
     this.result = result;
     return [{ type: 'handEnd', result }];
@@ -475,6 +496,7 @@ export class OkeyGame {
       dealer: this.dealer,
       shown: [...this.shown],
       turnsDone: [...this.turnsDone],
+      partners: this.partners,
     };
   }
 }
@@ -498,6 +520,8 @@ export interface PublicView {
   shown: boolean[];
   /** discards made by each seat this hand */
   turnsDone: number[];
+  /** eşli 101 (seats 0+2 vs 1+3) */
+  partners: boolean;
 }
 
 export { FAKE_OKEYS };

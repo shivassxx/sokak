@@ -394,7 +394,17 @@ export function levelTitle(level: number): string {
   return TITLES.find(([l]) => level >= l)?.[1] ?? 'Çaylak';
 }
 export const BET_OPTIONS = [0, 10, 50, 100, 250] as const;
-export const HAND_OPTIONS = [1, 3, 5] as const;
+export const HAND_OPTIONS = [1, 3, 5, 7, 9] as const;
+/** "Masa ayarları" turn time per move (seconds); Normal = TURN_SECONDS */
+export const TURN_OPTIONS = [
+  { secs: 15, label: 'Hızlı' },
+  { secs: 30, label: 'Normal' },
+  { secs: 45, label: 'Yavaş' },
+] as const;
+export const turnLabel = (secs: number): string => TURN_OPTIONS.find((o) => o.secs === secs)?.label ?? `${secs} sn`;
+/** Eşli 101: seats 0+2 and 1+3 are partners */
+export const TEAM_NAMES = ['Mavi takım', 'Kırmızı takım'] as const;
+export const TEAM_COLORS = ['#3d8bfd', '#e5534b'] as const;
 /** "Veresiye": a broke player can ask for this once every few minutes */
 export const CREDIT_AMOUNT = 200;
 export const CREDIT_COOLDOWN_MS = 5 * 60 * 1000;

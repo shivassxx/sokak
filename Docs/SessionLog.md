@@ -84,3 +84,10 @@
 - Client: lazy `/admin` panel (login, role badge, TV card for everyone; owner tabs Yetkililer, Salonlar · Para, Duyuru, İstatistik, Kayıtlar), "Yetkili girişi" link on the home footer, announcement banner in the HUD, kick/close notice on the start page. Vite dev proxy for `/api/admin`.
 - Tests: `apps/server/test/admin.test.ts` (8): login/cookie/logout, generic errors, rate limit, admin vs owner permissions, create/remove admin kills the session, tv/start → `tv.current()`, password changes, hashes only on disk, generated owner password, salons/grant/announce/kick reaching headless clients. 120 tests total; lobby still 130 KB gzip.
 - Docs: Deploy.md "Admin panel", `.env.example` and `docker-compose.yml` vars, Architecture.md section.
+## Eşli 101 + Masa ayarları (2026-10-07, agent worktree)
+- Engine (`packages/okey`): `OkeyGame(dealer, rng, { partners })`, `teamOf` / `partnerOf` / `teamTotals`, `HandResult.teams`, `publicView().partners`. The finisher's partner scores only their own fines. No stealing from or accusing your partner. The bot avoids feeding the next opponent an işlek tile. 9 new unit tests, and the bot-vs-bot run also covers eşli.
+- Shared: `HAND_OPTIONS` 1/3/5/7/9, `TURN_OPTIONS` (Hızlı/Normal/Yavaş), `TEAM_NAMES`/`TEAM_COLORS`, `TableConfigMsg`, `KTableView.partners/turnSecs`, `MatchResultView.teams/winnerTeams`.
+- Server: `KTable.partners`/`turnSecs`, validated `configure`, eşli games, per-table turn time, team settlement, steal/hint partner rules.
+- Client: "Masa ayarları" in the table lobby (mode, bet, hands, turn time, team badges, "Eşin"), eşli/turn info on the board, partner/rival badges on the plates, a team badge in the me-bar, team rows and team totals in the hand/match result, an eşli line in "Nasıl oynanır?".
+- Tests: `apps/server/test/esli.test.ts` (settings validation + host only; a fast eşli bot match with team settlement and money conservation). 130 tests total; build OK; size check OK (3.25 MB gzip).
+- Screenshots: /tmp/claude-0/agent-shots/esli/.

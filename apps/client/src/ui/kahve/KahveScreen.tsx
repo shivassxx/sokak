@@ -9,6 +9,10 @@ import {
   vapurState,
   type VapurPhase,
   HAND_OPTIONS,
+  TEAM_COLORS,
+  TEAM_NAMES,
+  TURN_OPTIONS,
+  turnLabel,
   KMSG,
   MENU,
   MSG,
@@ -799,7 +803,8 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         )}
         {near && !myTable && !watching && (
           <div className="sit-prompt">
-            <b>{near.id + 1}. masa</b> · {[...near.seats].filter(Boolean).length}/4 · {near.status === 'open' ? (near.bet ? `${near.bet} ₺ bahis` : 'bahissiz') : 'oyun sürüyor'}
+            <b>{near.id + 1}. masa</b> · {[...near.seats].filter(Boolean).length}/4 · {near.partners ? 'eşli · ' : ''}
+            {near.status === 'open' ? (near.bet ? `${near.bet} ₺ bahis` : 'bahissiz') : 'oyun sürüyor'}
             {near.status === 'open' && [...near.seats].some((s) => !s) && (
               <button className="btn primary" onClick={() => room.send(KMSG.sit, { table: near.id })}>
                 Otur {!isTouch && <kbd>E</kbd>}
@@ -921,7 +926,8 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
                 <li key={t.id} className={t.status !== 'open' ? 'busy' : humans.length ? 'waiting' : ''}>
                   <span className="tno">{t.id + 1}</span>
                   <span className="tinfo">
-                    <b>{t.id >= 18 ? 'Teras' : 'Salon'}</b> · {filled.length}/4 {t.status === 'open' ? (t.bet ? `· ${t.bet} ₺` : '· bahissiz') : '· oyunda'}
+                    <b>{t.id >= 18 ? 'Teras' : 'Salon'}</b> · {filled.length}/4 {t.partners ? '· eşli ' : ''}
+                    {t.status === 'open' ? (t.bet ? `· ${t.bet} ₺` : '· bahissiz') : '· oyunda'}
                     {humans.length > 0 && <small>{humans.map((id) => view.players[id]?.name).join(', ')}</small>}
                   </span>
                   {free && (
@@ -957,6 +963,11 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
                 <li key={s}>
                   <span className="dot" style={{ background: p?.color ?? '#ddd' }} />
                   <span className="pname">{p ? p.name : 'Boş sandalye'}</span>
+                  {myTable.partners && (
+                    <span className="tag team" style={{ background: TEAM_COLORS[s % 2] }} title={TEAM_NAMES[s % 2]}>
+                      {myP && s !== myP.seat && s % 2 === myP.seat % 2 ? 'Eşin' : TEAM_NAMES[s % 2]}
+                    </span>
+                  )}
                   {p?.isBot && <span className="tag bot">bot</span>}
                   {p && myTable.hostId === p.id && <span className="tag">masa sahibi</span>}
                   {p && <span className="muted">{money(p.money)}</span>}
@@ -964,6 +975,18 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
               );
             })}
           </ul>
+          <h3 className="settings-title">Masa ayarları</h3>
+          <div className="field">
+            <span>Oyun</span>
+            <div className="chips">
+              {(['tekli', 'esli'] as const).map((m) => (
+                <button key={m} disabled={!isHost} className={`chip ${myTable.partners === (m === 'esli') ? 'on' : ''}`} onClick={() => room.send(KMSG.tableConfig, { mode: m })}>
+                  {m === 'esli' ? '👥 Eşli' : '👤 Tekli'}
+                </button>
+              ))}
+            </div>
+          </div>
+          {myTable.partners && <p className="hint">Karşılıklı oturanlar eştir. Eşlerin puanı toplanır; kaybeden takımın ikisi de öder, kazananlar kasayı paylaşır.</p>}
           <div className="field">
             <span>Bahis (kişi başı)</span>
             <div className="chips">
@@ -984,6 +1007,21 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
               ))}
             </div>
           </div>
+          <div className="field">
+            <span>Süre (hamle başı)</span>
+            <div className="chips">
+              {TURN_OPTIONS.map((o) => (
+                <button key={o.secs} disabled={!isHost} className={`chip ${myTable.turnSecs === o.secs ? 'on' : ''}`} onClick={() => room.send(KMSG.tableConfig, { turn: o.secs })}>
+                  {o.label} ({o.secs} sn)
+                </button>
+              ))}
+            </div>
+          </div>
+          {!isHost && (
+            <p className="hint">
+              {myTable.partners ? 'Eşli' : 'Tekli'} · {myTable.hands} el · {turnLabel(myTable.turnSecs)} · {myTable.bet ? `${myTable.bet} ₺` : 'bahissiz'}
+            </p>
+          )}
           {isHost ? (
             <div className="row wrap">
               <button className="btn small" disabled={[...myTable.seats].every(Boolean)} onClick={() => room.send(KMSG.tableBot, {})}>
