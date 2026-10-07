@@ -137,8 +137,11 @@ Ayrıntılı adımlar: **`Docs/Deploy.md`**. Kısaca:
 1. **Sunucuya kur** (`Docs/Deploy.md`) ve TURN sunucusunu ayarla. Linki küçük bir grupla paylaş, `/stats` ile masaları ve elleri izle.
 2. **Gerçek telefonda bir maç oyna:** kare hızını, dokunmatik taş sürüklemeyi ve sesli sohbeti kontrol et.
 3. Okey kurallarında evinde oynadığın farklılıklar varsa söyle. Kurallar `packages/okey` içinde, testleriyle birlikte değiştirilebilir.
-4. **İstersen eklenebilecekler:**
-   - oynanabilir tavla,
-   - vapura binip karşıya geçme,
-   - kalıcı haftalık liderlik tablosu (takma ad saklamayı gerektirir),
-   - daha fazla karakter.
+4. **İstersen eklenebilecekler:** eşli 101, masa ayarları (el sayısı, süre), el sonu tekrarı, gece-gündüz döngüsü, başarımlar, grafik kalite menüsü.
+
+## 9. Ek: 7 Ekim 2026 oturumu
+
+- **Oynanabilir tavla:** salonda 4 tavla masası (`packages/tavla` motoru + bot, 22 test). Masaya otur, bahis koy, botla ya da arkadaşınla oyna. Kapı, pul kırma, mars var. 3B pullar ve zarlar, ekranda tahta görünümü. Telefonda da çalışıyor. Bitirilen maçlar günlük göreve ve haftalık listeye sayılıyor.
+- **Vapur turu:** iskeledeki vapura bin (yanaşıkken 30 sn). Vapur Kız Kulesi'nin çevresinden dolaşıp geri döner. Güvertede yürünür, martılara simit atılır, vapur çaycısından çay alınır. Zamanlama sunucu saatine bağlı, herkes aynı vapuru görür.
+- **Haftalık liderlik tablosu:** cihaz cüzdanıyla oynanan okey ve tavla maçlarının haftalık net kazancı. Hafta İstanbul saatiyle pazartesi başlar. İlk 3'ün isminin yanında 🏆 çıkar; liste lobide görünür.
+- Testler: 12 dosya, 112 test geçiyor; derleme 3,2 MB gzip (5 MB sınırının altında).

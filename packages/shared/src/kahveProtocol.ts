@@ -30,7 +30,58 @@ export const KMSG = {
   /** get on the vapur (docked, at the pier) / get off it (docked) */
   board: 'board',
   alight: 'alight',
+  /** sit at a tavla table { table, seat? } (stand / config / start / bots reuse the table messages) */
+  tavlaSit: 'tavlaSit',
+  /** tavla action (TavlaAction) */
+  tavla: 'tavla',
+  /** tavla event relayed to everybody (TavlaEventMsg) */
+  tavlaEvent: 'tavlaEvent',
 } as const;
+
+/** Client → server tavla actions. `from` 24 = the bar, `to` 25 = bearing off. */
+export type TavlaAction = { t: 'roll' } | { t: 'move'; from: number; to: number } | { t: 'undo' } | { t: 'end' };
+
+/** tavla event relayed to everybody in the room (the client filters by table) */
+export interface TavlaEventMsg {
+  table: number;
+  e: { type: string; [k: string]: unknown };
+}
+
+/** A tavla table (state schema → JSON). `view` is the engine's TavlaView as JSON. */
+export interface KTavlaView {
+  id: number;
+  status: 'open' | 'playing' | 'between' | 'result';
+  bet: number;
+  /** points needed to win the match (1, 3 or 5) */
+  target: number;
+  /** game number within the match */
+  game: number;
+  seats: string[];
+  hostId: string;
+  score: number[];
+  pot: number;
+  turnEndsAt: number;
+  view: string;
+  /** JSON TavlaGameResultView of the last finished game */
+  lastGame: string;
+  /** JSON TavlaMatchResultView when the match is over */
+  lastMatch: string;
+}
+
+export interface TavlaGameResultView {
+  winner: number;
+  value: number;
+  mars: boolean;
+  score: number[];
+}
+
+export interface TavlaMatchResultView {
+  score: number[];
+  winner: number;
+  pot: number;
+  /** money change per seat */
+  payout: number[];
+}
 
 /** WebRTC signalling relayed by the server between two voice users. */
 export interface SignalMsg {
@@ -186,6 +237,8 @@ export interface KPlayerView {
   money: number;
   table: number;
   seat: number;
+  /** tavla table index (seat is then 0 or 1), −1 otherwise */
+  tavla: number;
   holding: string;
   uses: number;
   spot: number;
@@ -224,4 +277,5 @@ export interface KahveView {
   name?: string;
   players: Record<string, KPlayerView>;
   tables: KTableView[];
+  tavla: KTavlaView[];
 }

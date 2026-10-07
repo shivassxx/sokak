@@ -7,6 +7,7 @@ COPY apps/client/package.json apps/client/
 COPY apps/server/package.json apps/server/
 COPY packages/shared/package.json packages/shared/
 COPY packages/okey/package.json packages/okey/
+COPY packages/tavla/package.json packages/tavla/
 RUN pnpm install --frozen-lockfile
 COPY . .
 # optional TURN relay for voice chat (baked into the client at build time, see Docs/Deploy.md)

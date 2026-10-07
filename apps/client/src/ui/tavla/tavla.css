@@ -1,0 +1,75 @@
+/* ------------------------------------------------------------------ tavla board overlay */
+.tavla-board { position: absolute; inset: 0; z-index: 4; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: max(54px, env(safe-area-inset-top)) 10px max(8px, env(safe-area-inset-bottom)); pointer-events: none; background: radial-gradient(ellipse at center, rgba(20,12,6,.15), rgba(20,12,6,.55)); }
+.tavla-board > * { pointer-events: auto; }
+.tv-head, .tv-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: center; width: min(980px, 100%); position: relative; }
+.tv-foot { justify-content: space-between; }
+.tv-plate { display: flex; align-items: center; gap: 6px; background: var(--panel); border-radius: 14px; padding: 4px 10px; box-shadow: var(--shadow); font-size: 15px; }
+.tv-plate.turn { box-shadow: 0 0 0 3px var(--gold), var(--shadow); }
+.tv-plate .muted { font-size: 12px; color: var(--ink-soft); }
+.tv-score { background: var(--ink); color: #fff; border-radius: 8px; padding: 0 8px; font-weight: 800; }
+.tv-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid #8a7a60; }
+.tv-dot.s0 { background: #f4ecdc; }
+.tv-dot.s1 { background: #2b1d15; border-color: #000; }
+.tv-hint { flex: 1; text-align: center; color: #fff; font-weight: 800; font-size: 17px; text-shadow: 0 2px 6px rgba(0,0,0,.6); min-width: 160px; }
+.tv-hint.mine { color: var(--gold); }
+.tv-actions { display: flex; gap: 6px; position: relative; }
+.tv-wrap { position: relative; width: min(980px, 100%); flex: 0 1 auto; min-height: 0; display: flex; justify-content: center; }
+.tv-svg { width: 100%; height: auto; max-height: calc(100vh - 170px); max-height: calc(100dvh - 170px); display: block; filter: drop-shadow(0 12px 24px rgba(0,0,0,.45)); touch-action: manipulation; }
+.tv-frame { fill: #5a3118; stroke: #3a1e0c; stroke-width: 4; }
+.tv-field { fill: #ecd7a8; }
+.tv-bar { fill: #4a2812; cursor: pointer; }
+.tv-tray { fill: #3d2010; stroke: #2a150a; stroke-width: 2; }
+.tv-tray.dest { fill: #2f7d4e; stroke: #8ff0b0; stroke-width: 4; cursor: pointer; animation: tvpulse .8s infinite alternate; }
+.tv-point { cursor: pointer; }
+.tri.a { fill: #9a3324; }
+.tri.b { fill: #2e1d12; }
+.tri.last { stroke: #ffd166; stroke-width: 3; }
+.tri.dest { fill: #3fbf75; stroke: #c8ffd9; stroke-width: 3; animation: tvpulse .8s infinite alternate; }
+.tv-num { font: 700 12px 'Baloo 2', sans-serif; fill: rgba(255,240,210,.65); pointer-events: none; }
+.tv-ck, .tv-off, .tv-die, .tv-x4 { pointer-events: none; }
+.tv-ck circle { stroke-width: 2.5; }
+.tv-ck.s0 circle { fill: #f6efe0; stroke: #a8977a; }
+.tv-ck.s0 .ring { fill: none; stroke: #d8cbb0; }
+.tv-ck.s1 circle { fill: #2b1d15; stroke: #000; }
+.tv-ck.s1 .ring { fill: none; stroke: #4a3628; }
+.tv-ck text { font: 800 26px 'Baloo 2', sans-serif; }
+.tv-ck.s0 text { fill: #3a2a1a; }
+.tv-ck.s1 text { fill: #f6efe0; }
+.tv-ck.can circle:first-child { stroke: #ffd166; stroke-width: 4; }
+.tv-ck.sel circle:first-child { stroke: #ffb000; stroke-width: 7; filter: drop-shadow(0 0 8px #ffd166); }
+.tv-off.s0 { fill: #f6efe0; stroke: #a8977a; }
+.tv-off.s1 { fill: #2b1d15; stroke: #000; }
+.tv-die rect { fill: #fbf7ee; stroke: #9c8a6a; stroke-width: 2; }
+.tv-die circle { fill: #1b1b1b; }
+.tv-die circle.one { fill: #b3261e; }
+.tv-die.used { opacity: .4; }
+.tv-x4 { font: 800 20px 'Baloo 2', sans-serif; fill: #5a3118; }
+.tv-roll { position: absolute; top: 50%; left: 72%; transform: translate(-50%, -50%); z-index: 2; }
+.tv-result { text-align: center; }
+.tv-mars { font-size: 30px; font-weight: 800; color: var(--red); margin: 0; }
+@keyframes tvpulse { from { opacity: .7; } to { opacity: 1; } }
+@media (max-height: 520px) {
+  .tavla-board { gap: 3px; padding-top: 46px; padding-bottom: 4px; }
+  .tv-svg { max-height: calc(100vh - 128px); max-height: calc(100dvh - 128px); }
+  .tv-plate { font-size: 13px; padding: 2px 8px; }
+  .tv-plate .muted { display: none; }
+  .tv-hint { font-size: 14px; }
+  .tv-roll.btn.big { font-size: 18px; padding: 8px 18px; }
+}
+@media (max-width: 600px) {
+  .tv-hint { order: -1; flex-basis: 100%; }
+}
+/* phones held sideways: the board takes the full height, players and buttons go in a side column */
+@media (max-height: 520px) and (orientation: landscape) {
+  .kahve.at-tavla .hud-top { display: none; }
+  .tavla-board { display: grid; grid-template-columns: minmax(0, 1fr) 200px; grid-template-rows: auto 1fr auto; padding: 4px max(8px, env(safe-area-inset-right)) 4px max(8px, env(safe-area-inset-left)); gap: 6px 8px; align-items: center; }
+  .tv-wrap { grid-column: 1; grid-row: 1 / 4; width: 100%; height: 100%; align-items: center; }
+  .tv-svg { max-height: calc(100vh - 8px); max-height: calc(100dvh - 8px); }
+  .tv-head, .tv-foot { grid-column: 2; width: auto; flex-direction: column; align-items: stretch; gap: 4px; }
+  .tv-head { grid-row: 1; align-self: start; }
+  .tv-foot { grid-row: 3; align-self: end; }
+  .tv-head .pill { font-size: 12px; white-space: normal; }
+  .tv-hint { order: 0; flex: none; min-width: 0; font-size: 14px; }
+  .tv-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .tv-actions .more-menu { bottom: calc(100% + 6px); right: 0; }
+}

@@ -26,7 +26,13 @@ import {
   SIT_SPOTS,
   SPOT_REACH,
   TABLES,
+  TAVLA_REACH,
+  TAVLA_TABLES,
   seatPosition,
+  tavlaSeatPosition,
+  type KTavlaView,
+  type TavlaAction,
+  type TavlaEventMsg,
   type SignalMsg,
   type UsedMsg,
   type ChatMsg,
@@ -47,6 +53,8 @@ import { useToasts } from '../toasts';
 import { Social } from '../Social';
 import { TouchControls, isTouch } from '../TouchControls';
 import { OkeyBoard } from '../okey/OkeyBoard';
+import { TavlaBoard } from '../tavla/TavlaBoard';
+import type { TavlaView } from '@sokak/tavla';
 import { shareRoom } from '../share';
 import { VoiceChat } from '../../net/voice';
 import { initialQuality } from '../../game/postfx';
@@ -97,7 +105,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const [orderTo, setOrderTo] = useState<string>('me');
   const [nearTable, setNearTable] = useState<number>(-1);
   /** the closest thing to interact with: a table, a shop or a seat (bench / stool) */
-  const [nearThing, setNearThing] = useState<{ kind: 'table' | 'shop' | 'spot'; i: number } | null>(null);
+  const [nearThing, setNearThing] = useState<{ kind: 'table' | 'shop' | 'spot' | 'tavla'; i: number } | null>(null);
   const [nearSea, setNearSea] = useState(false);
   /** at the pier's boarding spot (not riding) */
   const [nearPier, setNearPier] = useState(false);
@@ -128,6 +136,10 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const myP = view?.players[me];
   const myTable: KTableView | null = myP && myP.table >= 0 ? view!.tables[myP.table]! : null;
   const tableView: TableView | null = useMemo(() => (myTable?.view ? (JSON.parse(myTable.view) as TableView) : null), [myTable?.view]);
+  const myTavla: KTavlaView | null = myP && myP.tavla >= 0 ? (view?.tavla?.[myP.tavla] ?? null) : null;
+  const tavlaView: TavlaView | null = useMemo(() => (myTavla?.view ? (JSON.parse(myTavla.view) as TavlaView) : null), [myTavla?.view]);
+  /** seated at any table (okey or tavla) */
+  const atTable = !!myTable || !!myTavla;
   const name = (id: string) => viewRef.current?.players[id]?.name ?? view?.players[id]?.name ?? 'biri';
 
   // ------------------------------------------------------------ 3D scene
@@ -183,6 +195,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         play('click');
       }),
       room.onMessage(KMSG.okeyEvent, (m: OkeyEventMsg) => onOkeyEvent(m)),
+      room.onMessage(KMSG.tavlaEvent, (m: TavlaEventMsg) => onTavlaEvent(m)),
       room.onMessage(KMSG.signal, (m: SignalMsg) => void voiceRef.current?.onSignal(m)),
       room.onMessage(KMSG.notice, (text: string) => {
         toastRef.current({ text, kind: 'good' });
@@ -296,6 +309,49 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     }
   };
 
+  const onTavlaEvent = (m: TavlaEventMsg) => {
+    const v = viewRef.current;
+    const mine = v?.players[me];
+    if (!v || !mine || mine.tavla !== m.table) return;
+    const t = v.tavla[m.table]!;
+    const seatName = (s: unknown) => name(t.seats[Number(s)] ?? '');
+    const e = m.e;
+    const mineSide = (s: unknown) => Number(s) === mine.seat;
+    switch (e.type) {
+      case 'opening': {
+        const d = e.dice as [number, number];
+        toastRef.current({ text: `🎲 Açılış zarı: ${seatName(0)} ${d[0]} – ${seatName(1)} ${d[1]}. ${mineSide(e.first) ? 'Sen başlıyorsun!' : `${seatName(e.first)} başlıyor.`}`, kind: 'good' });
+        play('go');
+        break;
+      }
+      case 'rolled':
+        play('pop');
+        break;
+      case 'moved':
+        play('click');
+        if (e.hit) {
+          toastRef.current({ text: mineSide(e.side) ? '💥 Kırdın! Rakibin taşı ortaya gitti.' : `💥 ${seatName(e.side)} taşını kırdı!`, kind: mineSide(e.side) ? 'good' : 'bad' });
+          game?.shake(0.08);
+        }
+        break;
+      case 'noMoves':
+        toastRef.current({ text: mineSide(e.side) ? 'Oynayacak hamlen yok, sıra geçiyor.' : `${seatName(e.side)} oynayamadı.`, kind: 'info' });
+        break;
+      case 'timeout':
+        toastRef.current({ text: mineSide(e.seat) ? 'Süren doldu, hamlen otomatik oynandı.' : `${seatName(e.seat)} süresini doldurdu.`, kind: 'info' });
+        break;
+      case 'botTookOver':
+        toastRef.current({ text: `${String(e.name)} masaya oturdu (bot).`, kind: 'info' });
+        break;
+      case 'gameEnd': {
+        const won = mineSide(e.winner);
+        toastRef.current({ text: `${e.mars ? 'Mars! ' : ''}${won ? 'Oyunu kazandın!' : `${seatName(e.winner)} oyunu kazandı.`}`, kind: won ? 'good' : 'bad' });
+        play(won ? 'herkes' : 'roundEnd');
+        break;
+      }
+    }
+  };
+
   const onServed = (s: ServedMsg) => {
     const v = viewRef.current;
     const item = MENU.find((m) => m.id === s.item);
@@ -337,20 +393,25 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       if (p.isBot && p.table >= 0) {
         const sp = seatPosition(p.table, p.seat);
         game.setFixed(p.id, { x: sp.x, y: 0, z: sp.z, yaw: sp.yaw });
+      } else if (p.isBot && p.tavla >= 0) {
+        const sp = tavlaSeatPosition(p.tavla, p.seat);
+        game.setFixed(p.id, { x: sp.x, y: 0, z: sp.z, yaw: sp.yaw });
       } else if (spot) game.setFixed(p.id, { x: spot.x, y: spot.h - 0.48, z: spot.z, yaw: spot.yaw });
       else game.setFixed(p.id, null);
-      game.setPose(p.id, p.table >= 0 || spot ? 'sit' : p.fish || p.holding === 'olta' ? 'fish' : 'none');
+      game.setPose(p.id, p.table >= 0 || p.tavla >= 0 || spot ? 'sit' : p.fish || p.holding === 'olta' ? 'fish' : 'none');
       game.setHeld(p.id, p.holding);
       game.setFishing(p.id, p.fish);
     }
     const mine = view.players[me];
     const seated = !!mine && mine.table >= 0;
+    const atTavla = !!mine && mine.tavla >= 0;
     const mySpot = mine && mine.spot >= 0 ? SIT_SPOTS[mine.spot] : undefined;
-    game.frozen = seated || !!mySpot || !!watching;
-    game.watch = watching && !seated ? watching : null;
+    game.frozen = seated || atTavla || !!mySpot || !!watching;
+    game.watch = watching && !seated && !atTavla ? watching : null;
+    game.tavla = atTavla ? { table: mine.tavla, seat: mine.seat } : null;
     game.localSeatY = mySpot ? mySpot.h - 0.48 : 0;
-    game.setLabelsVisible(!seated && !watching);
-    game.setPose(null, seated || mySpot ? 'sit' : mine?.fish || mine?.holding === 'olta' ? 'fish' : 'none');
+    game.setLabelsVisible(!seated && !atTavla && !watching);
+    game.setPose(null, seated || atTavla || mySpot ? 'sit' : mine?.fish || mine?.holding === 'olta' ? 'fish' : 'none');
     game.setHeld(null, mine?.holding ?? '');
     game.setFishing(null, mine?.fish ?? 0);
     if (mine?.fish === 2 && myFish.current !== 2) {
@@ -382,11 +443,13 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       else handCounts.current.delete(t.id);
       game.kahve?.setTable(t.id, tv && t.status !== 'open' ? tv : null, seated && mine.table === t.id ? mine.seat : null, watching?.table === t.id ? watching.side : 0);
     });
+    // real checkers and dice on every tavla board
+    (view.tavla ?? []).forEach((t) => game.kahve?.setTavla(t.id, t.view && t.status !== 'open' ? (JSON.parse(t.view) as TavlaView) : null));
   }, [game, view, me, watching]);
   // stop watching when the match is over or you sit down somewhere
   useEffect(() => {
     if (!watching || !view) return;
-    if ((view.players[me]?.table ?? -1) >= 0 || view.tables[watching.table]?.status === 'open') setWatching(null);
+    if ((view.players[me]?.table ?? -1) >= 0 || (view.players[me]?.tavla ?? -1) >= 0 || view.tables[watching.table]?.status === 'open') setWatching(null);
   }, [view, watching, me]);
   const startWatching = (table: number) => {
     const pos = game?.localPosition();
@@ -483,22 +546,23 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         if (!b) setShopOpen(-1);
         return;
       }
-      if (!pos || !v || !mine || mine.table >= 0 || mine.spot >= 0) {
+      if (!pos || !v || !mine || mine.table >= 0 || mine.tavla >= 0 || mine.spot >= 0) {
         setNearTable(-1);
         setNearThing(null);
         return;
       }
-      let best: { kind: 'table' | 'shop' | 'spot'; i: number } | null = null;
+      let best: { kind: 'table' | 'shop' | 'spot' | 'tavla'; i: number } | null = null;
       let bd = Infinity;
-      const consider = (kind: 'table' | 'shop' | 'spot', i: number, d: number, reach: number) => {
+      const consider = (kind: 'table' | 'shop' | 'spot' | 'tavla', i: number, d: number, reach: number) => {
         // scale by reach so a bench right next to you beats a table 3 m away
         if (d <= reach && d / reach < bd) [best, bd] = [{ kind, i }, d / reach];
       };
       TABLES.forEach((t, i) => consider('table', i, Math.hypot(pos.x - t.x, pos.z - t.z), SIT_REACH));
+      TAVLA_TABLES.forEach((t, i) => consider('tavla', i, Math.hypot(pos.x - t.x, pos.z - t.z), TAVLA_REACH));
       SHOPS.forEach((sh, i) => !sh.deck && consider('shop', i, Math.hypot(pos.x - sh.x, pos.z - sh.z), SHOP_REACH));
       const taken = new Set(Object.values(v.players).map((p) => p.spot));
       SIT_SPOTS.forEach((sp, i) => !taken.has(i) && consider('spot', i, Math.hypot(pos.x - sp.x, pos.z - sp.z), SPOT_REACH));
-      const b = best as { kind: 'table' | 'shop' | 'spot'; i: number } | null;
+      const b = best as { kind: 'table' | 'shop' | 'spot' | 'tavla'; i: number } | null;
       setNearThing(b);
       setNearTable(b?.kind === 'table' ? b.i : -1);
       if (b?.kind !== 'shop') setShopOpen(-1);
@@ -558,6 +622,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         else room.send(KMSG.sit, { table: n.i });
       }
       else if (n.kind === 'spot') room.send(KMSG.sitSpot, { spot: n.i });
+      else if (n.kind === 'tavla') room.send(KMSG.tavlaSit, { table: n.i });
       else setShopOpen((o) => (o === n.i ? -1 : n.i));
     });
     const iv = setInterval(() => {
@@ -583,6 +648,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   nearTableRef.current = nearTable;
 
   const send = (a: OkeyAction) => room.send(KMSG.okey, a);
+  const sendTavla = (a: TavlaAction) => room.send(KMSG.tavla, a);
   const standUp = () => {
     if (confirm('Masadan kalkarsan bahsin yanar ve yerine bot oturur. Emin misin?')) room.send(KMSG.stand);
   };
@@ -594,6 +660,8 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   };
   const richest = view ? Object.values(view.players).filter((p) => !p.isBot).sort((a, b) => b.money - a.money).slice(0, 5) : [];
   const isHost = myTable?.hostId === me;
+  const isTavlaHost = myTavla?.hostId === me;
+  const nearTavla = nearThing?.kind === 'tavla' && view?.tavla ? (view.tavla[nearThing.i] ?? null) : null;
   const myMissions = (() => {
     try {
       return myP?.missions ? (JSON.parse(myP.missions) as MissionState) : null;
@@ -604,7 +672,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const near = nearTable >= 0 && view ? view.tables[nearTable]! : null;
 
   return (
-    <div className={`game-root kahve ${myTable && myTable.status !== 'open' ? 'seated' : ''}`}>
+    <div className={`game-root kahve ${(myTable && myTable.status !== 'open') || (myTavla && myTavla.status !== 'open') ? 'seated' : ''} ${myTavla && myTavla.status !== 'open' ? 'at-tavla' : ''}`}>
       <canvas ref={canvasRef} className="game-canvas" />
       {!game && <div className="loading">Kahvehane açılıyor…</div>}
       <div className="hud-top">
@@ -626,7 +694,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         <button className="btn small" title="Çaycı" onClick={() => setMenuOpen((o) => !o)}>
           ☕<span className="lbl"> Çaycı!</span>
         </button>
-        {!myTable && (
+        {!atTable && (
           <button className="btn small" title="Masalar" onClick={() => setTablesOpen((o) => !o)}>
             🃏<span className="lbl"> Masalar</span>
           </button>
@@ -663,7 +731,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         )}
       </div>
 
-      {!myTable && !watching && (
+      {!atTable && !watching && (
         <div className="panel richest">
           <h3>Kahvenin en zenginleri</h3>
           <ol>
@@ -743,6 +811,17 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             )}
           </div>
         )}
+        {nearTavla && !atTable && !watching && (
+          <div className="sit-prompt">
+            <b>🎲 Tavla {nearTavla.id + 1}</b> · {[...nearTavla.seats].filter(Boolean).length}/2 ·{' '}
+            {nearTavla.status === 'open' ? (nearTavla.bet ? `${nearTavla.bet} ₺ bahis` : 'bahissiz') : `oyun sürüyor (${nearTavla.score[0]}–${nearTavla.score[1]})`}
+            {nearTavla.status === 'open' && [...nearTavla.seats].some((s) => !s) && (
+              <button className="btn primary" onClick={() => room.send(KMSG.tavlaSit, { table: nearTavla.id })}>
+                Otur {!isTouch && <kbd>E</kbd>}
+              </button>
+            )}
+          </div>
+        )}
         {nearThing?.kind === 'spot' && !myTable && !watching && (
           <div className="sit-prompt">
             <b>{SIT_SPOTS[nearThing.i]!.label}</b>
@@ -767,7 +846,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             </button>
           </div>
         )}
-        {myP && myP.holding && !myTable && (
+        {myP && myP.holding && !atTable && (
           <div className="held">
             <span className="held-emoji">{SHOP_ITEMS.find((i) => i.id === myP.holding)?.emoji}</span>
             <span>
@@ -954,6 +1033,89 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         </>
       )}
 
+      {myTavla && myTavla.status === 'open' && (
+        <div className="panel table-lobby">
+          <div className="panel-head">
+            <h2>🎲 Tavla {myTavla.id + 1}</h2>
+            <button className="btn small" onClick={() => room.send(KMSG.stand)}>
+              Kalk
+            </button>
+          </div>
+          <ul className="players">
+            {[0, 1].map((s) => {
+              const p = view?.players[myTavla.seats[s] ?? ''];
+              return (
+                <li key={s}>
+                  <span className={`tv-dot s${s}`} />
+                  <span className="pname">{p ? p.name : 'Boş sandalye'}</span>
+                  <span className="muted">{s === 0 ? 'beyaz' : 'siyah'}</span>
+                  {p?.isBot && <span className="tag bot">bot</span>}
+                  {p && myTavla.hostId === p.id && <span className="tag">masa sahibi</span>}
+                  {p && <span className="muted">{money(p.money)}</span>}
+                </li>
+              );
+            })}
+          </ul>
+          <div className="field">
+            <span>Bahis (kişi başı)</span>
+            <div className="chips">
+              {BET_OPTIONS.map((b) => (
+                <button key={b} disabled={!isTavlaHost} className={`chip ${myTavla.bet === b ? 'on' : ''}`} onClick={() => room.send(KMSG.tableConfig, { bet: b })}>
+                  {b ? `${b} ₺` : 'Bahissiz'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="field">
+            <span>Maç</span>
+            <div className="chips">
+              {[1, 3, 5].map((n) => (
+                <button key={n} disabled={!isTavlaHost} className={`chip ${myTavla.target === n ? 'on' : ''}`} onClick={() => room.send(KMSG.tableConfig, { points: n })}>
+                  {n} sayı
+                </button>
+              ))}
+            </div>
+          </div>
+          {isTavlaHost ? (
+            <div className="row wrap">
+              {[...myTavla.seats].every(Boolean) ? (
+                <>
+                  {[...myTavla.seats].some((id) => view?.players[id]?.isBot) && (
+                    <button className="btn small" onClick={() => room.send(KMSG.tableBot, { remove: true })}>
+                      − Botu kaldır
+                    </button>
+                  )}
+                  <button className="btn primary" onClick={() => room.send(KMSG.tableStart)}>
+                    Başla
+                  </button>
+                </>
+              ) : (
+                <button className="btn primary" onClick={() => room.send(KMSG.fillBots)}>
+                  🤖 Bot çağır ve başla
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="hint">Masa sahibinin başlatması bekleniyor…</p>
+          )}
+          <p className="hint">Arkadaşın boş sandalyeye oturabilir ya da bir botla oyna. Mars 2 sayı; maçı kazanan kasayı alır.</p>
+        </div>
+      )}
+
+      {myTavla && myTavla.status !== 'open' && myP && (
+        <TavlaBoard
+          table={myTavla}
+          view={tavlaView}
+          players={view!.players}
+          mySeat={myP.seat}
+          serverNow={serverNow}
+          send={sendTavla}
+          onStand={standUp}
+          phrases={QUICK_CHAT_OKEY}
+          onChat={(q) => room.send(MSG.chat, q)}
+        />
+      )}
+
       {menuOpen && view && myP && (
         <div className="panel menu-panel">
           <div className="panel-head">
@@ -966,7 +1128,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             <span>Kime?</span>
             <select value={orderTo} onChange={(e) => setOrderTo(e.target.value)}>
               <option value="me">Kendime</option>
-              {myTable && <option value="table">Bütün masaya</option>}
+              {atTable && <option value="table">Bütün masaya</option>}
               {Object.values(view.players)
                 .filter((p) => p.id !== me)
                 .map((p) => (
@@ -1059,8 +1221,8 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
           </div>
         ))}
       </div>
-      {game && view && !myTable && <Social room={room} input={game.input} phrases={QUICK_CHAT_OKEY} />}
-      {game && isTouch && !myTable && <TouchControls input={game.input} />}
+      {game && view && !atTable && <Social room={room} input={game.input} phrases={QUICK_CHAT_OKEY} />}
+      {game && isTouch && !atTable && <TouchControls input={game.input} />}
     </div>
   );
 }

@@ -9,6 +9,8 @@ export class Analytics {
   startedAt = new Date().toISOString();
   okeyTablesStarted = 0;
   okeyHandsPlayed = 0;
+  tavlaMatchesStarted = 0;
+  tavlaGamesPlayed = 0;
   /** human players per started table → count (the other seats were bots) */
   tableSizes: Record<number, number> = {};
   /** bet per player → count */
@@ -27,6 +29,15 @@ export class Analytics {
     this.okeyHandsPlayed++;
   }
 
+  tavlaStarted(humans: number, bet: number): void {
+    this.tavlaMatchesStarted++;
+    this.write({ type: 'tavlaMatch', humans, bet });
+  }
+
+  tavlaGamePlayed(): void {
+    this.tavlaGamesPlayed++;
+  }
+
   summary() {
     const sizes = Object.entries(this.tableSizes);
     const total = sizes.reduce((a, [, n]) => a + n, 0);
@@ -35,6 +46,8 @@ export class Analytics {
       startedAt: this.startedAt,
       okeyTablesStarted: this.okeyTablesStarted,
       okeyHandsPlayed: this.okeyHandsPlayed,
+      tavlaMatchesStarted: this.tavlaMatchesStarted,
+      tavlaGamesPlayed: this.tavlaGamesPlayed,
       tableSizes: this.tableSizes,
       averageHumansPerTable: Math.round(avg * 10) / 10,
       bets: this.bets,

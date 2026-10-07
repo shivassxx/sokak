@@ -38,6 +38,9 @@ import {
   STEAL_FINE,
   TABLES,
   TABLE_COUNT,
+  TAVLA_COUNT,
+  TAVLA_REACH,
+  TAVLA_TABLES,
   TICK_MS,
   TURN_SECONDS,
   cleanNickname,
@@ -53,6 +56,7 @@ import {
   sanitizeLook,
   seatPosition,
   stepBody,
+  tavlaSeatPosition,
   type Body,
   type ChatMsg,
   type EmoteMsg,
@@ -67,11 +71,16 @@ import {
   type SnapshotMsg,
   type SalonMeta,
   type SignalMsg,
+  type TavlaAction,
+  type TavlaEventMsg,
+  type TavlaGameResultView,
+  type TavlaMatchResultView,
   type TeleportMsg,
   type UsedMsg,
 } from '@sokak/shared';
 import { OkeyGame, botAction, type OkeyEvent, type Result } from '@sokak/okey';
-import { KPlayer, KTable, KahveState } from './kahveSchema';
+import { MATCH_LENGTHS, TavlaMatch, autoTurn, botStep, type Result as TavlaResult, type Side, type TavlaEvent } from '@sokak/tavla';
+import { KPlayer, KTable, KahveState, TTable } from './kahveSchema';
 import { generateRoomId } from '../roomId';
 import { WalletStore } from '../wallets';
 
@@ -122,6 +131,16 @@ interface TableRuntime {
   nagged: number;
 }
 
+interface TavlaRuntime {
+  match: TavlaMatch | null;
+  /** next time a bot (or an absent player) may act */
+  botAt: number;
+  /** wake-up time for between-games / result phases */
+  until: number;
+  /** a player who can play nothing more: the turn passes by itself at this time (0 = off) */
+  autoEndAt: number;
+}
+
 const MAX_QUEUED = 8;
 
 function finite(n: unknown, lo: number, hi: number): number {
@@ -139,6 +158,7 @@ export class KahvehaneRoom extends Room<KahveState> {
   override state = new KahveState();
   private avatars = new Map<string, Avatar>();
   private runtime: TableRuntime[] = [];
+  private tavlaRt: TavlaRuntime[] = [];
   private botCounter = 0;
   static rng: () => number = Math.random;
   /** override for tests (ms) */
@@ -146,7 +166,7 @@ export class KahvehaneRoom extends Room<KahveState> {
   static wallets: WalletStore | null = null;
   /** clock of the shared vapur timeline (epoch ms); tests override it */
   static vapurNow: () => number = () => Date.now();
-  static analyticsSink: { tableStarted?(players: number, bet: number): void; handPlayed?(): void } | null = null;
+  static analyticsSink: { tableStarted?(players: number, bet: number): void; handPlayed?(): void; tavlaStarted?(players: number, bet: number): void; tavlaGamePlayed?(): void } | null = null;
 
   private get cls(): typeof KahvehaneRoom {
     return this.constructor as typeof KahvehaneRoom;
@@ -173,10 +193,18 @@ export class KahvehaneRoom extends Room<KahveState> {
       this.state.tables.push(t);
       this.runtime.push({ game: null, botAt: 0, dealer: 0, until: 0, botAccuse: new Map(), nagged: 0 });
     }
+    for (let i = 0; i < TAVLA_COUNT; i++) {
+      const t = new TTable();
+      t.id = i;
+      this.state.tavla.push(t);
+      this.tavlaRt.push({ match: null, botAt: 0, until: 0, autoEndAt: 0 });
+    }
+    this.onMessage(KMSG.tavlaSit, (c, m: { table?: unknown; seat?: unknown }) => this.tavlaSit(c.sessionId, m?.table, m?.seat));
+    this.onMessage(KMSG.tavla, (c, a: TavlaAction) => this.tavlaAction(c.sessionId, a));
     this.onMessage(MSG.input, (c, m: InputMsg) => this.handleInput(c, m));
     this.onMessage(KMSG.sit, (c, m: { table?: unknown; seat?: unknown }) => this.sit(c.sessionId, m?.table, m?.seat));
     this.onMessage(KMSG.stand, (c) => this.stand(c.sessionId));
-    this.onMessage(KMSG.tableConfig, (c, m: { bet?: unknown; hands?: unknown }) => this.configure(c.sessionId, m));
+    this.onMessage(KMSG.tableConfig, (c, m: { bet?: unknown; hands?: unknown; points?: unknown }) => this.configure(c.sessionId, m));
     this.onMessage(KMSG.tableStart, (c) => this.startMatch(c.sessionId));
     this.onMessage(KMSG.tableBot, (c, m: { seat?: unknown; remove?: boolean }) => this.tableBot(c.sessionId, m));
     this.onMessage(KMSG.okey, (c, a: OkeyAction) => this.okeyAction(c.sessionId, a));
@@ -404,7 +432,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const p = this.state.players.get(id);
     if (!p) return;
     this.saveWallet(id);
-    if (p.table >= 0) this.stand(id, true);
+    if (p.table >= 0 || p.tavla >= 0) this.stand(id, true);
     this.state.players.delete(id);
     this.avatars.delete(id);
   }
@@ -436,7 +464,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const p = this.state.players.get(id);
     const a = this.avatars.get(id);
     const ti = Number(tableRaw);
-    if (!p || !a || !Number.isInteger(ti) || ti < 0 || ti >= TABLE_COUNT || p.table >= 0) return;
+    if (!p || !a || !Number.isInteger(ti) || ti < 0 || ti >= TABLE_COUNT || p.table >= 0 || p.tavla >= 0) return;
     if (p.aboard) return this.error(id, 'Vapurdasın! Önce iskelede in.');
     const t = this.state.tables[ti]!;
     if (t.status !== 'open') return this.error(id, 'Bu masada oyun sürüyor.');
@@ -476,6 +504,7 @@ export class KahvehaneRoom extends Room<KahveState> {
   private stand(id: string, leaving = false): void {
     const p = this.state.players.get(id);
     if (p && p.spot >= 0) return this.leaveSpot(id);
+    if (p && p.tavla >= 0) return this.tavlaStand(id, leaving);
     if (!p || p.table < 0) return;
     const ti = p.table;
     const t = this.state.tables[ti]!;
@@ -507,7 +536,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (![...t.seats].some((s) => s && this.isHuman(s))) this.resetTable(ti, true);
   }
 
-  private createBot(ti: number, seat: number): KPlayer {
+  private createBot(ti: number, seat: number, tavla = false): KPlayer {
     const p = new KPlayer();
     p.id = `kbot_${++this.botCounter}`;
     p.isBot = true;
@@ -518,7 +547,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.skin = this.botCounter % SKINS.length;
     p.avatar = (this.botCounter * 4 + ti) % AVATARS.length;
     p.money = START_MONEY;
-    p.table = ti;
+    if (tavla) p.tavla = ti;
+    else p.table = ti;
     p.seat = seat;
     this.state.players.set(p.id, p);
     return p;
@@ -526,6 +556,7 @@ export class KahvehaneRoom extends Room<KahveState> {
 
   private tableBot(id: string, m: { seat?: unknown; remove?: boolean }): void {
     const p = this.state.players.get(id);
+    if (p && p.tavla >= 0) return this.tavlaBot(id, m);
     if (!p || p.table < 0) return;
     const t = this.state.tables[p.table]!;
     if (t.hostId !== id || t.status !== 'open') return;
@@ -545,8 +576,9 @@ export class KahvehaneRoom extends Room<KahveState> {
     t.seats[seat] = this.createBot(p.table, seat).id;
   }
 
-  private configure(id: string, m: { bet?: unknown; hands?: unknown }): void {
+  private configure(id: string, m: { bet?: unknown; hands?: unknown; points?: unknown }): void {
     const p = this.state.players.get(id);
+    if (p && p.tavla >= 0) return this.tavlaConfigure(id, m);
     if (!p || p.table < 0) return;
     const t = this.state.tables[p.table]!;
     if (t.hostId !== id || t.status !== 'open') return;
@@ -557,6 +589,7 @@ export class KahvehaneRoom extends Room<KahveState> {
   // ------------------------------------------------------------ match flow
   private startMatch(id: string): void {
     const p = this.state.players.get(id);
+    if (p && p.tavla >= 0) return this.tavlaStart(id);
     if (!p || p.table < 0) return;
     const ti = p.table;
     const t = this.state.tables[ti]!;
@@ -805,8 +838,9 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (now - a.lastOrderAt < 1500) return;
     let to: string[];
     if (m.to === 'table') {
-      if (p.table < 0) return this.error(id, 'Masaya ısmarlamak için bir masaya otur.');
-      to = [...this.state.tables[p.table]!.seats].filter(Boolean);
+      if (p.tavla >= 0) to = [...this.state.tavla[p.tavla]!.seats].filter(Boolean);
+      else if (p.table < 0) return this.error(id, 'Masaya ısmarlamak için bir masaya otur.');
+      else to = [...this.state.tables[p.table]!.seats].filter(Boolean);
     } else {
       if (!this.state.players.has(m.to)) return;
       to = [m.to];
@@ -820,8 +854,9 @@ export class KahvehaneRoom extends Room<KahveState> {
     const msg: ServedMsg = { from: id, to, item: item.id };
     this.broadcast(KMSG.served, msg);
     // bots say thanks for a round on the house
-    if (m.to === 'table' && p.table >= 0) {
-      this.clock.setTimeout(() => this.botSay(p.table, 'Eyvallah!'), 1500);
+    if (m.to === 'table' && (p.table >= 0 || p.tavla >= 0)) {
+      const ti = p.table;
+      if (ti >= 0) this.clock.setTimeout(() => this.botSay(ti, 'Eyvallah!'), 1500);
       this.mission(id, 'tea');
     }
   }
@@ -839,7 +874,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const humans = [...this.state.players.values()].filter((p) => !p.isBot).length;
     let playing = 0;
     let waiting = 0;
-    for (const t of this.state.tables) {
+    for (const t of [...this.state.tables, ...this.state.tavla]) {
       if (t.status !== 'open') playing++;
       else if ([...t.seats].some((s) => s && this.isHuman(s))) waiting++;
     }
@@ -861,7 +896,7 @@ export class KahvehaneRoom extends Room<KahveState> {
   private quickSeat(id: string, raw: unknown): void {
     const p = this.state.players.get(id);
     const a = this.avatars.get(id);
-    if (!p || !a || p.table >= 0) return;
+    if (!p || !a || p.table >= 0 || p.tavla >= 0) return;
     if (p.aboard) return this.error(id, 'Vapurdasın! Önce iskelede in.');
     if (p.spot >= 0) this.leaveSpot(id);
     let ti = Number(raw);
@@ -882,6 +917,12 @@ export class KahvehaneRoom extends Room<KahveState> {
   /** Host: fill the empty chairs with bots and deal right away. */
   private fillBotsAndStart(id: string): void {
     const p = this.state.players.get(id);
+    if (p && p.tavla >= 0) {
+      const t = this.state.tavla[p.tavla]!;
+      if (t.hostId !== id || t.status !== 'open') return;
+      for (let s = 0; s < 2; s++) if (t.seats[s] === '') t.seats[s] = this.createBot(p.tavla, s, true).id;
+      return this.tavlaStart(id);
+    }
     if (!p || p.table < 0) return;
     const t = this.state.tables[p.table]!;
     if (t.hostId !== id || t.status !== 'open') return;
@@ -975,7 +1016,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const a = this.avatars.get(id);
     const i = Number(raw);
     const s = SIT_SPOTS[i];
-    if (!p || !a || !s || p.table >= 0 || p.spot >= 0 || p.aboard) return;
+    if (!p || !a || !s || p.table >= 0 || p.tavla >= 0 || p.spot >= 0 || p.aboard) return;
     if (Math.hypot(a.body.x - s.x, a.body.z - s.z) > SPOT_REACH + 0.6) return this.error(id, 'Biraz daha yaklaş.');
     if ([...this.state.players.values()].some((o) => o.spot === i)) return this.error(id, 'Orası dolu.');
     p.spot = i;
@@ -1007,7 +1048,7 @@ export class KahvehaneRoom extends Room<KahveState> {
   private board(id: string): void {
     const p = this.state.players.get(id);
     const a = this.avatars.get(id);
-    if (!p || !a || p.aboard || p.table >= 0) return;
+    if (!p || !a || p.aboard || p.table >= 0 || p.tavla >= 0) return;
     const v = vapurState(this.cls.vapurNow());
     if (Math.hypot(a.body.x - BOARD_SPOT.x, a.body.z - BOARD_SPOT.z) > BOARD_REACH + 0.6) return this.error(id, 'Vapura binmek için iskeleye yaklaş.');
     if (!v.boardable) return this.error(id, 'Vapur seferde. İskeleye yanaşınca binebilirsin.');
@@ -1083,7 +1124,7 @@ export class KahvehaneRoom extends Room<KahveState> {
         a.lastSeq = a.queueSeq.shift()!;
         // riders walk on the deck; their input is already in the deck frame
         if (a.deck) stepDeck(a.deck, input.mx, input.mz, SIM_DT);
-        else if (p && p.table < 0 && p.spot < 0) stepBody(a.body, input, SIM_DT, KAHVE_WORLD);
+        else if (p && p.table < 0 && p.tavla < 0 && p.spot < 0) stepBody(a.body, input, SIM_DT, KAHVE_WORLD);
       }
       if (a.deck) this.placeOnDeck(a, vapur);
       // walking off reels the line in
@@ -1093,6 +1134,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       }
     }
     for (let ti = 0; ti < TABLE_COUNT; ti++) this.tickTable(ti, now);
+    for (let ti = 0; ti < TAVLA_COUNT; ti++) this.tickTavla(ti, now);
     this.sendSnapshots(now);
   }
 
@@ -1176,7 +1218,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       const p = this.state.players.get(a.id);
       // riders are sent in deck coordinates: every client places them on its own (exact) vapur
       if (a.deck) all.push([a.id, r2(a.deck.x), 0, r2(a.deck.z), r2(a.yaw), 8]);
-      else all.push([a.id, r2(a.body.x), r2(a.body.y), r2(a.body.z), r2(a.yaw), p && (p.table >= 0 || p.spot >= 0) ? 4 : 0]);
+      else all.push([a.id, r2(a.body.x), r2(a.body.y), r2(a.body.z), r2(a.yaw), p && (p.table >= 0 || p.tavla >= 0 || p.spot >= 0) ? 4 : 0]);
     }
     for (const a of this.avatars.values()) {
       if (!a.client) continue;
@@ -1188,7 +1230,284 @@ export class KahvehaneRoom extends Room<KahveState> {
     }
   }
 
+  // ------------------------------------------------------------ tavla
+  private seatAvatar(id: string, sp: { x: number; z: number; yaw: number }): void {
+    const a = this.avatars.get(id);
+    if (!a) return;
+    a.body = createBody(sp.x, sp.z);
+    a.yaw = sp.yaw;
+    a.queue = [];
+    a.queueSeq = [];
+    a.client?.send(MSG.teleport, { x: sp.x, y: 0, z: sp.z, yaw: sp.yaw } satisfies TeleportMsg);
+  }
+
+  private tavlaSit(id: string, tableRaw: unknown, seatRaw: unknown): void {
+    const p = this.state.players.get(id);
+    const a = this.avatars.get(id);
+    const ti = Number(tableRaw);
+    if (!p || !a || !Number.isInteger(ti) || ti < 0 || ti >= TAVLA_COUNT || p.table >= 0 || p.tavla >= 0 || p.spot >= 0) return;
+    if (p.aboard) return this.error(id, 'Vapurdasın! Önce iskelede in.');
+    const t = this.state.tavla[ti]!;
+    if (t.status !== 'open') return this.error(id, 'Bu masada oyun sürüyor.');
+    const tc = TAVLA_TABLES[ti]!;
+    if (Math.hypot(a.body.x - tc.x, a.body.z - tc.z) > TAVLA_REACH + 0.6) return this.error(id, 'Masaya biraz daha yaklaş.');
+    let seat = Number(seatRaw);
+    if (!(seat === 0 || seat === 1) || t.seats[seat] !== '') {
+      seat = -1;
+      let best = Infinity;
+      for (let s = 0; s < 2; s++) {
+        if (t.seats[s] !== '') continue;
+        const sp = tavlaSeatPosition(ti, s);
+        const d = Math.hypot(sp.x - a.body.x, sp.z - a.body.z);
+        if (d < best) [seat, best] = [s, d];
+      }
+    }
+    if (seat < 0) return this.error(id, 'Masa dolu.');
+    t.seats[seat] = id;
+    p.tavla = ti;
+    p.seat = seat;
+    if (!t.hostId || !this.isHuman(t.hostId)) t.hostId = id;
+    this.seatAvatar(id, tavlaSeatPosition(ti, seat));
+  }
+
+  /** Leave a tavla table; during a match a bot takes over the seat (the bet stays in the pot). */
+  private tavlaStand(id: string, leaving: boolean): void {
+    const p = this.state.players.get(id);
+    if (!p || p.tavla < 0) return;
+    const ti = p.tavla;
+    const t = this.state.tavla[ti]!;
+    const seat = p.seat;
+    p.tavla = -1;
+    p.seat = -1;
+    if (t.status !== 'open') {
+      const bot = this.createBot(ti, seat, true);
+      t.seats[seat] = bot.id;
+      this.tavlaEvent(ti, { type: 'botTookOver', seat, name: bot.name });
+    } else t.seats[seat] = '';
+    if (t.hostId === id) t.hostId = [...t.seats].find((s) => s && this.isHuman(s)) ?? '';
+    if (!leaving) {
+      const sp = tavlaSeatPosition(ti, seat);
+      const tc = TAVLA_TABLES[ti]!;
+      this.seatAvatar(id, { x: tc.x + (sp.x - tc.x) * 1.9, z: tc.z + (sp.z - tc.z) * 1.9, yaw: sp.yaw });
+    }
+    if (![...t.seats].some((s) => s && this.isHuman(s))) this.resetTavla(ti, true);
+  }
+
+  private tavlaBot(id: string, m: { remove?: boolean }): void {
+    const p = this.state.players.get(id);
+    if (!p || p.tavla < 0) return;
+    const t = this.state.tavla[p.tavla]!;
+    if (t.hostId !== id || t.status !== 'open') return;
+    if (m?.remove) {
+      for (let s = 1; s >= 0; s--) {
+        const sid = t.seats[s]!;
+        if (sid && this.state.players.get(sid)?.isBot) {
+          t.seats[s] = '';
+          this.state.players.delete(sid);
+          return;
+        }
+      }
+      return;
+    }
+    const seat = [0, 1].find((s) => t.seats[s] === '');
+    if (seat !== undefined) t.seats[seat] = this.createBot(p.tavla, seat, true).id;
+  }
+
+  private tavlaConfigure(id: string, m: { bet?: unknown; points?: unknown }): void {
+    const p = this.state.players.get(id);
+    if (!p || p.tavla < 0) return;
+    const t = this.state.tavla[p.tavla]!;
+    if (t.hostId !== id || t.status !== 'open') return;
+    if ((BET_OPTIONS as readonly number[]).includes(Number(m?.bet))) t.bet = Number(m.bet);
+    if ((MATCH_LENGTHS as readonly number[]).includes(Number(m?.points))) t.target = Number(m.points);
+  }
+
+  private tavlaStart(id: string): void {
+    const p = this.state.players.get(id);
+    if (!p || p.tavla < 0) return;
+    const ti = p.tavla;
+    const t = this.state.tavla[ti]!;
+    if (t.hostId !== id || t.status !== 'open') return;
+    if ([...t.seats].some((s) => !s)) return this.error(id, '2 kişi gerekli (boş yere bot oturtabilirsin).');
+    const players = [...t.seats].map((s) => this.state.players.get(s)!);
+    const poor = players.find((x) => x.money < t.bet);
+    if (poor) return this.error(id, `${poor.name} masaya yetecek kadar para yok.`);
+    for (const x of players) x.money -= t.bet;
+    t.pot = t.bet * 2;
+    t.score[0] = 0;
+    t.score[1] = 0;
+    t.lastMatch = '';
+    this.tavlaRt[ti]!.match = new TavlaMatch(t.target, this.cls.rng);
+    this.cls.analyticsSink?.tavlaStarted?.(players.filter((x) => !x.isBot).length, t.bet);
+    this.tavlaBeginGame(ti, true);
+  }
+
+  private tavlaBeginGame(ti: number, first: boolean): void {
+    const t = this.state.tavla[ti]!;
+    const rt = this.tavlaRt[ti]!;
+    if (!rt.match) return;
+    if (!first) rt.match.nextGame();
+    t.game = rt.match.games;
+    t.status = 'playing';
+    t.lastGame = '';
+    for (const e of rt.match.game.openingEvents) this.tavlaEvent(ti, { ...e, game: t.game });
+    this.syncTavla(ti, true);
+  }
+
+  private syncTavla(ti: number, newTurn: boolean): void {
+    const t = this.state.tavla[ti]!;
+    const rt = this.tavlaRt[ti]!;
+    const g = rt.match?.game;
+    t.view = g ? JSON.stringify(g.publicView()) : '';
+    if (!g || g.phase === 'ended') return;
+    const now = Date.now();
+    if (newTurn) {
+      t.turnEndsAt = now + this.cls.timing.turn;
+      rt.botAt = now + this.botDelay();
+    }
+    // nothing (more) to play: pass the turn soon by itself (all dice played: a moment to undo first)
+    rt.autoEndAt = g.canEndTurn ? now + (g.dice.length ? 1800 : 6000) : 0;
+  }
+
+  private tavlaAction(id: string, a: TavlaAction): void {
+    const p = this.state.players.get(id);
+    if (!p || p.tavla < 0 || !a || typeof a.t !== 'string') return;
+    const ti = p.tavla;
+    const g = this.tavlaRt[ti]!.match?.game;
+    if (!g || this.state.tavla[ti]!.status !== 'playing') return;
+    const side = p.seat as Side;
+    const int = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) ? v : -1);
+    let r: TavlaResult;
+    switch (a.t) {
+      case 'roll':
+        r = g.roll(side);
+        break;
+      case 'move':
+        r = g.move(side, int(a.from), int(a.to));
+        break;
+      case 'undo':
+        r = g.undo(side);
+        break;
+      case 'end':
+        r = g.endTurn(side);
+        break;
+      default:
+        return;
+    }
+    if (!r.ok) return this.error(id, r.error);
+    this.tavlaApply(ti, r.events);
+  }
+
+  private tavlaApply(ti: number, events: TavlaEvent[]): void {
+    let turnChanged = false;
+    let ended: Extract<TavlaEvent, { type: 'gameEnd' }> | null = null;
+    for (const e of events) {
+      if (e.type === 'turn') turnChanged = true;
+      if (e.type === 'gameEnd') ended = e;
+      this.tavlaEvent(ti, { ...e });
+    }
+    if (ended) this.tavlaGameEnd(ti, ended);
+    else this.syncTavla(ti, turnChanged);
+  }
+
+  private tavlaGameEnd(ti: number, e: Extract<TavlaEvent, { type: 'gameEnd' }>): void {
+    const t = this.state.tavla[ti]!;
+    const rt = this.tavlaRt[ti]!;
+    const m = rt.match!;
+    m.record();
+    t.score[0] = m.score[0];
+    t.score[1] = m.score[1];
+    t.view = JSON.stringify(m.game.publicView());
+    t.turnEndsAt = 0;
+    rt.autoEndAt = 0;
+    t.lastGame = JSON.stringify({ winner: e.winner, value: e.value, mars: e.mars, score: [...m.score] } satisfies TavlaGameResultView);
+    this.cls.analyticsSink?.tavlaGamePlayed?.();
+    if (!m.over) {
+      t.status = 'between';
+      rt.until = Date.now() + this.cls.timing.between;
+      return;
+    }
+    const w = m.winner!;
+    const payout = [0, 1].map((s) => (s === w ? t.pot : 0) - t.bet);
+    const winner = this.state.players.get(t.seats[w]!);
+    if (winner) winner.money += t.pot;
+    for (let s = 0; s < 2; s++) {
+      const pl = this.state.players.get(t.seats[s]!);
+      if (!pl || pl.isBot) continue;
+      pl.played = Math.min(65535, pl.played + 1);
+      if (s === w) pl.won = Math.min(65535, pl.won + 1);
+      this.saveWallet(pl.id);
+      this.recordWeekly(pl.id, s === w, payout[s]!);
+      this.mission(pl.id, 'match');
+    }
+    t.lastMatch = JSON.stringify({ score: [...m.score], winner: w, pot: t.pot, payout } satisfies TavlaMatchResultView);
+    t.pot = 0;
+    t.status = 'result';
+    rt.until = Date.now() + this.cls.timing.result;
+  }
+
+  private resetTavla(ti: number, kickBots: boolean): void {
+    const t = this.state.tavla[ti]!;
+    const rt = this.tavlaRt[ti]!;
+    rt.match = null;
+    rt.autoEndAt = 0;
+    t.status = 'open';
+    t.pot = 0;
+    t.game = 0;
+    t.view = '';
+    t.turnEndsAt = 0;
+    if (!kickBots) return;
+    for (let s = 0; s < 2; s++) {
+      const sid = t.seats[s]!;
+      if (sid && this.state.players.get(sid)?.isBot) {
+        this.state.players.delete(sid);
+        t.seats[s] = '';
+      }
+    }
+  }
+
+  private tickTavla(ti: number, now: number): void {
+    const t = this.state.tavla[ti]!;
+    const rt = this.tavlaRt[ti]!;
+    if (t.status === 'between' && now >= rt.until) return this.tavlaBeginGame(ti, false);
+    if (t.status === 'result' && now >= rt.until) return this.resetTavla(ti, false);
+    const g = rt.match?.game;
+    if (t.status !== 'playing' || !g || g.phase === 'ended') return;
+    const side = g.turn;
+    const pl = this.state.players.get(t.seats[side]!);
+    if (pl?.isBot || !pl?.connected) {
+      if (now < rt.botAt) return;
+      const step = botStep(g, side);
+      if (!step) return;
+      rt.botAt = now + this.botDelay() * (step.type === 'move' ? 0.5 : 0.8);
+      let r: TavlaResult = step.type === 'roll' ? g.roll(side) : step.type === 'move' ? g.move(side, step.from, step.to) : g.endTurn(side);
+      if (!r.ok) r = autoTurn(g, side);
+      if (r.ok) this.tavlaApply(ti, r.events);
+      return;
+    }
+    if (rt.autoEndAt && now >= rt.autoEndAt && g.canEndTurn) {
+      const r = g.endTurn(side);
+      if (r.ok) this.tavlaApply(ti, r.events);
+      return;
+    }
+    if (now >= t.turnEndsAt) {
+      const r = autoTurn(g, side);
+      if (r.ok) {
+        this.tavlaEvent(ti, { type: 'timeout', seat: side });
+        this.tavlaApply(ti, r.events);
+      }
+    }
+  }
+
+  private tavlaEvent(ti: number, e: TavlaEventMsg['e']): void {
+    this.broadcast(KMSG.tavlaEvent, { table: ti, e } satisfies TavlaEventMsg);
+  }
+
   // ------------------------------------------------------------ test helpers
+  debugTavla(ti: number): TavlaMatch | null {
+    return this.tavlaRt[ti]?.match ?? null;
+  }
+
   debugGame(ti: number): OkeyGame | null {
     return this.runtime[ti]?.game ?? null;
   }

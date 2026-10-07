@@ -159,6 +159,8 @@ export class Game {
   private solidCam = SOLID_CAM_KAHVE;
   /** seated at an okey table: camera from the seat looking down at the table */
   seat: { table: number; seat: number } | null = null;
+  /** seated at a tavla table: camera behind the chair looking down at the board */
+  tavla: { table: number; seat: number } | null = null;
   /** watching a table from beside it (spectator camera) */
   watch: { table: number; side: number } | null = null;
   /** NDC y of the top of the on-screen rack (the table is framed above it) */
@@ -714,7 +716,7 @@ export class Game {
       const z = p.z + (b.z - p.z) * a;
       const ch = this.localChar;
       const speed = Math.hypot(b.x - p.x, b.z - p.z) / SIM_DT;
-      ch.root.visible = !this.seat;
+      ch.root.visible = !this.seat && !this.tavla;
       ch.root.position.set(x, y + this.localSeatY, z);
       if (b.onGround) this.events.onStep?.(speed, speed > 6);
       this.fovKick += ((speed > 6 ? 1 : 0) - this.fovKick) * Math.min(1, dt * 4);
@@ -809,10 +811,12 @@ export class Game {
       this.camera.lookAt(this.debugCam.target);
       return;
     }
-    if ((this.seat || this.watch) && this.kahve) {
+    if ((this.seat || this.tavla || this.watch) && this.kahve) {
       const sv = this.seat
         ? this.kahve.seatView(this.seat.table, this.seat.seat, this.camera.aspect, this.seatBottom)
-        : this.kahve.watchView(this.watch!.table, this.watch!.side);
+        : this.tavla
+          ? this.kahve.tavlaView(this.tavla.table, this.tavla.seat)
+          : this.kahve.watchView(this.watch!.table, this.watch!.side);
       if (!this.seatCam) {
         // start the look-at from where the camera already looks, not from the origin
         this.seatCam = true;
