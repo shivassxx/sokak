@@ -22,6 +22,8 @@ export const TERRACE = { z1: 7 } as const;
 export const STREET = { z0: 10, z1: 17 } as const;
 export const PROMENADE = { z0: 19, z1: 34 } as const;
 export const SEA_Z = 34;
+/** the iskele (ferry pier hall); its sea face is z1 */
+export const PIER = { x0: 32, x1: 48, z0: 22, z1: 38 } as const;
 export const MARKET = { x0: 16, x1: 30, z0: -14, z1: 0, h: 4, doorX: 23, doorW: 3 } as const;
 /** legacy names used by the scene for the hall's inner half sizes */
 export const KAHVE_HALF_X = (HALL.x1 - HALL.x0) / 2;
@@ -169,13 +171,15 @@ span('crates', 25.2, 29.0, 0.3, 1.3, 0.95);
 
 /** where you shop: stand here (within SHOP_REACH) */
 export interface Shop {
-  id: 'market' | 'simitci';
+  id: 'market' | 'simitci' | 'vapur';
   name: string;
   x: number;
   z: number;
   /** where the seller stands */
   seller: Vec2 & { yaw: number };
   items: readonly string[];
+  /** on the vapur's deck: x, z and the seller are deck-local and you must be aboard */
+  deck?: boolean;
 }
 
 // ------------------------------------------------------------------ neighbours (blocked)
@@ -204,7 +208,7 @@ for (const x of [-44, -40, -36, -32]) CAY_BAHCESI.push({ x, z: SEA_Z - 2.4 });
 for (const t of CAY_BAHCESI) box('lowTable', t.x, t.z, 0.7, 0.7, 0.45);
 for (const t of CAY_BAHCESI) for (const dx of [-0.75, 0.75]) box('stool', t.x + dx, t.z, 0.45, 0.45, 0.32, { solid: false });
 // iskele (ferry pier building)
-span('pier', 32, KAHVE_HALF, PROMENADE.z0 + 3, SEA_Z + 4, 7);
+span('pier', PIER.x0, PIER.x1, PIER.z0, PIER.z1, 7);
 // sea wall + railing; an invisible high wall stops jumping over the railing
 span('railing', -KAHVE_HALF, LEDGE.x0, SEA_Z - 0.1, SEA_Z + 0.1, 1.1, { opaque: false });
 span('railing', LEDGE.x1, 32, SEA_Z - 0.1, SEA_Z + 0.1, 1.1, { opaque: false });
@@ -215,6 +219,8 @@ span('seaWall', -KAHVE_HALF, 32, SEA_Z + 0.1, SEA_Z + 0.6, 3.5, { opaque: false 
 export const SHOPS: readonly Shop[] = [
   { id: 'market', name: 'Market', x: 19.4, z: -2.3, seller: { x: 19.4, z: -5.0, yaw: Math.PI }, items: ['sigara', 'su', 'gazoz', 'cekirdek', 'cikolata', 'dondurma', 'gazete', 'olta'] },
   { id: 'simitci', name: 'Simitçi', x: 6, z: PROMENADE.z0 + 6, seller: { x: 6, z: PROMENADE.z0 + 3.6, yaw: Math.PI }, items: ['simit', 'cay', 'su'] },
+  // the çaycı on the vapur's open stern deck, in front of the upper cabin (deck-local, facing aft)
+  { id: 'vapur', name: 'Vapur çaycısı', x: -12.6, z: 0, seller: { x: -11.35, z: 0, yaw: Math.PI / 2 }, items: ['cay', 'simit', 'su'], deck: true },
 ];
 export const SHOP_REACH = 2.4;
 

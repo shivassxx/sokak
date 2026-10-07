@@ -88,7 +88,10 @@ export interface InputMsg {
   r?: number;
 }
 
-/** [id, x, y, z, yaw, flags] — flags bit0 = crouching, bit1 = sprinting */
+/**
+ * [id, x, y, z, yaw, flags] — flags bit0 = crouching, bit1 = sprinting, bit2 = seated,
+ * bit3 = aboard the vapur: then x, z and yaw are deck-local (see `deckToWorld`) and y is unused
+ */
 export type PlayerSnap = [string, number, number, number, number, number];
 
 /** server → client, every tick */
@@ -97,8 +100,11 @@ export interface SnapshotMsg {
   t: number;
   /** last processed input seq of the receiver */
   a: number;
-  /** receiver's own authoritative body: x, y, z, vy, onGround(0|1), stamina, tired(0|1), unused (-1) */
-  me?: [number, number, number, number, number, number, number, number];
+  /**
+   * receiver's own authoritative body: x, y, z, vy, onGround(0|1), stamina, tired(0|1), unused (-1),
+   * and while riding the vapur its deck-local position (deck x, deck z)
+   */
+  me?: [number, number, number, number, number, number, number, number, number?, number?];
   /** other players */
   p: PlayerSnap[];
 }

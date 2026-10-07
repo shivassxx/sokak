@@ -28,6 +28,8 @@ export class KPlayer extends Schema {
   @type('uint16') won = 0;
   /** today's mission progress, JSON MissionState */
   @type('string') missions = '';
+  /** riding the vapur (position is on its deck) */
+  @type('boolean') aboard = false;
 }
 
 export class KTable extends Schema {

@@ -23,7 +23,7 @@ export async function startServer(port: number, opts: {
     analyticsFile?: string | null;
     statsToken?: string;
     walletFile?: string | null;
-    kahve?: { timing?: Partial<typeof KahvehaneRoom.timing>; rng?: () => number };
+    kahve?: { timing?: Partial<typeof KahvehaneRoom.timing>; rng?: () => number; vapurNow?: () => number };
   } = {}): Promise<StartedServer> {
   const app = express();
   app.disable('x-powered-by');
@@ -106,12 +106,14 @@ export async function startServer(port: number, opts: {
   });
   const kahveTiming = { ...KahvehaneRoom.timing, ...(opts.kahve?.timing ?? {}) };
   const kahveRng = opts.kahve?.rng ?? Math.random;
+  const vapurNow = opts.kahve?.vapurNow ?? KahvehaneRoom.vapurNow;
   gameServer
     .define(
       KAHVE_ROOM,
       class extends KahvehaneRoom {
         static override timing = kahveTiming;
         static override rng = kahveRng;
+        static override vapurNow = vapurNow;
         static override wallets = wallets;
         static override analyticsSink = {
           tableStarted: (players: number, bet: number) => analytics.tableStarted(players, bet),
