@@ -351,6 +351,10 @@ kbd { font: 800 11px/1 'Baloo 2', system-ui; padding: 3px 6px; border-radius: 6p
 .pill.lvl { background: rgba(255,224,138,.92); color: #6a4a10; font-weight: 800; }
 .tag.lvl { background: #ffe08a; color: #6a4a10; }
 .me-card { margin: 6px 0 0; font-size: 14px; background: #fff3d6; border-radius: 12px; padding: 6px 10px; display: inline-block; }
+.plate-say, .me-say { background: #fffaf0; color: var(--ink); border-radius: 12px; padding: 3px 10px; font-size: 13px; font-weight: 800; box-shadow: 0 2px 6px rgba(0,0,0,.25); white-space: nowrap; animation: pop .3s ease-out; }
+.plate-say { position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%); }
+.me-say { margin-right: 6px; }
+.talk-menu { max-height: min(50vh, 360px); overflow-y: auto; }
 .held-emoji { font-size: 22px; }
 .shop-panel { right: 12px; top: 64px; width: min(380px, calc(100% - 24px)); max-height: calc(100% - 90px); overflow-y: auto; z-index: 7; }
 .menu-item small.warn-note { display: block; color: #b3261e; font-size: 11px; font-weight: 700; line-height: 1.2; margin-top: 2px; }

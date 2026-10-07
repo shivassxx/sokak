@@ -22,6 +22,10 @@ interface Props {
   /** someone may have just stolen a tile (server hint) */
   suspicion?: { seat: number; until: number } | null;
   onStand: () => void;
+  /** table talk: preset phrases, the latest line of each player (shown for a few seconds) */
+  phrases?: readonly string[];
+  chats?: Record<string, { text: string; t: number }>;
+  onChat?: (q: number) => void;
 }
 
 /** Can `tile` be added to meld `m` (same rule as the server)? */
@@ -64,12 +68,17 @@ const _v = new THREE.Vector3();
  * projected onto them, name plates over the opponents, the player's own
  * wooden ıstaka with free drag-and-drop arranging, and one clear hint line.
  */
-export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile, serverNow, send, toast, drinks = {}, suspicion, onStand }: Props) {
+export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile, serverNow, send, toast, drinks = {}, suspicion, onStand, phrases = [], chats = {}, onChat }: Props) {
   const ctx: OkeyCtx | null = view ? { okey: view.okey as OkeyCtx['okey'] } : null;
   const [rack, setRack] = useState<Rack>(emptyRack);
   const [sel, setSel] = useState<number | null>(null);
   const [stealMode, setStealMode] = useState(false);
   const [more, setMore] = useState(false);
+  const [talk, setTalk] = useState(false);
+  const said = (id: string | undefined) => {
+    const c = id ? chats[id] : undefined;
+    return c && Date.now() - c.t < 4500 ? c.text : null;
+  };
   const [help, setHelp] = useState(false);
   const [drag, setDrag] = useState<{ tile: number; x: number; y: number; over: number | null } | null>(null);
   const dragRef = useRef<{ tile: number; startX: number; startY: number; moved: boolean; pointer: number } | null>(null);
@@ -402,6 +411,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
                   </span>
                 ))}
               </div>
+              {said(table.seats[s]) && <div className="plate-say">{said(table.seats[s])}</div>}
             </div>
           );
         })}
@@ -433,6 +443,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
       {/* bottom: my ıstaka and actions */}
       <div className="me-area">
         <div className="me-bar">
+          {said(table.seats[mySeat]) && <span className="me-say">{said(table.seats[mySeat])}</span>}
           <span className={`me-name ${myTurn ? 'turn' : ''}`}>{name(mySeat)}</span>
           {table.handNo > 1 && <span className="score-pill">{table.totals[mySeat]} p</span>}
           {opened && <span className="tag open">Elin açık ({opened === 'pairs' ? 'çift' : 'seri'})</span>}
@@ -500,9 +511,23 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
               Göstergeyi göster (−101)
             </button>
           )}
-          <button className={`btn small ${more ? 'on' : ''}`} onClick={() => setMore((m) => !m)}>
+          {onChat && phrases.length > 0 && (
+            <button className={`btn small ${talk ? 'on' : ''}`} onClick={() => (setTalk((t) => !t), setMore(false))} title="Hazır cümleler">
+              💬
+            </button>
+          )}
+          <button className={`btn small ${more ? 'on' : ''}`} onClick={() => (setMore((m) => !m), setTalk(false))}>
             ⋯
           </button>
+          {talk && onChat && (
+            <div className="more-menu talk-menu" onClick={() => setTalk(false)}>
+              {phrases.map((p, i) => (
+                <button key={p} onClick={() => onChat(i)}>
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
           {more && (
             <div className="more-menu" onClick={() => setMore(false)}>
               {takenTile !== null && myTurn && <button onClick={() => send({ t: 'putBack' })}>↩ Aldığın taşı geri koy</button>}

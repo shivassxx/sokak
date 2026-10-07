@@ -90,6 +90,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   watchRef.current = watching;
   const myFish = useRef(0);
   const myLevel = useRef(0);
+  const [chats, setChats] = useState<Record<string, { text: string; t: number }>>({});
   const [shopOpen, setShopOpen] = useState<number>(-1);
   const [tablesOpen, setTablesOpen] = useState(false);
   // voice chat (opt-in)
@@ -197,6 +198,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         if (!text) return;
         play('pop');
         game.bubble(c.id === me ? null : c.id, text);
+        setChats((old) => ({ ...old, [c.id]: { text, t: Date.now() } }));
       }),
     ];
     // anything private sent before these handlers existed (rejoin after a reload) was dropped
@@ -826,6 +828,9 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             send={send}
             toast={(text, kind) => pushToast({ text, kind })}
             drinks={drinks}
+            phrases={QUICK_CHAT_OKEY}
+            chats={chats}
+            onChat={(q) => room.send(MSG.chat, q)}
           />
           <button className="btn small stand-btn" onClick={standUp}>
             Kalk
