@@ -1,5 +1,6 @@
 import { Room, type Client } from '@colyseus/core';
 import {
+  AVATARS,
   BET_OPTIONS,
   CREDIT_AMOUNT,
   CREDIT_COOLDOWN_MS,
@@ -470,6 +471,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.hat = this.botCounter % HATS.length;
     p.hair = (this.botCounter * 2) % HAIRS.length;
     p.skin = this.botCounter % SKINS.length;
+    p.avatar = (this.botCounter * 4 + ti) % AVATARS.length;
     p.money = START_MONEY;
     p.table = ti;
     p.seat = seat;

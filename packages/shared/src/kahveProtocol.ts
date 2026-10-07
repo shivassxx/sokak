@@ -152,6 +152,8 @@ export interface KPlayerView {
   hat: number;
   hair: number;
   skin: number;
+  /** index into AVATARS */
+  avatar: number;
   isBot: boolean;
   connected: boolean;
   money: number;

@@ -7,6 +7,8 @@ export class KPlayer extends Schema {
   @type('uint8') hat = 0;
   @type('uint8') hair = 0;
   @type('uint8') skin = 0;
+  /** index into AVATARS: which realistic character this player is */
+  @type('uint8') avatar = 0;
   @type('boolean') isBot = false;
   @type('boolean') connected = true;
   @type('int32') money = 0;

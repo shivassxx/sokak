@@ -20,11 +20,30 @@ export const HAIRS = ['kisa', 'kivircik', 'atkuyrugu', 'orgu', 'dikdik'] as cons
 export const HAIR_NAMES = ['Kısa', 'Kıvırcık', 'At kuyruğu', 'Örgülü', 'Diken diken'] as const;
 export const SKINS = ['#f3cfa9', '#e2b083', '#c58c5c', '#8d5a3b'] as const;
 
+/**
+ * The realistic adult characters a player can be (Microsoft Rocketbox avatars, see
+ * Docs/ThirdPartyAssets.md); `id` names the model file `models/rb_<id>.glb`.
+ */
+export const AVATARS = [
+  { id: 'm05', name: 'Yelekli' },
+  { id: 'm01', name: 'Çizgili tişört' },
+  { id: 'f01', name: 'Pembe gömlek' },
+  { id: 'm14', name: 'Mavi gömlek' },
+  { id: 'm02', name: 'Bej kazak' },
+  { id: 'm03', name: 'Ekose ceket' },
+  { id: 'm08', name: 'Gri gömlek' },
+  { id: 'f04', name: 'Deri ceket' },
+  { id: 'f09', name: 'Kahve ceket' },
+] as const;
+export type AvatarId = (typeof AVATARS)[number]['id'];
+
 export interface Look {
   color: string;
   hat: number;
   hair: number;
   skin: number;
+  /** index into AVATARS */
+  avatar?: number;
 }
 
 export const NAME_MIN = 2;
@@ -44,6 +63,8 @@ export interface JoinOptions {
   hat?: number;
   hair?: number;
   skin?: number;
+  /** index into AVATARS */
+  avatar?: number;
   /** kahvehane: seat me at a table right away */
   quick?: boolean;
   /** kahvehane: when creating a salon, hide it from the lobby list */

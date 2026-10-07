@@ -1,4 +1,4 @@
-import { HAIRS, HATS, NAME_MAX, NAME_MIN, OUTFIT_COLORS, SKINS } from './protocol';
+import { AVATARS, HAIRS, HATS, NAME_MAX, NAME_MIN, OUTFIT_COLORS, SKINS } from './protocol';
 
 const ADJ = ['Sevimli', 'Hızlı', 'Gizli', 'Neşeli', 'Cesur', 'Uykucu', 'Şakacı', 'Minik', 'Afacan', 'Sessiz'];
 const NOUN = ['Kedi', 'Serçe', 'Kirpi', 'Tavşan', 'Sincap', 'Martı', 'Kumru', 'Kuzu', 'Tilki', 'Baykuş'];
@@ -33,6 +33,6 @@ function index(raw: unknown, n: number): number {
   return typeof raw === 'number' && Number.isInteger(raw) && raw >= 0 && raw < n ? raw : 0;
 }
 
-export function sanitizeLook(o: { hat?: unknown; hair?: unknown; skin?: unknown }): { hat: number; hair: number; skin: number } {
-  return { hat: index(o.hat, HATS.length), hair: index(o.hair, HAIRS.length), skin: index(o.skin, SKINS.length) };
+export function sanitizeLook(o: { hat?: unknown; hair?: unknown; skin?: unknown; avatar?: unknown }): { hat: number; hair: number; skin: number; avatar: number } {
+  return { hat: index(o.hat, HATS.length), hair: index(o.hair, HAIRS.length), skin: index(o.skin, SKINS.length), avatar: index(o.avatar, AVATARS.length) };
 }
