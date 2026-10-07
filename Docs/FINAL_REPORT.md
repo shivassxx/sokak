@@ -1,74 +1,85 @@
 # SOKAK OYUNLARI — Final Raporu
 
-**Tarih:** 6–7 Ekim 2026 · **Dal:** `claude/quirky-hamilton-c4mnxp` · **Durum:** Oyun artık **yalnızca 101 Okey**. Senin isteğinle Saklambaç 7 Ekim'de kaldırıldı. 62 test geçiyor. En yeni değişiklikler en alttaki eklerde.
+**Tarih:** 7 Ekim 2026 · **Dal:** `claude/quirky-hamilton-c4mnxp` · **Durum:** Oyun **yalnızca 101 Okey**. Senin isteğinle Saklambaç 7 Ekim'de kaldırıldı; kodu git geçmişinde duruyor. 62 test geçiyor.
 
-Linke tıklayınca saniyeler içinde açılan, telefonda ve bilgisayarda çalışan, çok oyunculu 3D **101 Okey** hazır. Mekân, Üsküdar'da bir kıraathane: masaya otur, botlarla ya da arkadaşlarınla oyna, çayları ısmarla, sahile çık.
+Linke tıklayınca saniyeler içinde açılan, hesap istemeyen, telefonda ve bilgisayarda çalışan çok oyunculu 3D **101 Okey**. Mekân, Üsküdar'da modern bir kıraathane: masaya otur, arkadaşlarınla ya da botlarla oyna, çayları ısmarla, sahile çıkıp simit al, martıları besle, balık tut.
 
-> **Not:** Bölüm 1–5 projenin geçmişini anlatıyor: önce Saklambaç (M0–M6), sonra okey modu yapıldı. Saklambaç artık oyunda yok. Güncel kullanım için 6. bölüme ve en alttaki eklere bak.
+Projenin uzun geçmişi (önce Saklambaç M0–M6, sonra okey modu, kalite geçişleri, gece çalışması) İngilizce olarak `Docs/SessionLog.md` ve `Docs/Decisions.md` içinde, eski rapor sürümleri de git geçmişinde.
 
 ---
 
-## 1. Kilometre taşlarına göre yapılanlar
+## 1. Ne yapıldı
 
-| # | Ne yapıldı |
+| Bölüm | İçerik |
 |---|---|
-| **M0 Temel** | pnpm monorepo (`apps/client`, `apps/server`, `packages/shared`, `rules`, `bots`), strict TypeScript, Vitest, `pnpm dev` ile sunucu (:2567) ve istemci (:5173) birlikte açılıyor. Docs dosyaları. |
-| **M1 Hareket** | ~120×120 m elle tasarlanmış mahalle haritası (apartmanlar, merdiven + balkon, merdiven altı, dar sokak, delikli duvar, çamaşır ipleri, bakkal + kasalar, dolmuş, hurda araba, çöp konteynerleri, park, kaydırak, çalılar, çay bahçesi, Ebe Duvarı ortada). İstemci ve sunucunun **aynı** kullandığı çarpışma/hareket kodu (merdiven çıkma, zıplama, çömelme). Üçüncü şahıs kamera (duvara girmiyor). Klavye + fare ve dokunmatik joystick + butonlar (eylem haritası üzerinden). |
-| **M2 Odalar** | Colyseus odası, tahmin edilemez 12 karakterlik oda kimliği, `?oda=…` linkiyle katılma, takma ad + tişört rengi, 10 oyuncuya kadar senkron hareket (istemci tahmini + sunucu uzlaştırması + ara değerleme), 20 sn yeniden bağlanma penceresi (sayfa yenilense bile aynı koltuğa döner), kurucu bot ekleyip çıkarabilir, botlar dolaşır. |
-| **M3 Saklambaç kuralları** | `packages/rules`: saf durum makinesi (Lobi → Ebe seçimi → Sayma 30 sn → Arama 3 dk → El sonu 10 sn). Ebe sayarken ekranı kararır, büyük sayılar ve "Önüm arkam sağım solum sobe, saklanmayan ebe!" anonsu. Zamanlayıcı, rol ipuçları, olay bildirimleri, skor tablosu (Tab), el özeti (ilk sobelenen, en iyi saklanan + saklandığı yer, en uzun dayanan, sıradaki ebe). |
-| **M4 Görme & sobe** | Sunucu tarafı görüş kontrolü (mesafe + harita engellerine ışın). **Ebe'nin istemcisine göremediği saklananların konumu hiç gönderilmiyor** (sayarken hiçbiri). "Gördüm!" sunucuda aynı kontrolle doğrulanıyor. Duvara yarış → Sobelendi / Kurtuldu, gizlice duvara dokunma, **herkesi kurtarma**. Saklanan ve arayan botlar (saklanma yeri seçer, çömelir, fırsat kollar; Ebe bot devriye gezer, görür, yarışır). **→ İlk Oynanabilir sürüm (M0–M4).** |
-| **M5 Mahalle hissi** | Gri kutular yerine kodla üretilmiş low-poly mahalle: pencereli/balkonlu/klimalı binalar, tabelalar (EBE DUVARI, BAKKAL, ÇAY OCAĞI, DOLMUŞ), çizgili bakkal tentesi, meyveli kasalar, arabalar, paslı hurda araba, sarı dolmuş, ağaçlar, çalılar, kaydırak, çay masaları, sallanan çamaşırlar, uzak şehir silueti. Yaz akşamı ışığı: alçak güneş, gradyan gökyüzü; arama süresi ilerledikçe hava kararıyor, sokak lambaları ve pencereler yanıyor. Hızlı sohbet (6 hazır cümle, konuşma balonu), 4 ifade (el salla, gül, dans, göster), sentezlenmiş ses efektleri + cihazda Türkçe ses varsa sayma ve "sobe" anonsu, ses kapatma. |
-| **M6 Yayın** | Takma ad küfür filtresi (Türkçe + İngilizce, leet/ayraç/tekrar harf yakalıyor; "Kemal", "Işık" gibi isimler geçiyor), açılış sayfası ("Nasıl oynanır"), oyun içi "Davet et" / lobi "Paylaş" butonu, gizlilik dostu analitik (`/stats`: oda sayısı, oynanan el, oda büyüklüğü), Dockerfile + docker-compose + Caddy (otomatik HTTPS), `Docs/Deploy.md`, yükleme boyutu kontrolü. |
+| **Giriş ve lobi** | Ana sayfada takma ad ve 9 gerçekçi karakterden birini seçme (3D önizleme). Lobide salon listesi (Üsküdar semtlerinin adları), **⚡ Hızlı oyna** (seni en uygun masaya oturtur), **Yeni salon aç** (istersen sadece davet linkiyle girilen özel salon), çevrimiçi en zenginler listesi. Davet linki `?kahve=…`. |
+| **101 Okey** | 106 taş, gösterge ve okey, sahte okeyler. Seri ya da en az 5 çiftle 101 açma, işleme, okeyi yerinde kullanma, göstergeyi gösterme (−101), okeyle ya da elden bitirince puanların ikiye katlanması. Sağa doğru oyun, 30 sn hamle süresi (sonra otomatik oynar). 1/3/5 el, 0–250 ₺ bahis, kazanan kasayı alır. **Taş çalma** (evin kuralı) ve **"Hile var!"**. Botlar boş koltukları doldurur, oynar, bazen hile yapar ve yakalar. |
+| **Masa başı** | Gerçek 3D taşlar (parlak, kazınmış rakamlar), cilalı masif ahşap masa ve ıstakalar, çuha. Ekrandaki ıstakada taşları sürükleyip dizme, "Seri diz / Çift diz", geçerli perlerin yeşil çerçevesi, canlı per puanı. Masadaki hazır cümleler, botların konuşmaları, masa izleme. Oyuncular taş çekip atarken kolunu masaya uzatıyor. |
+| **Kıraathane ve dış dünya** | 18 masalı salon + 4 masalı teras, çay ocağı (krom kazanlar, demlikler), tavla oynayan amcalar, çaycının sipariş getirmesi (çay, oralet, kahve, gazoz, ayran, simit, tost). Yan tarafta Hasan Market (reyonlar, içecek dolapları, sigara dolabı uyarılı, dondurma dolabı). Sokakta park etmiş arabalar ve taksi. Sahilde çınarlar, banklar, simitçi, çay bahçesi, oturulan taş set, balık tutma, martı besleme, güvercinler, vapur iskelesi ve iskeleye yanaşan Şehir Hatları vapuru, Kız Kulesi ve tarihi yarımada silueti. |
+| **Karakterler** | Microsoft Rocketbox'ın 9 gerçekçi, dokulu yetişkin karakteri. Oyuncular kendi seçtiğini, NPC'ler kendi rollerini kullanıyor. Elde çay, simit, dondurma tutma; oturma, balık tutma, ifadeler (el salla, gül, dans, göster). |
+| **Sosyal ve ekonomi** | Hazır sohbet cümleleri (serbest yazı yok), ifadeler, isteğe bağlı sesli sohbet (masadakiler ve yakındakiler). Sanal oyun parası: cihaz başına saklanan cüzdan, günlük 250 ₺ bonus, veresiye, seviyeler, günlük görevler. |
+| **Yayın** | Takma ad küfür filtresi, Docker + docker-compose + Caddy (otomatik HTTPS), `Docs/Deploy.md`, sadece sayı tutan istatistik (`/stats`: başlayan masa, oynanan el, masa başına oyuncu, bahisler), indirme boyutu kontrolü. |
 
 ## 2. Nasıl test edildi
 
-- **64 otomatik test** (`pnpm test`):
-  - Kurallar: her geçiş ve uç durum için 26 birim testi (Ebe sayarken/ararken çıkar, son saklanan çıkar, oyun ortası katılan izleyici olur, oyuncu azalınca lobiye dönüş, sıradaki ebe ayrılırsa kura, herkesi kurtarma, süre dolması, puanlar).
-  - Fizik, görüş, harita (doğma noktaları ve saklanma yerleri engel içinde değil), A* yol bulma, takma ad filtresi.
-  - **Gerçek çok oyunculu entegrasyon testleri:** testler gerçek sunucuyu rastgele portta açıp başsız (headless) bot istemcilerle oynuyor: linkle katılma, hareket senkronu, yeniden bağlanma, tam el akışı, Ebe'ye sayarken konum gitmemesi, duvarın arkasındaki/menzil dışındaki saklananın gönderilmemesi, "Gördüm!" doğrulaması, yarış → sobe, Ebe Duvarı'ndan "Gördüm" reddi, herkes kurtuldu, sadece botlardan oluşan tam bir el, analitik ve küfür filtresi.
-- **Tarayıcıda (Playwright, Chromium):** masaüstü 1280×720 ve telefon 390×844 dokunmatik görünümde ekran görüntüleriyle kontrol: iki ayrı tarayıcıdan aynı odaya katılma, bot ekleme, sayfa yenileyince aynı koltuğa dönme, sayma ekranı, anons, el özeti, sohbet balonu, ifadeler.
-- **Yükleme süresi (üretim derlemesi, telefon simülasyonu):** toplam indirme **264 KB (gzip)**, lobiyi göstermek için gereken **123 KB**. 4G: ana sayfa 0,6 sn, 3D sahne 1,3 sn. Yavaş 3G: ana sayfa 2,7 sn, 3D sahne 4,6 sn. (5 MB bütçenin çok altında.) Bu test yavaş ağda bir çökme hatasını yakaladı, düzeltildi.
-- **Docker:** imaj derlendi, kapsayıcı sayfayı, `/health`, `/stats`'ı sundu ve içinde gerçek bir oda açıldı.
+- **62 otomatik test** (`pnpm test`):
+  - Okey kuralları ve bot yapay zekâsı: 20 test.
+  - **Gerçek çok oyunculu testler:** 16 test. Testler sunucuyu rastgele bir portta açıp başsız istemcilerle oynuyor: aynı kahvehaneye düşme, uzaktan oturamama, botlarla tam maç (gizli eller, bahis, kasanın kazanana gitmesi, para korunumu), masaya çay, taş çalma ve yakalanma, market ve banklar, sahil seti, balık tutma, cüzdanın cihazda kalması ve iki sekmede bozulmaması, yeniden bağlanınca elin geri gelmesi, günlük görevler, lobi, liderlik tablosu, takma ad filtresi, istatistikler.
+  - Hareket fiziği: 8 test.
+  - Istaka mantığı: 5 test.
+  - Çaycının yol bulması: 7 test.
+  - Takma ad: 5 test.
+  - Sabitler: 1 test.
+- **Tarayıcıda (Playwright, Chromium):**
+  - Masaüstü ve telefon boyutunda ana sayfa → lobi → hızlı oyna → botlarla oyun akışı denendi, sayfa hatası çıkmadı.
+  - Aynı salona iki ayrı tarayıcıyla girildi; biri telefon kalitesindeydi. Her oyuncu diğerini seçtiği karakterle gördü.
+  - Market alışverişi, banka oturma, balık tutma, sesli sohbet ve sayfa yenileyince elin geri gelmesi daha önceki turlarda denendi.
+  - Her görsel değişiklik ekran görüntüsüyle kontrol edildi.
+- **Boyut:**
+  - Toplam indirme 3,2 MB (gzip); lobiyi göstermek için 128 KB yetiyor.
+  - Gerçekçi karakterler (her biri yaklaşık 0,4 MB) okeye girince yükleniyor. Telefon önce 4 karakter indiriyor, diğerlerini gerektikçe indiriyor.
+- **Docker:** üretim imajı derlendi; kapsayıcıda oyun, `/health` ve `/stats` çalıştı.
 
-## 3. Senin yerine verdiğim kararlar (özet — ayrıntı `Docs/Decisions.md`)
+## 3. Senin yerine verdiğim kararlar (özet; ayrıntılar `Docs/Decisions.md` içinde)
 
-- Kararlı, iyi bilinen sürümler: Colyseus 0.16, TypeScript 5.9, Vitest 3, Vite 7, React 19, Three.js 0.186 (daha yeni ana sürümler var, yükseltme Backlog'da).
-- Konumlar Colyseus şemasında değil, her oyuncuya ayrı ayrı gönderilen anlık görüntülerde → sunucu, Ebe'nin neyi göreceğini filtreleyebiliyor (hile önleme).
-- **"Gördüm!" nişan gerektirmez:** sunucu, menzildeki (20 m) ve görünen en yakın saklananı seçer — telefonda tek büyük buton yeterli.
-- **Ebe, Ebe Duvarı'nın üstündeyken "Gördüm!" diyemez** (yoksa duvar dibinde bekleyip anında sobeleyebilirdi; uzaklaşıp geri koşmak oyunun eğlencesi).
-- Ebe duvara dokununca o an "görülmüş" tüm saklananlar sobelenir; aynı anda dokunulursa saklanan kazanır.
-- Çömelmek yavaşlatır ama görünürlüğü azaltır; çalı, ağaç tacı ve çamaşırlar görüşü keser ama içinden geçilebilir. 1,8 m'den yakındaki herkes her zaman görülür.
-- Koşma yok: Ebe ile saklananların hızı eşit, yarışı konum belirler.
-- Sıradaki Ebe: ilk sobelenen; kimse yakalanmadıysa veya "herkes kurtuldu" olduysa aynı Ebe; Ebe çıktıysa kura.
-- Puanlar: duvara ulaşan +3, süre sonuna kadar dayanan +2, herkesi kurtaran +5, Ebe her sobe için +2.
-- Oyunun ortasında gelen kişi o el izleyici (kimse onu görmez), sonraki elde oyuna girer. 3 kişiden az kalırsa lobiye dönülür.
-- Takma ad ve renk sadece tarayıcı oturumunda (sessionStorage) tutulur; hesap/kişisel veri yok. Ses kapatma tercihi cihazda saklanır.
-- Varlık siteleri bu geliştirme ortamından erişilemediği için tüm modeller ve sesler kodla üretildi (lisans sorunu yok, indirme küçük).
-- Analitik yalnızca sayılar tutar; `STATS_TOKEN` ile korunabilir.
-- `pnpm start` Windows'ta da çalışsın diye `--prod` bayrağı kullanıyor.
+- **Oyun parası tamamen sanal:**
+  - Satın alınamaz, nakde çevrilemez.
+  - Hesap yok. Cüzdan, rastgele ve isimsiz bir cihaz anahtarıyla sunucuda tutuluyor.
+- **Okey kuralları:**
+  - Yaygın 101 kuralları seçildi: seri ya da 5 çiftle 101 açma, puanlar, okeyle/elden bitirince ikiye katlama, gösterge.
+  - Taş çalma, senin istediğin eğlence kuralı olarak eklendi: yakalanırsan 101 ceza, haksız "Hile var!" 20 ₺.
+- **Senin açıkça istediğin iki istisna:**
+  - Sesli sohbet sadece isteyene açık, eşler arası bağlanıyor ve sunucuda ses tutulmuyor.
+  - Markette satılan sanal sigara tamamen süs; sağlık uyarısı taşıyor ve oyunda hiçbir avantaj sağlamıyor.
+- **Gerçekçi görünüm:**
+  - Karakterler Microsoft Rocketbox (MIT lisanslı).
+  - Kız Kulesi, vapur, arabalar, market, ağaçlar ve silüet kodla gerçekçi biçimde üretildi; hiçbirinde marka logosu yok.
+- **Saklambaç kaldırıldı:**
+  - Ürün adı "SOKAK OYUNLARI" kaldı.
+  - Ana sayfada mod seçimi yok; davet linkleri `?kahve=` biçiminde.
+- **Ana sayfa:** çizgi film karakter düzenleyicisinin yerine 9 gerçekçi karakterden seçim geldi.
 
 ## 4. Kullanılan varlıklar (kaynak + lisans)
 
-Ayrıntılı liste (isim, yapan, adres, lisans, tarih, nerede kullanıldığı, yapılan değişiklik) `Docs/ThirdPartyAssets.md` dosyasında. Özet:
-
-- **Kenney** (CC0): adım, zıplama ve ortam sesleri; çocuk karakterlerin iskeletli gövdesi (`pmndrs/market-assets` GitHub deposundan). Önceden kullanılan oyuncak kamyonetler kaldırıldı, yerlerine kodla yapılmış arabalar geldi.
-- **Microsoft Rocketbox** (MIT, lisans metni `public/models/ROCKETBOX_LICENSE.txt`): kahvehanedeki 9 gerçekçi yetişkin karakter (oyuncular ve NPC'ler).
-- **ambientCG Fabric030** (CC0): okey masasındaki çuha dokusu.
-- **Baloo 2** yazı tipi (SIL OFL 1.1): arayüz yazıları.
-- Geri kalan her şey (binalar, Kız Kulesi, vapur, arabalar, market, ağaçlar, okey taşları, tabelalar, deniz) bu projede kodla üretildi; bazı sesler WebAudio ile sentezleniyor.
-
-kenney.nl, polyhaven.com, ambientcg.com gibi siteler bu çalışma ortamından açılamadığı için varlıklar yalnızca lisansı açık GitHub depolarından alındı.
+Ayrıntılı liste `Docs/ThirdPartyAssets.md` dosyasında.
+- **Kenney** (CC0): adım, zıplama, tıklama ve para sesleri; yedek çizgi film karakter gövdesi (gerçekçi model yüklenemezse kullanılıyor).
+- **Microsoft Rocketbox** (MIT, lisans metni `public/models/ROCKETBOX_LICENSE.txt`): 9 gerçekçi karakter.
+- **ambientCG Fabric030** (CC0): okey çuhası.
+- **Baloo 2** yazı tipi (SIL OFL 1.1).
+- **Kodla üretilenler:** geri kalan her şey (mekânlar, Kız Kulesi, vapur, arabalar, market, ağaçlar, okey taşları, tabelalar, deniz).
+- **Sentezle üretilen sesler:** dalga, martı, vapur düdüğü.
 
 ## 5. Bilinen sorunlar ve engeller
 
-- **Grafikler prosedürel:** sevimli ve hızlı ama gerçek bir sanatçı modeli kadar detaylı değil (yukarıdaki CC0 paketleriyle yükseltilebilir).
-- **Gerçek sesler yok:** sentez efektleri var; Türkçe konuşma sesi her cihazda bulunmayabilir (o zaman sadece yazı + efekt).
-- **Sunucuya kurulum yapılmadı** (VDS + alan adı hesap gerektiriyor); adımlar hazır.
-- Caddy imajı geliştirme ortamında çekilemedi; Caddyfile standart iki direktif kullanıyor ama gerçek sunucuda ilk kez çalışacak.
-- Botlar basit: bazen aynı bölgede takılabilir ya da çok erken/geç duvara koşabilir.
-- Sunucu yeniden başlarsa açık odalar kapanır (odalar bellekte).
-- Gerçek telefonda elle test edilmedi; telefon görünümü Chromium ile simüle edildi. İlk denemede düşük donanımlı telefonda kare hızını kontrol etmeni öneririm.
-- 3D paketi (Three.js) 141 KB gzip; ana sayfa açıldıktan sonra arka planda yükleniyor.
+- **Sunucuya kurulum yapılmadı:** VDS ve alan adı hesap gerektiriyor; adımlar hazır.
+- **Sesli sohbet:**
+  - Bazı mobil ağlarda bağlanması için TURN sunucusu gerekiyor (`Docs/Deploy.md`).
+  - Telefonda mikrofon sadece HTTPS'te çalışıyor. Aynı Wi-Fi'de `http://` ile denerken sadece dinleyebilirsin.
+- **Gerçek telefonda kare hızı ölçülmedi.** Tarayıcı testleri yazılımsal grafikle (yavaş, GPU'suz) yapıldı. Düşük kalitede ağaç yaprakları seyreltiliyor ve karakterler azaltılmış setle yükleniyor, ama gerçek cihazda bir kez denemeni öneririm.
+- **Odalar ve maçlar bellekte:** sunucu yeniden başlarsa açık salonlar ve süren maçlar kapanır. Cüzdanlar dosyada kalır.
+- **Caddy henüz canlıda denenmedi:** imajı geliştirme ortamında çekilemedi; ilk gerçek kurulumda çalışacak.
+- **Karakterlerin animasyonu kendi sistemimizle yapılıyor:** yüz ifadeleri yok.
+- **Telefonda bekleme olabilir:** başka bir oyuncunun karakteri sende yüklü değilse, birkaç saniye geçici bir karakter görünür, sonra doğrusu gelir.
 
 ## 6. Bilgisayarında adım adım çalıştırma
 
@@ -123,295 +134,11 @@ Ayrıntılı adımlar: **`Docs/Deploy.md`**. Kısaca:
 
 ## 8. Önerilen sonraki adımlar
 
-1. **Arkadaşlarla gerçek bir el oyna** (özellikle telefonda) ve en eğlenceli/sinir bozucu anları not et: menzil (20 m), süreler (30 sn / 3 dk), çömelme gücü en çok ayar isteyebilecek değerler (`packages/shared/src/visibility.ts`, `constants.ts`).
-2. Sunucuya kur (`Docs/Deploy.md`) ve linki küçük bir grupla paylaş; `/stats` ile oynanan el ve oda büyüklüklerini izle.
-3. Sesleri kaydet: çocuk sesiyle sayma ve "Önüm arkam sağım solum sobe, saklanmayan ebe!" — en büyük nostalji etkisi burada.
-4. CC0 model paketleriyle görselleri yükselt (`Docs/ThirdPartyAssets.md`).
-5. Kurucuya oda ayarları (süre, bot sayısı), izleyici kamerası, ikinci bir mahalle haritası (`Docs/Backlog.md`).
-6. Sonra sıradaki mod: Yakar Top, Kör Ebe, İstop, Mendil Kapmaca, Elim Sende (Backlog'da).
-
----
-
-## Ek: Kalite geçişi (M7) — "daha profesyonel, daha az basit"
-
-**Görsel**
-- **Yeni karakterler:** chibi tarzı, bebekli ve parlayan gözler, göz kırpma, kaşlar, yanaklar, dirsek/diz eklemleri. 5 saç modeli, 6 şapka (kasket, bere, hasır şapka, taç, kulaklık), 4 ten rengi. Koşma, sinsi çömelme ve zıplama animasyonları. Pozlar: Ebe duvarda gözlerini kapatıyor, görülenin başında "!", sobelenen üzgün, kurtulan seviniyor.
-- **Ana sayfada canlı 3D karakter önizlemesi:** görünüm buradan seçiliyor ve diğer oyunculara da gidiyor.
-- **Mahalle baştan yapıldı:** shader ile sıva, tuğla, karo, arnavut kaldırımı, asfalt, çimen ve ahşap dokuları; duvar diplerinde gölge. Panjurlar, saksılar, bitkili balkonlar, numaralı kapılar, çatı depoları ve çanak antenler eklendi. Kaldırım bordürleri, yaya geçitleri, tebeşirle çizilmiş seksek, bakkal tezgâhı, semaver, damalı dolmuş, çay bardakları, çimen ve çiçekler var.
-- **Canlılık:** koşan birinden kaçan güvercinler, bulutlar, ortam yansımalı ışık ve daha koyu bir akşam alacası.
-- **Kenney CC0 pikapları** park etmiş arabalar olarak kullanıldı. Kamera çalıya girince yapraklar şeffaflaşıyor.
-- **Arayüz:** Baloo 2 yazı tipi; yeniden tasarlanan HUD, paneller ve açılış sayfası; el sonu özetinde ödül kartları.
-- **Ses:** Kenney CC0 kayıtları (adım sesi, zıplama, iniş, kurtulma, sobe, şehir ambiyansı). Dosya çözülemezse sentez seslere dönülüyor.
-
-**Oynanış**
-- **Koşma ve dayanıklılık (Shift / Koş):** yaklaşık 3,6 saniye depar atılabiliyor; tükenince bir süre koşulamıyor.
-- **Ayak sesi ipucu:** Ebe, göremediği ama koşan birinin yönünü ekran kenarında sarı "tıkırtı" olarak görüyor. Konum değil, sadece yön gidiyor. Çömelmek sessiz.
-- **Ebe yakın uyarısı:** saklananlar Ebe yaklaşınca kırmızı kalp atışı efekti görüyor.
-- **Taş atma (Q / Taş at):** 12 saniye bekleme süresi var. Herkes taşın düştüğü yerde "TIK!" görüyor, atanı kimse görmüyor; Ebe sadece yönünü duyuyor.
-- **Çöp konteynerine saklanma (E):** içerideki kimseye görünmüyor. Ebe konteynerin yanında "Gördüm!" derse kapağı açıp yakalıyor.
-- **Diğer:** Ebe Duvarı pusulası, bağlama göre değişen eylem butonları (Gördüm! / Kapağı aç! / Konteynere saklan / Dışarı çık), kamera sarsıntısı, depar sırasında görüş açısı genişlemesi. Botlar da koşuyor; Ebe bot konteynerleri yokluyor.
-
-**Teknik**
-- Test sayısı 64'ten 70'e çıktı.
-- Basit sahnede çizim çağrısı 212'den 121'e indi.
-- Toplam indirme 2,07 MB (gzip). Bunun 1,2 MB'ı oyun açıldıktan sonra yüklenen ambiyans sesi; lobi için gereken 128 KB.
-- Yeni varlıklar `Docs/ThirdPartyAssets.md`, kararlar `Docs/Decisions.md` dosyasında.
-
-**Bilinen sınırlar:** Animasyonlu hazır CC0 karakter olarak sadece miğferli bir asker modeli erişilebilirdi; bu yüzden karakterler kodla üretildi. Gerçek bir telefonda kare hızının elle ölçülmesi önerilir; karakter başına yaklaşık 35 çizim çağrısı var.
-
----
-
-## Ek: Mod 2 — 101 Okey · Kahvehane
-
-**Nasıl girilir**
-1. Ana sayfada **"101 Okey"** modunu seç, sonra **"Kahvehaneye gir"** düğmesine bas. Herkes aynı herkese açık kahvehane lobisine düşer; 40 kişi dolunca yeni bir kahvehane açılır. `?kahve=<id>` linkiyle arkadaşın aynı kahvehaneye gelir.
-2. Salonda yürü, bir masaya yaklaş ve **Otur (E)** de. İlk oturan masanın sahibi olur.
-3. Masa sahibi **bahsi** (0 / 10 / 50 / 100 / 250) ve **el sayısını** (1 / 3 / 5) seçer. Boş sandalyelere **bot** ekleyip **"Taşları dağıt"** der.
-
-**Kurallar (101 Okey)**
-- 106 taş (2 sahte okey), gösterge ve okey, 22/21 taş dağıtımı. Desteden ya da soldaki oyuncunun attığı taştan çekilir, sonra bir taş atılır.
-- **Elini açmak** için en az **101 puanlık** seri ve per ya da en az **5 çift** gerekir. Soldan alınan taş kullanılmazsa atılamaz; zorla atılırsa ceza yazılır.
-- Açtıktan sonra yere per indirme, başkasının perine taş işleme ve okeyle yer değiştirme var. İşlek taş atana +101 ceza.
-- **Puanlama:** biten oyuncu −101 alır, okeyle ya da elden bitirilirse ×2. Açmayan oyuncu 202, açan oyuncu elinde kalan taşların toplamını yazar; çift açanda ×2. Deste biterse el kimse bitirmeden kapanır.
-- Maçın sonunda en düşük toplam puanı olan **potu** kazanır.
-
-**Taş çalma**
-- Her elde bir kez, sol hariç bir oyuncunun atık yığınındaki üst taşı kendi taşınla gizlice değiştirebilirsin (**Taş çal**).
-- Masadakiler 6 saniye içinde **"Hile var!"** derse hamle geri alınır, çalan 101 ceza ve 50 lira para cezası öder. Haksız suçlama yapan 20 lira öder.
-- Diğer oyunculara bazen "bir şeyler dönüyor…" ipucu gelir. Botlar da arada çalıyor ve şüphelenince suçluyor.
-
-**Kahvehane**
-- **Çaycı Rıza**'dan çay, oralet, Türk kahvesi, gazoz, ayran, simit ve tost sipariş edilebiliyor. Kendine, bütün masaya ya da bir oyuncuya ısmarlanabiliyor.
-- Çaycı tepsisiyle yürüyerek siparişi getiriyor; içecek masada görünüyor ve karakter içiyor.
-- **Sanal para:** başlangıçta 1000 ₺ var. Para bitince 5 dakikada bir 200 ₺ **Veresiye** alınabiliyor. Para tamamen oyun içi; gerçek parayla hiçbir bağı yok.
-- "En zenginler" listesi, okeye özel hazır mesajlar ve emojiler var. Serbest sohbet yok.
-- 3D salonda ahşap zemin, çini duvar, semaverli tezgâh, tavla, televizyon, vantilatörler ve tabelalar bulunuyor. Masalarda istekalar ve taşlar görünüyor.
-
-**Arayüz**
-- 2×14'lük ıstaka var; taşlar sürükle-bırak ile diziliyor. **Seri diz** ve **Çift diz** otomatik dizer.
-- **"Elini aç"** düğmesi kaç puanla açacağını gösteriyor. Rakiplerin atık yığınları, gösterge ve okey bilgisi ekranda.
-- Hamle süresi 30 saniye; süre dolarsa otomatik oynanıyor. Oyundan kalkan oyuncunun yerine bot geçiyor.
-- Telefonda yatay ekran destekleniyor; dikey tutulduğunda "çevir" uyarısı çıkıyor.
-
-**Test**
-- `packages/okey` paketinde 18 birim testi var: taşlar, dağıtım, açma, işleme, okey değiştirme, puanlama, deste bitmesi, çalma ve suçlama. 12 tam el sadece botlarla oynatılıp taşların korunduğu doğrulandı.
-- Sunucuda 5 entegrasyon testi var: ortak oda, oturma mesafesi, para korunumuyla tam bot maçı, sipariş ve veresiye, çalmanın yakalanması ve bot devralması.
-- Toplam test sayısı 93/93. Masaüstü ve telefon (yatay) ekran görüntüleri Playwright ile kontrol edildi.
-
-**Bilinen sınırlar**
-- Eşli (2'ye 2) oyun yok.
-- Katlamalı açma barajı ve renk okeyi gibi yöresel varyantlar yok. Bunlar `Docs/Backlog.md` dosyasına eklenebilir.
-- Telefonda dikey modda oynanmıyor.
-
----
-
-## Ek: Kalite geçişi 2 — karakterler, grafik, kıraathane ve okey masası
-
-**Karakterler**
-- Kenney'nin CC0 lisanslı, iskeletli (rigged) insan modeli kullanıldı. Kaynak `pmndrs/market-assets` deposu, ayrıntılar `Docs/ThirdPartyAssets.md` dosyasında.
-- Modelin hazır kıyafet dokusu yok. Yüz, saç çizgisi, tişört (düz, çizgili, polo, düğmeli), pantolon ve ayakkabı her görünüm için kodla çiziliyor. Böylece renk, saç, şapka ve ten seçimi aynen çalışıyor.
-- Çocuklar Saklambaç için biraz daha küçük ve büyük kafalı. Kahvehanede yetişkin oranları kullanılıyor; amcalarda bıyık, kır saç, kel, yelek, gözlük ve tespih var.
-- Yürüme, koşma, çömelme, zıplama, oturma, çay içme, gazete okuma, uyuklama ve emoji animasyonları iskelete uygulanıyor.
-
-**Grafik**
-- Masaüstünde ortam gölgelemesi (GTAO), lamba parlaması (bloom), renk düzenlemesi, kenar karartma ve kenar yumuşatma var.
-- Telefonda hafif mod kullanılıyor. Kare hızı düşerse kalite kendiliğinden bir kademe iniyor.
-- Tuğla derzleri, parke ve taş aralıkları, tahta çizgileri ve asfalt çatlakları gölgelendirici ile kabartmalı görünüyor. Karakterlerde hafif bir kenar ışığı var.
-
-**Kıraathane baştan yapıldı**
-- Zemin desenli karo, duvarlarda ceviz lambri ve adaçayı yeşili sıva var.
-- Pencerelerde dantel perdeler ve dışarıda akşam sokağı görünüyor. Akşam güneşi pencerelerden içeri vuruyor.
-- Çay ocağında mermer tezgâh, çini pano, semaver, çaydanlıklar, bardaklar, tepsiler ve menü tahtası var.
-- Thonet tarzı hasır oturaklı kahvehane sandalyeleri ve tornalı ayaklı, keçeli okey masaları var. Her masada iki katlı ıstakalar bulunuyor.
-- Köşelerde zar atarak tavla oynayan, gazete okuyan, uyuklayan ve çay içen amcalar var.
-- Gerçek saati gösteren duvar saati, maç yayınlayan televizyon, eski fotoğraflar, takvim, ayna, vantilatörler, sarkıt lambalar ve havada uçuşan toz zerreleri eklendi.
-
-**101 Okey masası**
-- Masalardaki her şey gerçek 3D taş: ıstakalardaki taşlar, deste, gösterge, atılan taşlar ve açılan perler. Salonda gezerken diğer masalardaki oyunları da görebiliyorsun.
-- Atılan taş oyuncunun ıstakasından yığına uçuyor, perler masaya kayarak iniyor. Sırası gelen oyuncunun ıstakası parlıyor.
-- Oturunca kamera masayı ekranın altındaki ahşap ıstakanın tam üstüne yerleştiriyor.
-- **Taşları istediğin gibi dizebilirsin.** Bir taşı sürükleyip başka bir taşın üstüne bırakırsan araya girer, diğer taşlar kayar; boş yere bırakırsan oraya yerleşir. İstersen önce taşa, sonra boş yuvaya dokunarak da taşıyabilirsin. Dokunmatik ekranda da çalışıyor.
-- Taş atmak için taşı sağ köşedeki yığına sürüklemen yeterli. İşlemek için taşı yerdeki pere bırakıyorsun.
-- Desteden çekmek için desteye, soldan almak için soldaki yığına dokunuyorsun; ikisi de sıra sende olunca parlıyor.
-- Ekranın üstünde yalnızca o an ne yapman gerektiğini söyleyen tek bir yönlendirme satırı var.
-- "Per: 87/101" ilerleme çubuğu gösteriliyor ve geçerli perler ıstakada yeşil çerçeveyle işaretleniyor. "Elini aç" düğmesi sadece açabilecek durumdayken çıkıyor.
-- Seyrek kullanılan işlemler (taş çal, geri koy, deste bitti, kalk) "⋯" menüsünde. "Hile var!" düğmesi yalnızca şüpheli bir durum olduğunda beliriyor.
-- "Nasıl oynanır?" panelinde kurallar kısaca anlatılıyor.
-- Yeni çekilen taş ıstakada vurgulanıyor, sıra sana gelince ses çalıyor ve isim etiketlerinde maç puanları görünüyor.
-
-**Test**
-- 98 test geçiyor. Bunların 5'i yeni eklenen ıstaka düzenleme testi.
-- Playwright ile masaüstünde ve telefon boyutunda (yatay) gerçek sürükle-bırak denendi: taşı araya sokma, desteden çekme ve yığına atma çalıştı.
-- Saklambaç botlarla oynatıldı ve sorunsuz çalıştı.
-- Toplam indirme 2,16 MB (gzip), lobi için gereken 132 KB.
-
-**Bilinen sınırlar**
-- Karakter animasyonları koddan üretiliyor; Kenney'nin hazır animasyon dosyaları indirilebilirse daha akıcı olur.
-- Yüksek kalite modu (AO ve bloom) zayıf dizüstü bilgisayarlarda kendiliğinden düşüyor. Telefonlarda kare hızı gerçek cihazda ölçülmeli.
-
-## Ek: Gece çalışması — Üsküdar kıraathanesi, lobi, sesli sohbet
-
-Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.md` dosyasında.
-
-**Bildirdiğin hatalar**
-- **Kamera titremesi:** kamera artık karakteri yatayda birebir takip ediyor. Sadece yükseklik (basamak, kaldırım) yumuşatılıyor. Bu yüzden yürürken karakter ekranda sallanmıyor.
-- **Karakterin takılı kalması:** bir engelin içine giren gövde artık en kısa yoldan dışarı itiliyor. Önceden geriye itiliyor ve sıkışıyordu. Bunun için test de eklendi.
-- **Yazılı emote atınca etrafın kararması:** sorun konuşma balonlarının etrafında oluşan gölge (AO) halesiydi. Balonlar ve isim etiketleri artık bu gölgeye dahil edilmiyor.
-- **Mekânın dışına çıkılması:** harita kenarları kapatıldı. Denize atlamayı önlemek için korkuluğun üstüne görünmez bir duvar konuldu. Kamera da artık ince duvarlardan, vitrin camından ve kapı üstünden dışarı geçmiyor.
-
-**Gece test ederken bulup düzelttiğim hatalar**
-- Oyun ortasında sayfa yenilenince masaya geri dönülüyordu ama ıstaka boş geliyordu. Artık taşlar geri geliyor, üstelik senin dizdiğin sırayla.
-- Özel salonun davet linkini almanın bir yolu yoktu. Kahvede **🔗 Davet et** düğmesi eklendi: telefonda paylaşma menüsünü açıyor, bilgisayarda linki kopyalıyor.
-- Çaycı markete veya sahile çay götürürken duvarların içinden geçiyordu. Artık engellerin etrafından dolaşan bir yol buluyor.
-- Telefonda yatay ekranda üst çubuk taşıyordu. Masadayken üstteki düğmeler ipucu satırının altında kalıyordu. "Otur" ve "Alışveriş" yazıları elindeki eşyanın çubuğuyla üst üste biniyordu. Üçü de düzeltildi.
-- Bankta veya duvarda otururken karakter havaya kalkabiliyordu. Bu da düzeltildi.
-- **Kod incelemesinde bulunanlar:** gece yaptığım değişiklikleri ayrı bir inceleme ajanına kontrol ettirdim ve bulguları düzelttim:
-  - Aynı cihazla iki sekmede oynayıp bir sekmede kaybedilen parayı diğer sekmeyle geri almak mümkündü (sonsuz para). Artık her oturum cüzdana sadece kendi kazancını ya da kaybını ekliyor; bunun için test de var.
-  - Mikrofon izni sorulurken sesli sohbet kapatılır ya da kahveden çıkılırsa mikrofon açık kalabiliyordu. Düzeltildi.
-  - İki kişi sesli sohbeti aynı anda açınca bazen ses gitmiyordu. Düzeltildi; iki tarayıcı arasında iki yönde de ses doğrulandı.
-  - Sunucu kayıt sırasında çökerse cüzdan dosyası bozulabiliyordu. Artık dosya güvenli şekilde yazılıyor.
-  - Veresiye bekleme süresi çıkıp girince sıfırlanıyordu. Artık cüzdanla birlikte saklanıyor.
-  - Elde tutulan eşyalar ve şamandıralar bellekten temizlenmiyordu. Düzeltildi.
-- **Sunucu kurulum dosyası (Docker) okey paketini kurmuyordu.** Düzeltildi. Cüzdan dosyası artık kalıcı `data` klasörüne yazılıyor. İmaj gerçekten derlendi; kapsayıcının içinde bir salona girildi, liderlik tablosu ve cüzdan kaydı çalıştı.
-
-**Modern kıraathane**
-- Beton karo zemin, tuğla duvar, meşe ve siyah çelik mobilya, sarkıt lambalar var. Çay ocağı ve tavla köşesi korundu.
-- İçeride 18 masa var. Cam korkuluklu terasta 4 masa daha var, toplam 22 okey masası.
-- Bir salona 60 kişiye kadar girebiliyor.
-
-**Dışarısı: Üsküdar sahili**
-- Kıraathaneden çıkınca önce teras, sonra arabaların park ettiği sokak geliyor.
-- Sokaktan sonra Salacak tarzı sahil var: çınar ağaçları, banklar, simitçi arabası, tabureli çay bahçesi, olta atan balıkçılar ve vapur iskelesi.
-- Denizin karşısında **Kız Kulesi** duruyor. Önünden vapur geçiyor, martılar uçuyor.
-- Ufukta Tarihi Yarımada'nın silueti görünüyor: Ayasofya, Sultanahmet, Topkapı, Süleymaniye ve Galata Kulesi. Uzaktan da seçilebilsin diye biraz büyük çizildi.
-- Arkada renkli Üsküdar evleri ve tepede bir cami var. Deniz animasyonlu, üstünde güneş parıltısı var.
-- Vapur iskelesinin cephesinde lacivert "ÜSKÜDAR · Vapur İskelesi" tabelası, saat, kemerli pencereler ve kapı var.
-- Sahil yolunda elinde simit, çay ya da dondurmayla yürüyüş yapan insanlar var; uçta durup denize bakıyor, sonra geri dönüyorlar.
-- Birkaç dakikada bir bir vapur kıyı boyunca gelip iskeleye yanaşıyor. Yanaşırken ve kalkarken düdük çalıyor; ses uzaklığa göre kısılıyor.
-- Sahilde bir bölümde korkuluk yok, alçak taş duvar var. Buraya oturup bacaklarını denize sarkıtabilir, Kız Kulesi'ne karşı çay içebilirsin.
-
-**Market ve dışarıdaki sosyal aktiviteler**
-- Kıraathanenin yanında **Bakkal Hasan** var. Sigara, su, gazoz, çekirdek, çikolata, dondurma ve gazete satıyor. Simitçi Cemal ise simit, çay ve su satıyor.
-- Aldığın şey elinde duruyor ve **Q** ile kullanıyorsun: sigara yakıp duman üflüyorsun, simit yiyorsun, gazoz içiyorsun, gazete okuyorsun. Diğer oyuncular da bunu görüyor.
-- Sigara tamamen sanal ve oyun parasıyla alınıyor. Oyunda hiçbir avantaj sağlamıyor ve üstünde "Sigara içmek sağlığa zararlıdır" uyarısı var.
-- Sahil korkuluğunda ya da duvarında elinde simit varken **Q** "Martılara at" oluyor: simitten bir parça atıyorsun, en yakın martı dalıp havada kapıyor. Herkes görüyor.
-- **Balık tutma:** Bakkal Hasan'dan 30 ₺'ye olta alabilirsin. Sahilde denize karşı durup **Q** ile oltayı atıyorsun; şamandıra suda sallanıyor.
-  - Birkaç saniye sonra "Vurdu!" diye bağırıyorsun, şamandıra çırpınıyor ve düğme "ÇEK!" oluyor.
-  - Hemen çekersen istavrit, çinekop, lüfer, palamut ya da bazen eski bir ayakkabı çıkıyor. Tuttuğun şey salondaki herkese duyuruluyor.
-  - Erken çekersen ya da geç kalırsan balık kaçıyor. Yürüyüp uzaklaşırsan oltayı topluyorsun.
-  - Balıkçı amcaların oltaları ters duruyordu, o da düzeltildi.
-- **Sesler:** kahvehane dünyasında artık adım sesleri var. Sahile yaklaştıkça dalga sesi artıyor, ara sıra martılar çığlık atıyor; simit atınca martı bağırarak geliyor. Bu sesler dosya indirmeden, tarayıcıda üretiliyor.
-- Banklara, taburelere ve sahil duvarına **E** ile oturabilirsin. Emote, hazır sohbet cümleleri ("Sahile inelim mi?", "Manzaraya bak!") ve çay ısmarlama dışarıda da çalışıyor. Çaycı siparişi nerede olursan ol getiriyor.
-
-**Online oyun özellikleri**
-- **Lobi:** salonlar Üsküdar semtlerinin adını taşıyor (Salacak, Kuzguncuk, Çengelköy…). Listede her salonun kaç kişi olduğu, kaç masada oyun sürdüğü ve kaç masanın oyuncu beklediği görünüyor.
-- **⚡ Hızlı oyna** seni doğrudan boş bir masaya oturtuyor. Önce oyuncu bekleyen masalar dolduruluyor.
-- **Yeni salon aç** ile salon kurabilirsin. İstersen "özel" yapabilirsin: listede görünmez, sadece davet linkiyle girilir.
-- Salonun içinde **🃏 Masalar** listesinden tek tıkla bir masaya oturabilirsin. **🤖 Botlarla hemen başla** boş yerleri botlarla doldurup taşları dağıtıyor.
-- **Masa sohbeti:** masada otururken de **💬** ile hazır cümleler ("Hadi oyna!", "Okey bende!", "Bir el daha!"…) gönderebiliyorsun. Cümle, söyleyenin isim etiketinin üstünde birkaç saniye görünüyor. Önceden masadayken sohbet hiç yoktu. Botlar da konuşuyor: uzun düşünürsen "Hadi oyna!", maç bitince "Bir el daha!", masaya çay ısmarlarsan "Eyvallah!" diyorlar.
-- **Göstergeyi göster:** ilk sıranda elinde göstergenin eşi varsa parlayan bir düğme çıkıyor. Basarsan puanından 101 düşüyor ve masaya duyuruluyor. Botlar da gösteriyor. (Yaygın 101 kuralı; "Nasıl oynanır?" paneline de eklendi.)
-- **Masa izleme:** oyun süren bir masaya yaklaşıp **👀 İzle** (E) dersen kamera masanın boş köşesine geçiyor. Taşları, perleri ve puanları seyirci gibi izliyorsun. Yürüyünce ya da E'ye basınca izleme bitiyor.
-- **Kalıcı cüzdan:** hesap yok. Bakiyen cihazına verilen rastgele, isimsiz bir anahtarla sunucuda saklanıyor. Her gün ilk girişte 250 ₺ bonus alıyorsun.
-- **Günlük görevler:** üst çubuktaki **📋 Görevler** düğmesinde her gün dört görev var: bir okey maçı bitir (+150 ₺), masana çay ısmarla (+40 ₺), sahilde balık tut (+60 ₺), martılara 3 kez simit at (+40 ₺). Görev bitince ödül hemen cebine giriyor; görevler gece yarısı (İstanbul saati) yenileniyor ve aynı cihazın bütün sekmelerinde ortak.
-- **Seviye:** bitirdiğin her maç ve her galibiyet seviyeni yükseltiyor. Unvanlar sırasıyla Çaylak, Acemi, Mahalle oyuncusu, Kahve müdavimi, Usta, Okey ağası ve Efsane.
-  - Seviyen salonda ⭐ rozetiyle, masada isim etiketlerinde görünüyor. Seviye atlayınca bildirim geliyor.
-  - Lobide bakiyen, seviyen, oynadığın maç sayısı ve galibiyetlerin yazıyor.
-- **Liderlik tablosu:** lobide o an çevrimiçi en zengin 10 oyuncu, salon adlarıyla birlikte görünüyor.
-- **Sesli sohbet:** isteğe bağlı ve varsayılan olarak kapalı. **🎙️** ile açılıyor ve mikrofon izni istiyor; izin vermezsen sadece dinleyebilirsin.
-  - Masadayken masadaki dört kişiyle konuşuyorsun. Dışarıdayken ~14 m içindeki oyuncularla konuşuyorsun ve ses mesafeyle azalıyor.
-  - İstediğin kişiyi tek tek susturabilir, kendi mikrofonunu kapatabilirsin. Konuşan kişinin üstünde simge beliriyor.
-  - Ses, oyuncular arasında doğrudan (WebRTC) gidiyor. Sunucudan geçmiyor ve hiçbir yerde kaydedilmiyor.
-
-**Senin yerine verdiğim kararlar (ayrıntı `Docs/Decisions.md`)**
-- "Küçük mapimizi Üsküdar'a benzetelim" isteğini kıraathanenin dışındaki okey dünyası olarak yorumladım. Saklambaç mahallesine dokunmadım.
-- Sesli sohbet ve sigara, CLAUDE.md'deki çocuk güvenliği kurallarına aykırıydı ama sen açıkça istediğin için ekledim. İkisi için de önlem aldım:
-  - Sesli sohbet isteğe bağlı, susturulabiliyor ve kayıt tutulmuyor.
-  - Sigara sanal, uyarılı ve avantajsız.
-  - Oyunu küçük yaştakiler oynayacaksa ikisi de tek satırla kapatılabilir.
-- Liderlik tablosu sadece o an çevrimiçi olanları gösteriyor. Geçmişe dönük sıralama için takma adları saklamak gerekirdi; bunu yapmadım.
-
-**Nasıl test edildi**
-- 116 otomatik test geçiyor (bazıları yeni kontroller içeriyor). Gece eklenen testler:
-  - Market alışverişi ve kullanma, bank ve sahil duvarı oturma.
-  - Cüzdanın aynı cihazda korunması, iki sekmeyle kaybın geri alınamaması, hızlı oturma ve botla başlatma.
-  - Maç bitince insan oyuncunun maç/galibiyet sayısının artması (botların artmaması), lobinin sadece kendi cüzdanını okuyabilmesi.
-  - Liderlik tablosu, sayfa yenilemeden sonra elin geri gelmesi.
-  - Balık tutma: denizden uzakta olta atılamaması, erken çekince kaçması, vurunca çekince balık çıkması, uzaklaşınca oltanın toplanması.
-  - Gösterge kuralı: göstergenin eşi sadece ilk sırada ve bir kez gösterilebiliyor, puandan 101 düşüyor.
-  - Çaycının yol bulması (markete, sahile, çay bahçesine giden rotalar duvar içinden geçmiyor).
-- Playwright ile tarayıcıda denenenler:
-  - Lobi → hızlı oyna → botlar → 5 tur taş çekip atma.
-  - Oyun ortasında sayfayı yenileme.
-  - Markete yürüyüp sigara alma ve yakma.
-  - Simitçiden simit alıp banka oturma; ikinci bir oyuncunun ekranından bunun görünmesi.
-  - Sahil duvarına oturma, davet linkiyle özel salona girme.
-  - İki ayrı tarayıcı arasında sesli sohbet.
-  - Telefon boyutunda yatay ekran.
-- Toplam indirme 2,18 MB (gzip), lobiyi göstermek için gereken 136 KB.
-
-**101 Okey'i adım adım deneme**
-1. `pnpm dev` ile başlat (yukarıdaki 6. bölüm), tarayıcıda **http://localhost:5173** aç.
-2. Ana sayfada **101 Okey**'i seç, takma adını yaz, **Lobiye gir**.
-3. Lobide **⚡ Hızlı oyna** de. Seni boş bir masaya oturtur; **🤖 Botlarla hemen başla** ile hemen oyna. Arkadaşınla oynamak için **Yeni salon aç**, içeride **🔗 Davet et** ile linki gönder.
-4. Masada: desteye ya da soldaki yığına dokunup taş çek, taşları sürükleyerek diz, atacağın taşı sağ köşedeki yığına sürükle. İlk sıranda parlayan **Göstergeyi göster** düğmesi çıkarsa bas.
-5. Masadan kalkıp kapıdan çık: teras, sokak, market (sağda), sahil ve Kız Kulesi. **E** = otur / alışveriş / izle, **Q** = elindekini kullan (sahilde olta at, simidi martılara at).
-6. Sesli sohbeti denemek için iki ayrı tarayıcıda aynı salona gir ve ikisinde de **🎙️**'ya bas.
-
-**Bilinen sınırlar**
-- **Sesli sohbet:** bazı mobil ağlarda (sıkı NAT) bağlantı kurulamayabilir. Bunun için sunucuda bir TURN sunucusu kurulmalı; adımlar `Docs/Deploy.md` dosyasında. Bu iş hesap ve sunucu gerektirdiği için sana bıraktım.
-- **Telefonda mikrofon:** tarayıcılar mikrofonu sadece HTTPS'te veriyor. Aynı Wi-Fi'de `http://192.168…` adresiyle denerken telefonda sadece dinleyebilirsin. Gerçek sunucuda (Caddy ile HTTPS) mikrofon da çalışır.
-- **Cüzdan dosyası:** bakiyeler `data/wallets.json` dosyasında. Sunucuyu yeniden kurarken bu klasörü koru.
-- **Gerçek cihaz testi:** gerçek telefonda ses ve kare hızı henüz ölçülmedi.
-
-**Önerilen sonraki adımlar**
-- İlk iş olarak VDS'e kurulum yap ve TURN sunucusunu ayarla.
-- Kalıcı haftalık liderlik tablosu eklenebilir; bunun için takma ad saklamak gerekir.
-- Sahilde vapura binip karşıya geçme gibi yeni mini etkinlikler eklenebilir. Tutulan balıklar için bir "günün balıkçısı" listesi de eklenebilir.
-- Saklambaç için de Üsküdar temalı ikinci bir mahalle yapılabilir.
-
-
-## Ek: Sabah — "bütün modelleri gerçekçileştir" geçişi
-
-İstediğin gibi her değişiklikten sonra ekran görüntüsü gönderdim (01–07 numaralı görseller).
-
-**Ne değişti**
-- **Kız Kulesi:** 2023 restorasyonundaki hâliyle baştan yapıldı: kayalık ada, taş rıhtım, iki katlı taş bina, kare gövde + sekizgen kule, demir balkon, camlı fener, kurşun kaplı kubbe, altın alem, bayrak.
-- **Okey takımı:** yuvarlak kenarlı, parlak krem taşlar ve kazınmış rakamlar; cilalı masif ahşap masa, ıstaka ve sandalyeler; dokulu yeşil çuha. Ekrandaki ıstaka ve taşlar da kalınlıklı ve ahşap desenli.
-- **Karakterler:** kahvehanede artık gerçekçi, dokulu insan modelleri var (Microsoft Rocketbox, 9 farklı kişi: 6 erkek, 3 kadın). Oyuncular, tavla oynayan amcalar, çaycı, bakkal, simitçi ve sahilde yürüyenler bunları kullanıyor. Elde tutulan çay, simit ve dondurma dik duruyor, parmaklar eşyayı kavrıyor. Çay bardağı ince belli ve içinde demli çay var. Saklambaç'taki çocuk karakterleri bilerek çizgi film tarzında bıraktım.
-- **Sahil ve sokak:** yapraklı çınar ağaçları, salonda gerçek saksı ficusları, camlı vitrinli kırmızı simit arabası, Şehir Hatları vapuru (pencereli kamaralar, üst güverte, can simitleri, sarı-siyah baca), 90'lar sedanları ve sarı taksi, tarihi görünümlü Üsküdar Vapur İskelesi (kemerler, pilastrlar, korniş, saatli çatı feneri).
-- **Hasan Market:** reyonlarda marka blokları hâlinde ürünler, camlı içecek dolapları, süt ürünleri dolabı, yazar kasa, sigara dolabı ("18 yaş altına tütün satılmaz" uyarısıyla), dondurma dolabı, kapıda meyve-sebze kasaları.
-- **Evler:** çerçeveli pencereler, parlak camlar, panjurlar, saksılar, köşe çıtaları, kapı sundurmaları.
-- **Saklambaç mahallesi:** ağaçlar artık yapraklı ve saklanmaya elverişli, sık taçlı. Kamyonetlerin yerinde sedanlar duruyor, köşedeki hurda araba da paslı ve lastiği inik. Binalar ve çocuk karakterler oyunun neşeli tarzında kaldı.
-- **Işık:** salon zemini aynalı olmaktan çıkarıldı. Önceden akşam güneşinin yansıması ekranın yarısını beyaza boyuyordu.
-- **Masa başı:** gerçekçi karakterler oturunca ellerini ıstakanın üstünde tutuyor. Bir oyuncu taş çekince, atınca ya da per açınca kolunu masaya uzatıyor.
-- **Çay ocağı ve çay bahçesi:** krom çay kazanları, ikili demlikler, askılı çay tepsileri, tabaklı dolu çay bardakları ve şekerlikler var. Sahilde de hasır tabureler, bardaklı alçak ahşap masalar.
-- **Ufuk:** tarihi yarımada silueti puslu katmanlar, akşam yanan pencere ve sahil ışıkları ile gerçek cami, minare ve kule siluetleriyle çiziliyor.
-- **Martılar:** sarı gagasında kırmızı benek, gri kanatlar, siyah kanat uçları.
-- **Saklambaç gökyüzü:** köşeli çizgi film bulutlarının yerinde yumuşak boyanmış bulutlar var.
-
-**Performans ve boyut**
-- Toplam indirme 4,48 MB (gzip), yani 5 MB sınırının altında. Lobiyi açmak için gereken kısım hâlâ 137 KB.
-- Gerçekçi karakterler sadece 101 Okey seçilince yükleniyor: telefonda 4 kişilik hafif set, bilgisayarda 9 kişilik set.
-- Sahne yükü: bir karede ~580 bin üçgen (gölgeler dahil). Küçük süs eşyaları gölge düşürmüyor; uzaktaki ev sıraları sade pencereli.
-- 117 test geçiyor ve derleme başarılı.
-
-**Bilinen sınırlar**
-- Gerçekçi karakterlerin yüz ifadesi yok, animasyonları da prosedürel (kendi yürüme ve oturma sistemimiz). Yine de duruşlar ve eller doğal görünüyor.
-- Gerçek bir telefonda kare hızı henüz ölçülmedi. Tarayıcı testleri yazılımsal grafik sürücüsüyle yapıldı.
-
-## Ek: Saklambaç kaldırıldı, oyun artık sadece okey (7 Ekim)
-
-Senin "saklambaçı kaldırıyoruz, oyunumuz sadece okey olacak" isteğin üzerine:
-- **Kaldırılanlar:** Saklambaç'ın sunucu odası ve testleri, kural motoru (`packages/rules`), botları (`packages/bots`), mahalle haritası ve görüş kontrolü, oyun ekranı, "mahallede tek başına dolaş" modu, Saklambaç lobisi ve HUD'u, mahalle 3D dünyası ve 1,2 MB'lık sokak ambiyans sesi.
-- **Ana sayfa:** mod seçimi yok. Takma adını yazıp doğrudan okey lobisine giriyorsun. Davet linkleri `?kahve=...` biçiminde.
-- **Korunanlar:** hareket fiziği, karakter sistemi, ifadeler, hazır sohbet cümleleri, takma ad filtresi. Saklambaç testlerinde olan "uygunsuz takma ad" ve "istatistik" kontrolleri artık kahvehane üzerinde çalışıyor.
-- **İstatistikler:** başlayan masa, oynanan el, masa başına gerçek oyuncu sayısı ve bahisler sayılıyor. İsim veya kimlik tutulmuyor.
-- **Sonuç:** 62 test geçiyor. Toplam indirme 4,5 MB'tan 3,2 MB'a indi, lobiyi açmak için 128 KB yetiyor.
-- Saklambaç'ın kodu git geçmişinde duruyor. İstersen geri getirilebilir.
-
-## Ek: Karakter seçimi
-
-Ana sayfadaki çizgi film çocuk karakteri ve tişört/saç/şapka seçenekleri kaldırıldı. Bu seçenekler kahvehanede hiçbir şeyi değiştirmiyordu.
-- **Seçim:** kahvehanedeki 9 gerçekçi karakterden birini ‹ › oklarıyla ya da isimlerine tıklayarak seçiyorsun (Yelekli, Çizgili tişört, Pembe gömlek, Gri gömlek, Bej kazak, Ekose ceket, Mavi gömlek, Deri ceket, Kahve ceket). Seçtiğin karakter yanda 3D olarak dönerek el sallıyor.
-- **Oyunda:** herkes seni seçtiğin karakterle görüyor. Telefonlar, sette olmayan bir karakteri gerektiğinde indirip yerine koyuyor. Botlar da farklı karakterler alıyor.
-- **Test:** iki ayrı tarayıcıyla denedim (biri telefon kalitesinde). Ekose ceketli ve deri ceketli oyuncular birbirlerini doğru karakterle görüyor.
+1. **Sunucuya kur** (`Docs/Deploy.md`) ve TURN sunucusunu ayarla. Linki küçük bir grupla paylaş, `/stats` ile masaları ve elleri izle.
+2. **Gerçek telefonda bir maç oyna:** kare hızını, dokunmatik taş sürüklemeyi ve sesli sohbeti kontrol et.
+3. Okey kurallarında evinde oynadığın farklılıklar varsa söyle. Kurallar `packages/okey` içinde, testleriyle birlikte değiştirilebilir.
+4. **İstersen eklenebilecekler:**
+   - oynanabilir tavla,
+   - vapura binip karşıya geçme,
+   - kalıcı haftalık liderlik tablosu (takma ad saklamayı gerektirir),
+   - daha fazla karakter.

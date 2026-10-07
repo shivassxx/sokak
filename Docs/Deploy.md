@@ -8,7 +8,7 @@ Internet ──443──> Caddy ──> app:2567 (Node: static client + /matchma
 
 ## 1. What you need (account-bound — the user must do these)
 - A Linux VDS (Ubuntu 22.04/24.04, 1 vCPU / 1 GB RAM is enough for dozens of rooms).
-- A domain or subdomain, e.g. `saklambac.example.com`, with an **A record** pointing to the VDS IP.
+- A domain or subdomain, e.g. `okey.example.com`, with an **A record** pointing to the VDS IP.
 - Ports **80** and **443** open in the provider firewall.
 
 ## 2. Install Docker on the VDS
@@ -21,7 +21,7 @@ sudo usermod -aG docker $USER   # log out/in afterwards
 ```bash
 git clone <your repo url> sokak && cd sokak
 cp .env.example .env
-nano .env        # set DOMAIN=saklambac.example.com and a random STATS_TOKEN
+nano .env        # set DOMAIN=okey.example.com and a random STATS_TOKEN
 ```
 
 ## 4. Start
@@ -29,7 +29,7 @@ nano .env        # set DOMAIN=saklambac.example.com and a random STATS_TOKEN
 docker compose up -d --build
 docker compose logs -f app      # "[sokak] server listening on :2567"
 ```
-Open `https://saklambac.example.com` — Caddy fetches the certificate automatically on first request (takes a few seconds).
+Open `https://okey.example.com` — Caddy fetches the certificate automatically on first request (takes a few seconds).
 
 ## 5. Operate
 | Task | Command |
