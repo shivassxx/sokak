@@ -512,27 +512,50 @@ function makePigeon(): THREE.Group {
   return g;
 }
 
+/** Soft painted cumulus clouds: billboards (sprites) with lit tops and greyer, flatter bases. */
 function clouds(scene: THREE.Scene): THREE.Group {
   const group = new THREE.Group();
-  const mat = new THREE.MeshLambertMaterial({ color: 0xfff3e6, emissive: 0xffd8b0, emissiveIntensity: 0.35, flatShading: true, fog: false });
-  const parts: THREE.BufferGeometry[] = [];
-  const m4 = new THREE.Matrix4();
-  for (let i = 0; i < 9; i++) {
-    const a = (i / 9) * Math.PI * 2;
-    const cx = Math.cos(a) * 170;
-    const cz = Math.sin(a) * 170;
-    const cy = 70 + hash(i) * 30;
-    for (let k = 0; k < 5; k++) {
-      const g = new THREE.IcosahedronGeometry(6 + hash(i * 9 + k) * 5, 1);
-      g.scale(1, 0.55, 1);
-      // spread puffs sideways (tangent to the circle)
-      const t = k * 7 - 14;
-      g.applyMatrix4(m4.makeTranslation(cx - Math.sin(a) * t, cy + hash(i + k) * 3, cz + Math.cos(a) * t));
-      parts.push(g);
-    }
+  const mats = [0, 1, 2].map((v) => {
+    let seed = 11 + v * 37;
+    const rnd = () => hash(seed++);
+    const gauss = () => (rnd() + rnd() + rnd() - 1.5) / 1.5;
+    const tex = canvasTex(512, 256, (ctx) => {
+      ctx.clearRect(0, 0, 512, 256);
+      for (let k = 0; k < 46; k++) {
+        const x = 256 + gauss() * 150;
+        const mid = 1 - Math.min(1, Math.abs(x - 256) / 220);
+        const r = 26 + rnd() * 34 + mid * 34;
+        const y = 196 - r * 0.55 - mid * 40 * rnd();
+        const g = ctx.createRadialGradient(x, y - r * 0.25, r * 0.1, x, y, r);
+        g.addColorStop(0, 'rgba(255,255,255,0.95)');
+        g.addColorStop(0.55, 'rgba(255,255,255,0.55)');
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // shade the undersides: lit warm tops, cooler grey bases
+      ctx.globalCompositeOperation = 'source-atop';
+      const sh = ctx.createLinearGradient(0, 60, 0, 220);
+      sh.addColorStop(0, 'rgba(255,236,214,0)');
+      sh.addColorStop(0.6, 'rgba(196,176,190,0.35)');
+      sh.addColorStop(1, 'rgba(150,132,156,0.6)');
+      ctx.fillStyle = sh;
+      ctx.fillRect(0, 0, 512, 256);
+      ctx.globalCompositeOperation = 'source-over';
+    });
+    return new THREE.SpriteMaterial({ map: tex, color: 0xfff4ea, transparent: true, depthWrite: false, fog: false });
+  });
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2 + hash(i * 3) * 0.3;
+    const sp = new THREE.Sprite(mats[i % 3]!);
+    const w = 60 + hash(i * 5) * 50;
+    sp.scale.set(w, w * 0.5, 1);
+    sp.position.set(Math.cos(a) * 175, 62 + hash(i) * 34, Math.sin(a) * 175);
+    sp.userData.noAO = true;
+    group.add(sp);
   }
-  group.add(new THREE.Mesh(mergeGeometries(parts, false), mat));
-  for (const g of parts) g.dispose();
   scene.add(group);
   return group;
 }
