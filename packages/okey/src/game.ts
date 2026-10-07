@@ -7,6 +7,7 @@ import {
   isJoker,
   okeyFaceFor,
   playFace,
+  rawFace,
   sameFace,
   shuffled,
   tileValue,
@@ -49,6 +50,7 @@ export type OkeyEvent =
   | { type: 'stole'; seat: number; fromSeat: number }
   | { type: 'caught'; thief: number; by: number }
   | { type: 'falseAccusation'; by: number; accused: number | null }
+  | { type: 'shownGosterge'; seat: number; tile: number }
   | { type: 'handEnd'; result: HandResult };
 
 export interface HandResult {
@@ -95,6 +97,10 @@ export class OkeyGame {
   /** laid / added anything this turn (taking-from-left can no longer be undone) */
   private acted = false;
   stealUsed = [false, false, false, false];
+  /** showed the gösterge's twin on the first turn (−101) */
+  shown = [false, false, false, false];
+  /** discards made by each seat this hand (the gösterge can only be shown before the first) */
+  private turnsDone = [0, 0, 0, 0];
   lastSteal: StealRecord | null = null;
   result: HandResult | null = null;
   private nextMeldId = 1;
@@ -305,6 +311,7 @@ export class OkeyGame {
     this.removeFromHand(seat, [tile]);
     this.acted = false;
     this.discards[seat]!.push(tile);
+    this.turnsDone[seat]!++;
     if (islek) this.penalties[seat]! += OPEN_POINTS;
     ev.push({ type: 'discarded', seat, tile, islek });
     if (this.hands[seat]!.length === 0) {
@@ -326,6 +333,23 @@ export class OkeyGame {
     this.phase = 'draw';
     ev.push({ type: 'turn', seat: this.turn });
     return { ok: true, events: ev };
+  }
+
+  /** The gösterge's twin in this hand, if the seat may still show it (own first turn, once). */
+  gostergeTwin(seat: number): number | null {
+    if (this.phase === 'ended' || seat !== this.turn || this.turnsDone[seat] !== 0 || this.shown[seat]) return null;
+    const g = rawFace(this.gosterge);
+    const t = this.hands[seat]!.find((x) => !isFake(x) && x !== this.gosterge && rawFace(x).color === g.color && rawFace(x).num === g.num);
+    return t ?? null;
+  }
+
+  /** "Göstergeyi göster": on your first turn, show the twin of the gösterge for −101. */
+  showGosterge(seat: number): Result {
+    const tile = this.gostergeTwin(seat);
+    if (tile === null) return fail(this.shown[seat] ? 'Göstergeyi zaten gösterdin.' : 'Göstergeyi sadece ilk sıranda, elinde eşi varsa gösterebilirsin.');
+    this.shown[seat] = true;
+    this.penalties[seat]! -= OPEN_POINTS;
+    return { ok: true, events: [{ type: 'shownGosterge', seat, tile }] };
   }
 
   /** Turn timer ran out: draw if needed, put back unusable left tile, discard the newest tile. */
@@ -449,6 +473,7 @@ export class OkeyGame {
       takenFromLeft: this.takenFromLeft !== null,
       stealUsed: [...this.stealUsed],
       dealer: this.dealer,
+      shown: [...this.shown],
     };
   }
 }
@@ -468,6 +493,8 @@ export interface PublicView {
   takenFromLeft: boolean;
   stealUsed: boolean[];
   dealer: number;
+  /** who showed the gösterge this hand */
+  shown: boolean[];
 }
 
 export { FAKE_OKEYS };

@@ -239,6 +239,10 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         play('caught');
         game?.shake(0.15);
         break;
+      case 'shownGosterge':
+        toastRef.current({ text: `🀄 ${seatName(e.seat)} göstergeyi gösterdi: −101!`, kind: 'good' });
+        play('pop');
+        break;
       case 'falseAccusation':
         toastRef.current({ text: `${seatName(e.by)} boşuna "Hile var!" dedi: 20 ₺ iftira cezası!`, kind: 'info' });
         break;

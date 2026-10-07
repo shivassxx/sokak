@@ -257,6 +257,44 @@ describe('taş çalma', () => {
   });
 });
 
+describe('gösterge', () => {
+  it('the twin of the gösterge can be shown once, on your first turn, for −101', () => {
+    for (let seed = 1; seed < 400; seed++) {
+      const g = new OkeyGame(0, seeded(seed));
+      // find a deal where the dealer holds the twin
+      const twin = g.gostergeTwin(0);
+      if (twin === null) continue;
+      expect(g.gostergeTwin(1)).toBeNull(); // not your turn
+      const r = g.showGosterge(0);
+      expect(r.ok).toBe(true);
+      expect(g.penalties[0]).toBe(-101);
+      expect(g.showGosterge(0).ok).toBe(false); // only once
+      // after the first discard it is too late for the others' later turns too
+      g.discard(0, g.hands[0]!.find((t) => t !== twin)!);
+      expect(g.publicView().shown).toEqual([true, false, false, false]);
+      return;
+    }
+    throw new Error('no deal with the twin in the dealer hand');
+  });
+
+  it('a seat that already discarded cannot show it any more', () => {
+    for (let seed = 1; seed < 400; seed++) {
+      const g = new OkeyGame(0, seeded(seed));
+      g.discard(0, g.hands[0]![0]!);
+      g.drawFromDeck(1);
+      g.discard(1, g.hands[1]![0]!);
+      g.drawFromDeck(2);
+      g.discard(2, g.hands[2]![0]!);
+      g.drawFromDeck(3);
+      g.discard(3, g.hands[3]![0]!);
+      // dealer's second turn: even with the twin it is too late
+      g.drawFromDeck(0);
+      expect(g.gostergeTwin(0)).toBeNull();
+      if (g.hands[0]!.some((t) => t !== g.gosterge && t < 104 && t % 26 % 13 === g.gosterge % 26 % 13 && Math.floor(t / 26) === Math.floor(g.gosterge / 26))) return;
+    }
+  });
+});
+
 describe('bots', () => {
   it('four bots play complete hands without errors', () => {
     for (let seed = 1; seed <= 12; seed++) {
@@ -274,6 +312,7 @@ describe('bots', () => {
           case 'lay': r = g.layMeld(s, a.tiles); break;
           case 'add': r = g.addToMeld(s, a.tile, a.meldId); break;
           case 'discard': r = g.discard(s, a.tile); break;
+          case 'show': r = g.showGosterge(s); break;
         }
         if (!r.ok) r = g.autoPlay(s);
         expect(r.ok, `${seed}: ${a.type} ${'error' in r ? r.error : ''}`).toBe(true);

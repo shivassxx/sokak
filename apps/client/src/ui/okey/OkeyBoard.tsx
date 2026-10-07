@@ -119,6 +119,14 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
   const drawPhase = myTurn && view.phase === 'draw';
   const playPhase = myTurn && view.phase === 'play';
   const opened = view?.opened[mySeat] ?? null;
+  // "göstergeyi göster": the gösterge's twin in hand, on my own first turn
+  const canShow =
+    !!view &&
+    myTurn &&
+    !view.shown?.[mySeat] &&
+    !opened &&
+    view.discards[mySeat]!.length === 0 &&
+    hand.some((t) => t < 104 && t !== view.gosterge && Math.floor(t / 26) === Math.floor(view.gosterge / 26) && t % 13 === view.gosterge % 13);
   const plan = useMemo(() => (ctx ? openPlan(rack, ctx) : null), [rack, ctx?.okey.color, ctx?.okey.num]); // eslint-disable-line react-hooks/exhaustive-deps
   const seatPlayer = (s: number) => players[table.seats[s] ?? ''];
   const name = (s: number) => seatPlayer(s)?.name ?? '—';
@@ -429,6 +437,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
           {table.handNo > 1 && <span className="score-pill">{table.totals[mySeat]} p</span>}
           {opened && <span className="tag open">Elin açık ({opened === 'pairs' ? 'çift' : 'seri'})</span>}
           {view.penalties[mySeat]! > 0 && <span className="pen">Ceza +{view.penalties[mySeat]}</span>}
+          {view.penalties[mySeat]! < 0 && <span className="tag open">Bonus {view.penalties[mySeat]}</span>}
           {!opened && plan && (
             <span className="progress" title="Açmak için 101 puan ya da 5 çift gerekir">
               {plan.mode === 'pairs' ? `Çift: ${plan.pairs}/5` : `Per: ${plan.points}/101`}
@@ -486,6 +495,11 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
               Seçili taşı at
             </button>
           )}
+          {canShow && (
+            <button className="btn small primary glow" onClick={() => send({ t: 'show' })} title="İlk sıranda göstergenin eşini gösterirsen 101 puan düşer">
+              Göstergeyi göster (−101)
+            </button>
+          )}
           <button className={`btn small ${more ? 'on' : ''}`} onClick={() => setMore((m) => !m)}>
             ⋯
           </button>
@@ -534,6 +548,9 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
             </li>
             <li>
               <b>Taş at:</b> Her turun sonunda bir taşı <b>sağ köşedeki</b> yığınına sürükle. Elini açtıysan önce yerdeki perlere taş işleyebilirsin.
+            </li>
+            <li>
+              <b>Gösterge:</b> ilk sıranda elinde göstergenin eşi varsa <b>Göstergeyi göster</b> de, puanından 101 düşer.
             </li>
             <li>Elindeki taşları ilk bitiren eli kazanır. Maç sonunda puanı en düşük olan kasayı alır.</li>
           </ol>

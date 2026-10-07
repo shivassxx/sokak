@@ -87,7 +87,8 @@ export type OkeyAction =
   | { t: 'discard'; tile: number }
   | { t: 'deckEmpty' }
   | { t: 'steal'; tile: number; pile: number }
-  | { t: 'accuse' };
+  | { t: 'accuse' }
+  | { t: 'show' };
 
 /** Public table view (JSON in the schema). */
 export interface TableView {
@@ -104,6 +105,8 @@ export interface TableView {
   takenFromLeft: boolean;
   stealUsed: boolean[];
   dealer: number;
+  /** who showed the gösterge this hand (−101) */
+  shown: boolean[];
 }
 
 export interface HandResultView {

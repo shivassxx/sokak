@@ -153,12 +153,15 @@ export type BotAction =
   | { type: 'lay'; tiles: number[] }
   | { type: 'add'; tile: number; meldId: number }
   | { type: 'discard'; tile: number }
-  | { type: 'deckEmpty' };
+  | { type: 'deckEmpty' }
+  | { type: 'show' };
 
 /** Next single action for the bot sitting at `seat`. Call repeatedly until it discards. */
 export function botAction(g: OkeyGame, seat: number): BotAction {
   const hand = g.hands[seat]!;
   const ctx = g.ctx;
+  // a free −101: always show the gösterge when you can
+  if (g.gostergeTwin(seat) !== null) return { type: 'show' };
   if (g.phase === 'draw') {
     const left = g.topDiscard(g.leftOf(seat));
     if (left !== null) {

@@ -576,6 +576,9 @@ export class KahvehaneRoom extends Room<KahveState> {
       case 'accuse':
         r = g.accuse(s, now);
         break;
+      case 'show':
+        r = g.showGosterge(s);
+        break;
       default:
         return;
     }
@@ -913,6 +916,9 @@ export class KahvehaneRoom extends Room<KahveState> {
           break;
         case 'deckEmpty':
           r = g.declareDeckEmpty(s);
+          break;
+        case 'show':
+          r = g.showGosterge(s);
           break;
         case 'open':
           r = g.open(s, act.groups);
