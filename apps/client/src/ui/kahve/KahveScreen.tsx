@@ -9,6 +9,8 @@ import {
   MSG,
   QUICK_CHAT_OKEY,
   FISH,
+  DAILY_MISSIONS,
+  type MissionState,
   levelOf,
   levelTitle,
   SHOPS,
@@ -90,6 +92,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   watchRef.current = watching;
   const myFish = useRef(0);
   const myLevel = useRef(0);
+  const [missionsOpen, setMissionsOpen] = useState(false);
   const [chats, setChats] = useState<Record<string, { text: string; t: number }>>({});
   const [shopOpen, setShopOpen] = useState<number>(-1);
   const [tablesOpen, setTablesOpen] = useState(false);
@@ -526,6 +529,13 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   };
   const richest = view ? Object.values(view.players).filter((p) => !p.isBot).sort((a, b) => b.money - a.money).slice(0, 5) : [];
   const isHost = myTable?.hostId === me;
+  const myMissions = (() => {
+    try {
+      return myP?.missions ? (JSON.parse(myP.missions) as MissionState) : null;
+    } catch {
+      return null;
+    }
+  })();
   const near = nearTable >= 0 && view ? view.tables[nearTable]! : null;
 
   return (
@@ -542,6 +552,11 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
           <span className="pill lvl" title={`${levelTitle(levelOf(myP.played, myP.won))} · ${myP.played} maç, ${myP.won} galibiyet`}>
             ⭐ {levelOf(myP.played, myP.won)}
           </span>
+        )}
+        {myP && myMissions && (
+          <button className="btn small" title="Günlük görevler" onClick={() => setMissionsOpen((o) => !o)}>
+            📋<span className="lbl"> Görevler</span> <b className="count">{DAILY_MISSIONS.filter((d) => (myMissions.progress[d.id] ?? 0) >= d.goal).length}/{DAILY_MISSIONS.length}</b>
+          </button>
         )}
         <button className="btn small" title="Çaycı" onClick={() => setMenuOpen((o) => !o)}>
           ☕<span className="lbl"> Çaycı!</span>
@@ -881,6 +896,33 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         </div>
       )}
 
+      {missionsOpen && myMissions && (
+        <div className="panel missions-panel">
+          <div className="panel-head">
+            <h2>📋 Günün görevleri</h2>
+            <button className="btn small" onClick={() => setMissionsOpen(false)}>
+              Kapat
+            </button>
+          </div>
+          <ul className="missions">
+            {DAILY_MISSIONS.map((d) => {
+              const n = Math.min(d.goal, myMissions.progress[d.id] ?? 0);
+              const done = n >= d.goal;
+              return (
+                <li key={d.id} className={done ? 'done' : ''}>
+                  <span className="mtext">
+                    {done ? '✅' : '⬜'} {d.text}
+                    <i style={{ width: `${(n / d.goal) * 100}%` }} />
+                  </span>
+                  <b>{done ? 'Tamam' : `${n}/${d.goal}`}</b>
+                  <span className="reward">+{d.reward} ₺</span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="hint">Görevler her gece yarısı yenilenir. Ödül görev bitince cebine girer.</p>
+        </div>
+      )}
       {voiceOn && voicePanel && view && (
         <div className="panel voice-panel">
           <div className="panel-head">

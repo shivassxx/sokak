@@ -304,6 +304,7 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - **Göstergeyi göster:** ilk sıranda elinde göstergenin eşi varsa parlayan bir düğme çıkıyor. Basarsan puanından 101 düşüyor ve masaya duyuruluyor. Botlar da gösteriyor. (Yaygın 101 kuralı; "Nasıl oynanır?" paneline de eklendi.)
 - **Masa izleme:** oyun süren bir masaya yaklaşıp **👀 İzle** (E) dersen kamera masanın boş köşesine geçiyor. Taşları, perleri ve puanları seyirci gibi izliyorsun. Yürüyünce ya da E'ye basınca izleme bitiyor.
 - **Kalıcı cüzdan:** hesap yok. Bakiyen cihazına verilen rastgele, isimsiz bir anahtarla sunucuda saklanıyor. Her gün ilk girişte 250 ₺ bonus alıyorsun.
+- **Günlük görevler:** üst çubuktaki **📋 Görevler** düğmesinde her gün dört görev var: bir okey maçı bitir (+150 ₺), masana çay ısmarla (+40 ₺), sahilde balık tut (+60 ₺), martılara 3 kez simit at (+40 ₺). Görev bitince ödül hemen cebine giriyor; görevler gece yarısı (İstanbul saati) yenileniyor ve aynı cihazın bütün sekmelerinde ortak.
 - **Seviye:** bitirdiğin her maç ve her galibiyet seviyeni yükseltiyor. Unvanlar sırasıyla Çaylak, Acemi, Mahalle oyuncusu, Kahve müdavimi, Usta, Okey ağası ve Efsane.
   - Seviyen salonda ⭐ rozetiyle, masada isim etiketlerinde görünüyor. Seviye atlayınca bildirim geliyor.
   - Lobide bakiyen, seviyen, oynadığın maç sayısı ve galibiyetlerin yazıyor.
