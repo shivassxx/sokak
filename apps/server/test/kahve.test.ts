@@ -345,6 +345,47 @@ describe('kahvehane', () => {
     await a.leave();
   });
 
+  it('weekly leaderboard: a device player\'s finished bot match counts with its net, no tokens leak', async () => {
+    const device = '7a'.repeat(16);
+    const url = `http://127.0.0.1:${server.port}/api/leaders/weekly`;
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Haftalik', device });
+    await until(() => !!st(a).players?.get(a.id));
+    const room = matchMaker.getLocalRoomById(a.room.roomId) as KahvehaneRoom;
+    room.debugPlace(a.id, TABLES[4]!.x, TABLES[4]!.z + 2);
+    await sleep(80);
+    a.room.send(KMSG.sit, { table: 4, seat: 0 });
+    await until(() => me(a).table === 4);
+    a.room.send(KMSG.tableConfig, { bet: 100, hands: 1 });
+    for (let i = 0; i < 3; i++) a.room.send(KMSG.tableBot, {});
+    await until(() => [...table(a, 4).seats].every((s: string) => s));
+    a.room.send(KMSG.tableStart);
+    await until(() => table(a, 4).status === 'playing');
+    await until(() => table(a, 4).lastMatch !== '', 60000);
+    const result = JSON.parse(table(a, 4).lastMatch) as { winners: number[]; payout: number[] };
+    const won = result.winners.includes(0);
+    const net = result.payout[0]!;
+    expect(net).toBe(won ? Math.floor(400 / result.winners.length) - 100 : -100);
+    const board = (await (await fetch(`${url}?device=${device}`)).json()) as any;
+    const row = { name: 'Haftalik', wins: won ? 1 : 0, played: 1, net };
+    expect(board.top).toContainEqual(row);
+    expect(board.me).toMatchObject({ ...row, rank: expect.any(Number) });
+    // bots never appear; nobody else's request gets a rank
+    expect(board.top.some((r: any) => r.name.includes('🤖'))).toBe(false);
+    expect(((await (await fetch(url)).json()) as any).me).toBeNull();
+    const last = (await (await fetch(`${url}?week=last&device=${device}`)).json()) as any;
+    expect(last.top).toEqual([]);
+    expect(JSON.stringify([board, last])).not.toContain(device);
+    // walking out of the next match counts as a lost match (the bet is gone)
+    await until(() => table(a, 4).status === 'open');
+    a.room.send(KMSG.tableStart);
+    await until(() => table(a, 4).status === 'playing');
+    a.room.send(KMSG.stand);
+    await until(() => me(a).table === -1);
+    const after = (await (await fetch(`${url}?device=${device}`)).json()) as any;
+    expect(after.me).toMatchObject({ name: 'Haftalik', played: 2, wins: won ? 1 : 0, net: net - 100 });
+    await a.leave();
+  }, 70000);
+
   it('lobby: quick join seats you at a table; fill with bots and deal', async () => {
     const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Hizli', quick: true });
     await until(() => (st(a).players?.get(a.id)?.table ?? -1) >= 0);
