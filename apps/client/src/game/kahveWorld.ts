@@ -459,6 +459,9 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   addMesh(b.build('foliage'), foliageMat, true, true);
   addMesh(b.build('glow'), glowMat, false, false);
   addMesh(b.build('cars'), mainMat, false, true);
+  // varnished furniture wood: same patterns, plus a clear lacquer coat
+  const varnishMat = patternize(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.48, clearcoat: 0.6, clearcoatRoughness: 0.22 }), 0.18);
+  addMesh(b.build('varnish'), varnishMat, true, true);
   const glass = new THREE.Mesh(
     mergeGeometries(glassPanes, false)!,
     new THREE.MeshStandardMaterial({ color: 0xcfe3ea, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false }),

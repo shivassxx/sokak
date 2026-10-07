@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { isFake, isJoker, rawFace, type Face, type OkeyCtx } from '@sokak/okey';
 
 /**
@@ -20,40 +21,45 @@ const JOKER_CELL = 53;
 const BLANK_CELL = 54;
 export const INK = ['#d22f27', '#e39a00', '#1c63c9', '#1f1f1f'];
 
-let atlas: { tex: THREE.CanvasTexture; ctx: CanvasRenderingContext2D; okey: Face | null } | null = null;
+let atlas: { tex: THREE.CanvasTexture; ctx: CanvasRenderingContext2D; bump: THREE.CanvasTexture; bctx: CanvasRenderingContext2D; okey: Face | null } | null = null;
 
 function cellXY(i: number): [number, number] {
   return [(i % COLS) * CELL_W, Math.floor(i / COLS) * CELL_H];
 }
 
-function drawCell(ctx: CanvasRenderingContext2D, i: number, face: Face | null | 'blank', star: boolean): void {
+/**
+ * One atlas cell. `mask` draws the height map for the bump texture instead: white
+ * plastic, black engraved glyphs (numbers, dot, clover, star are cut into the tile).
+ */
+function drawCell(ctx: CanvasRenderingContext2D, i: number, face: Face | null | 'blank', star: boolean, mask = false): void {
   const [x, y] = cellXY(i);
   ctx.save();
   ctx.translate(x, y);
   ctx.clearRect(0, 0, CELL_W, CELL_H);
-  // ivory face with a soft bevel
-  const g = ctx.createLinearGradient(0, 0, 0, CELL_H);
-  g.addColorStop(0, '#fffdf5');
-  g.addColorStop(0.85, '#f4ecd8');
-  g.addColorStop(1, '#e6d9bb');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, CELL_W, CELL_H);
-  ctx.strokeStyle = 'rgba(150,120,70,0.45)';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.roundRect(4, 4, CELL_W - 8, CELL_H - 8, 12);
-  ctx.stroke();
+  if (mask) {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, CELL_W, CELL_H);
+  } else {
+    // cream plastic, slightly darker towards the edges (the face is a little domed)
+    const g = ctx.createRadialGradient(CELL_W / 2, CELL_H * 0.4, 8, CELL_W / 2, CELL_H * 0.45, CELL_H * 0.75);
+    g.addColorStop(0, '#fffaf0');
+    g.addColorStop(0.65, '#f4ead3');
+    g.addColorStop(1, '#e4d4af');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, CELL_W, CELL_H);
+  }
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
+  const ink = (c: string) => (mask ? '#000000' : c);
   if (face === 'blank') {
-    // hidden tile: plain ivory
+    // hidden tile: plain cream
   } else if (face === null) {
     // sahte okey: green clover
-    ctx.fillStyle = '#2f8f4f';
+    ctx.fillStyle = ink('#2f8f4f');
     ctx.font = '800 92px "Baloo 2", "Trebuchet MS", sans-serif';
     ctx.fillText('♣', CELL_W / 2, CELL_H * 0.46);
   } else {
-    ctx.fillStyle = INK[face.color]!;
+    ctx.fillStyle = ink(INK[face.color]!);
     ctx.font = `800 ${face.num >= 10 ? 76 : 88}px "Baloo 2", "Trebuchet MS", sans-serif`;
     ctx.fillText(String(face.num), CELL_W / 2, CELL_H * 0.42);
     ctx.beginPath();
@@ -61,40 +67,52 @@ function drawCell(ctx: CanvasRenderingContext2D, i: number, face: Face | null | 
     ctx.fill();
   }
   if (star) {
-    ctx.fillStyle = '#e0a400';
+    ctx.fillStyle = ink('#e0a400');
     ctx.font = '800 40px "Baloo 2", sans-serif';
     ctx.fillText('★', CELL_W - 24, 24);
-    ctx.strokeStyle = '#f2c230';
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.roundRect(3, 3, CELL_W - 6, CELL_H - 6, 12);
-    ctx.stroke();
+    if (!mask) {
+      ctx.strokeStyle = '#f2c230';
+      ctx.lineWidth = 6;
+      ctx.beginPath();
+      ctx.roundRect(3, 3, CELL_W - 6, CELL_H - 6, 12);
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }
 
-function drawAll(ctx: CanvasRenderingContext2D, okey: Face | null): void {
-  for (let c = 0; c < 4; c++) for (let n = 1; n <= 13; n++) drawCell(ctx, c * 13 + n - 1, { color: c as Face['color'], num: n }, false);
-  drawCell(ctx, FAKE_CELL, null, false);
-  drawCell(ctx, JOKER_CELL, okey, true);
-  drawCell(ctx, BLANK_CELL, 'blank', false);
+function drawAll(ctx: CanvasRenderingContext2D, okey: Face | null, mask = false): void {
+  for (let c = 0; c < 4; c++) for (let n = 1; n <= 13; n++) drawCell(ctx, c * 13 + n - 1, { color: c as Face['color'], num: n }, false, mask);
+  drawCell(ctx, FAKE_CELL, null, false, mask);
+  drawCell(ctx, JOKER_CELL, okey, true, mask);
+  drawCell(ctx, BLANK_CELL, 'blank', false, mask);
+}
+
+function canvasTexture(srgb: boolean): { tex: THREE.CanvasTexture; ctx: CanvasRenderingContext2D } {
+  const c = document.createElement('canvas');
+  c.width = c.height = ATLAS;
+  const ctx = c.getContext('2d')!;
+  const tex = new THREE.CanvasTexture(c);
+  if (srgb) tex.colorSpace = THREE.SRGBColorSpace;
+  tex.flipY = false;
+  tex.anisotropy = 8;
+  return { tex, ctx };
 }
 
 function getAtlas() {
   if (atlas) return atlas;
-  const c = document.createElement('canvas');
-  c.width = c.height = ATLAS;
-  const ctx = c.getContext('2d')!;
-  drawAll(ctx, { color: 0, num: 1 });
-  const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.flipY = false;
-  tex.anisotropy = 8;
-  atlas = { tex, ctx, okey: null };
+  const color = canvasTexture(true);
+  const bump = canvasTexture(false);
+  drawAll(color.ctx, { color: 0, num: 1 });
+  drawAll(bump.ctx, { color: 0, num: 1 }, true);
+  atlas = { tex: color.tex, ctx: color.ctx, bump: bump.tex, bctx: bump.ctx, okey: null };
   // redraw once the rounded font is ready
   void document.fonts?.load('800 80px "Baloo 2"').then(() => {
-    drawAll(ctx, atlas!.okey ?? { color: 0, num: 1 });
-    tex.needsUpdate = true;
+    const okey = atlas!.okey ?? { color: 0, num: 1 };
+    drawAll(color.ctx, okey);
+    drawAll(bump.ctx, okey, true);
+    color.tex.needsUpdate = true;
+    bump.tex.needsUpdate = true;
   });
   return atlas;
 }
@@ -105,7 +123,9 @@ export function setAtlasOkey(okey: Face): void {
   if (a.okey && a.okey.color === okey.color && a.okey.num === okey.num) return;
   a.okey = okey;
   drawCell(a.ctx, JOKER_CELL, okey, true);
+  drawCell(a.bctx, JOKER_CELL, okey, true, true);
   a.tex.needsUpdate = true;
+  a.bump.needsUpdate = true;
 }
 
 export function cellOf(id: number, ctx: OkeyCtx | null): number {
@@ -115,14 +135,15 @@ export function cellOf(id: number, ctx: OkeyCtx | null): number {
   return f.color * 13 + f.num - 1;
 }
 
+/** A tile with rounded edges; the top face maps to its atlas cell, the sides to plain cream. */
 function tileGeometry(): THREE.BufferGeometry {
-  const g = new THREE.BoxGeometry(TILE_W, TILE_T, TILE_H).toNonIndexed();
+  const g = new RoundedBoxGeometry(TILE_W, TILE_T, TILE_H, 2, TILE_T * 0.32).toNonIndexed();
   const pos = g.getAttribute('position');
   const nrm = g.getAttribute('normal');
   const uv = g.getAttribute('uv');
   for (let i = 0; i < pos.count; i++) {
-    if (nrm.getY(i) > 0.9) uv.setXY(i, pos.getX(i) / TILE_W + 0.5, pos.getZ(i) / TILE_H + 0.5);
-    else uv.setXY(i, 0.5, 0.93);
+    if (nrm.getY(i) > 0.55) uv.setXY(i, pos.getX(i) / TILE_W + 0.5, pos.getZ(i) / TILE_H + 0.5);
+    else uv.setXY(i, 0.5, 0.97);
   }
   return g;
 }
@@ -142,12 +163,15 @@ export class TileField {
   private n = 0;
 
   constructor(readonly capacity: number) {
-    const mat = new THREE.MeshStandardMaterial({ map: getAtlas().tex, roughness: 0.35, metalness: 0 });
+    // glossy cream plastic with engraved glyphs (bump from the mask atlas)
+    const at = getAtlas();
+    const mat = new THREE.MeshPhysicalMaterial({ map: at.tex, bumpMap: at.bump, bumpScale: 1.6, roughness: 0.38, clearcoat: 0.7, clearcoatRoughness: 0.18, metalness: 0 });
     mat.onBeforeCompile = (shader) => {
       shader.uniforms.uCell = { value: new THREE.Vector2(CELL_W / ATLAS, CELL_H / ATLAS) };
+      const cell = `(vec2(mod(aCell, ${COLS}.0), floor(aCell / ${COLS}.0))`;
       shader.vertexShader = shader.vertexShader
         .replace('#include <common>', '#include <common>\nattribute float aCell;\nuniform vec2 uCell;')
-        .replace('#include <uv_vertex>', `#include <uv_vertex>\n vMapUv = (vec2(mod(aCell, ${COLS}.0), floor(aCell / ${COLS}.0)) + vMapUv) * uCell;`);
+        .replace('#include <uv_vertex>', `#include <uv_vertex>\n vMapUv = ${cell} + vMapUv) * uCell;\n#ifdef USE_BUMPMAP\n vBumpMapUv = ${cell} + vBumpMapUv) * uCell;\n#endif`);
     };
     mat.customProgramCacheKey = () => 'okey-tile';
     const geo = tileGeometry();

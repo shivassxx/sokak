@@ -18,6 +18,9 @@ export const PAT = {
   stone: 8,
   fabric: 9,
   leaves: 10,
+  /** solid (varnished) wood for furniture, grain running along world x / z */
+  grainX: 11,
+  grainZ: 12,
 } as const;
 export type Pattern = (typeof PAT)[keyof typeof PAT];
 
@@ -108,6 +111,17 @@ vec3 surfaceDetail(vec3 col){
     float w = sin(uv.x * 60.0) * sin(uv.y * 60.0);
     f = 0.92 + 0.08 * w;
     gHgt = 0.0015 * w;
+  } else if (p == 11 || p == 12) { // solid wood: long grain, growth figure, streaks and pores
+    float a = p == 11 ? vWPos.x : vWPos.z;
+    float c = p == 11 ? vWPos.z : vWPos.x;
+    float along = (p == 11 ? n.x : n.z) > 0.6 ? c : a; // end grain: rings run the other way
+    float across = n.y > 0.6 ? c : vWPos.y;
+    float ring = fract(across * 24.0 + fbm(vec2(along * 0.8, across * 5.0)) * 2.4);
+    float band = smoothstep(0.0, 0.22, ring) * smoothstep(1.0, 0.6, ring);
+    float streak = vnoise(vec2(along * 2.5, across * 240.0));
+    float pores = vnoise(vec2(along * 70.0, across * 420.0));
+    f = 0.8 + 0.15 * band + 0.09 * streak + 0.05 * pores + 0.1 * (fbm(vec2(along * 0.5, across * 1.6)) - 0.5);
+    gHgt = 0.0007 * streak + 0.0005 * pores;
   } else if (p == 10) { // leaves
     float l = vnoise(uv * 3.5 + vWPos.y);
     f = 0.78 + 0.35 * l;

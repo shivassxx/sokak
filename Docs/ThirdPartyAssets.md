@@ -31,4 +31,10 @@ kenney.nl, quaternius.com and polyhaven.com are blocked in the dev container (Ke
 | 4 | Interface Sounds + Impact Sounds | https://kenney.nl/assets/interface-sounds | CC0 | Real recorded clicks / whistles | Put OGG/MP3 files in `apps/client/public/sfx/`, play them from `audio.ts`. |
 | 5 | Voice lines | (record yourself) | own | Real kid voices for counting and "sobe" | Record "bir… otuz", "Önüm arkam sağım solum sobe, saklanmayan ebe!", "Sobe!" and add them to `public/sfx/`. |
 
+
+## Added in the night session
+| Asset | Creator | Source | License | Date | Used for | Changes |
+|---|---|---|---|---|---|---|
+| Fabric030 (felt) | ambientCG (Lennart Demes) | ambientcg.com/a/Fabric030 (fetched from a GitHub mirror: pwmarcz/autotable) | CC0 | 2026-10-07 | `public/textures/felt_detail.jpg`: woven detail multiplied into the okey table felt | greyscale, 256 px, JPEG q82 (6 KB) |
+
 Keep the total download under 5 MB (CLAUDE.md performance budget).

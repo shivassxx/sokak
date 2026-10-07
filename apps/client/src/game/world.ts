@@ -28,10 +28,10 @@ export interface World {
   follow?(x: number, z: number): void;
 }
 
-export type Bucket = 'main' | 'glow' | 'ground' | 'foliage' | 'cars';
+export type Bucket = 'main' | 'glow' | 'ground' | 'foliage' | 'cars' | 'varnish';
 
 export class Builder {
-  private parts: Record<Bucket, THREE.BufferGeometry[]> = { main: [], glow: [], ground: [], foliage: [], cars: [] };
+  private parts: Record<Bucket, THREE.BufferGeometry[]> = { main: [], glow: [], ground: [], foliage: [], cars: [], varnish: [] };
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler();

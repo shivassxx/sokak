@@ -4,6 +4,7 @@ import { asPair, asSeries, playFace, sameFace, type OkeyCtx } from '@sokak/okey'
 import { TABLES, levelOf, levelTitle, seatPosition, type HandResultView, type KPlayerView, type KTableView, type MatchResultView, type Meld, type OkeyAction, type TableView } from '@sokak/shared';
 import type { Game } from '../../game/Game';
 import { Tile } from './Tile';
+import { installWoodCss } from './woodTexture';
 import { ROW, SLOTS, arrangePairs, arrangeSeries, emptyRack, moveTile, openPlan, rackGroups, syncRack, type Rack } from './rack';
 import { play } from '../../game/audio';
 
@@ -69,6 +70,7 @@ const _v = new THREE.Vector3();
  * wooden ıstaka with free drag-and-drop arranging, and one clear hint line.
  */
 export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile, serverNow, send, toast, drinks = {}, suspicion, onStand, phrases = [], chats = {}, onChat }: Props) {
+  installWoodCss();
   const ctx: OkeyCtx | null = view ? { okey: view.okey as OkeyCtx['okey'] } : null;
   const [rack, setRack] = useState<Rack>(emptyRack);
   const [sel, setSel] = useState<number | null>(null);

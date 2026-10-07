@@ -39,7 +39,9 @@ export class Frame {
 export function bentwoodChair(b: Builder, x: number, z: number, yaw: number): void {
   const f = new Frame(x, 0, z, yaw);
   const pat = b.pat;
-  b.pat = PAT.wood;
+  const bucket = b.bucket;
+  b.bucket = 'varnish';
+  b.pat = PAT.grainX;
   // legs, splayed
   const leg = () => new THREE.CylinderGeometry(0.014, 0.017, 0.47, 7);
   for (let k = 0; k < 4; k++) {
@@ -53,14 +55,15 @@ export function bentwoodChair(b: Builder, x: number, z: number, yaw: number): vo
   b.addMatrix(new THREE.TorusGeometry(0.2, 0.016, 6, 24), WALNUT, f.m(0, 0.445, 0, Math.PI / 2));
   // cane seat
   b.pat = PAT.fabric;
-  b.addMatrix(new THREE.CylinderGeometry(0.2, 0.2, 0.02, 24), CANE, f.m(0, 0.462, 0));
-  b.pat = PAT.wood;
+  b.addMatrix(new THREE.CylinderGeometry(0.2, 0.2, 0.02, 24), CANE, f.m(0, 0.462, 0), 'main');
+  b.pat = PAT.grainX;
   // back posts rising from the rear legs and the hoop
   const post = () => new THREE.CylinderGeometry(0.014, 0.016, 0.46, 7);
   for (const s of [-1, 1]) b.addMatrix(post(), WALNUT, f.m(s * 0.13, 0.69, 0.2, -0.16, 0, 0));
   b.addMatrix(new THREE.TorusGeometry(0.13, 0.016, 6, 18, Math.PI), WALNUT, f.m(0, 0.9, 0.235, -0.16));
   b.addMatrix(new THREE.TorusGeometry(0.085, 0.011, 5, 14, Math.PI), WALNUT, f.m(0, 0.74, 0.21, -0.16));
   for (const s of [-1, 1]) b.addMatrix(new THREE.CylinderGeometry(0.01, 0.01, 0.18, 5), WALNUT, f.m(s * 0.085, 0.65, 0.195, -0.16));
+  b.bucket = bucket;
   b.pat = pat;
 }
 
@@ -174,11 +177,14 @@ export function modernChair(b: Builder, x: number, z: number, yaw: number): void
   b.addMatrix(new THREE.BoxGeometry(0.4, 0.02, 0.02), STEEL, f.m(0, 0.2, 0.18));
   b.addMatrix(new THREE.BoxGeometry(0.4, 0.02, 0.02), STEEL, f.m(0, 0.2, -0.18));
   for (const sx of [-1, 1]) b.addMatrix(new THREE.CylinderGeometry(0.011, 0.011, 0.42, 6), STEEL, f.m(sx * 0.17, 0.68, 0.2, -0.14, 0, 0));
-  b.pat = PAT.wood;
+  // varnished oak seat and bent back plank, grain running side to side
+  const bucket = b.bucket;
+  b.bucket = 'varnish';
+  b.pat = Math.abs(Math.sin(yaw)) < 0.5 ? PAT.grainX : PAT.grainZ;
   b.addMatrix(roundedSlab(0.42, 0.42, 0.035, 0.06, 3), LIGHT_OAK, f.m(0, 0.45, 0));
-  // curved back rest: a bent plank
   chairBack ??= new THREE.CylinderGeometry(0.42, 0.42, 0.16, 10, 1, true, -0.5, 1.0);
   b.addMatrix(chairBack, LIGHT_OAK, f.m(0, 0.84, -0.18, -0.14, 0, 0));
+  b.bucket = bucket;
   b.pat = pat;
 }
 
@@ -186,21 +192,27 @@ export function modernChair(b: Builder, x: number, z: number, yaw: number): void
 export function modernOkeyTable(b: Builder, x: number, z: number): void {
   const f = new Frame(x, 0, z, 0);
   const pat = b.pat;
-  b.pat = PAT.wood;
+  const bucket = b.bucket;
+  b.bucket = 'varnish';
+  b.pat = PAT.grainX;
   b.addMatrix(roundedSlab(TABLE_HALF * 2, TABLE_HALF * 2, 0.04, 0.03), LIGHT_OAK, f.m(0, TABLE_TOP - 0.04, 0));
+  b.bucket = bucket;
   b.pat = PAT.none;
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.addMatrix(new THREE.BoxGeometry(0.045, TABLE_TOP - 0.04, 0.045), STEEL, f.m(sx * 0.47, (TABLE_TOP - 0.04) / 2, sz * 0.47));
   for (const s of [-1, 1]) {
     b.addMatrix(new THREE.BoxGeometry(0.94, 0.05, 0.025), STEEL, f.m(0, TABLE_TOP - 0.07, s * 0.47));
     b.addMatrix(new THREE.BoxGeometry(0.025, 0.05, 0.94), STEEL, f.m(s * 0.47, TABLE_TOP - 0.07, 0));
   }
-  b.pat = PAT.wood;
+  // the ıstakas: varnished wood, grain along each rack
+  b.bucket = 'varnish';
   for (let s = 0; s < 4; s++) {
     const yaw = (s * Math.PI) / 2;
+    b.pat = s % 2 === 0 ? PAT.grainX : PAT.grainZ;
     const rf = new Frame(x + Math.sin(yaw) * RACK_DIST, TABLE_TOP + 0.002, z + Math.cos(yaw) * RACK_DIST, yaw);
     b.addMatrix(rackGeometry(), RACK_WOOD, rf.m(0, 0, 0));
-    for (const e of [-1, 1]) b.addMatrix(new THREE.BoxGeometry(0.012, 0.08, 0.126), 0x9a6436, rf.m((e * RACK_LEN) / 2, 0.04, 0));
+    for (const e of [-1, 1]) b.addMatrix(new THREE.BoxGeometry(0.012, 0.08, 0.126), 0x8a5428, rf.m((e * RACK_LEN) / 2, 0.04, 0));
   }
+  b.bucket = bucket;
   b.pat = pat;
 }
 
@@ -231,9 +243,31 @@ export function patioHeater(b: Builder, x: number, z: number): void {
 
 /** Felt texture: green baize, darker border, a faint house emblem. */
 export function feltTexture(): THREE.CanvasTexture {
-  return canvasTex(512, 512, (ctx) => {
+  const tex = canvasTex(512, 512, (ctx) => paintFelt(ctx, null));
+  // real woven detail (ambientCG Fabric030, CC0) multiplied in once it has loaded
+  const img = new Image();
+  img.onload = () => {
+    paintFelt((tex.image as HTMLCanvasElement).getContext('2d')!, img);
+    tex.needsUpdate = true;
+  };
+  img.src = `${import.meta.env.BASE_URL}textures/felt_detail.jpg`;
+  return tex;
+}
+
+function paintFelt(ctx: CanvasRenderingContext2D, detail: HTMLImageElement | null): void {
+  {
     ctx.fillStyle = '#1d6a43';
     ctx.fillRect(0, 0, 512, 512);
+    if (detail) {
+      // fine weave, tiled 5× across the table, as a soft multiply
+      ctx.globalCompositeOperation = 'multiply';
+      ctx.globalAlpha = 0.55;
+      for (let y = 0; y < 512; y += 102.4) for (let x = 0; x < 512; x += 102.4) ctx.drawImage(detail, x, y, 102.4, 102.4);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = 'rgba(29,106,67,0.35)';
+      ctx.fillRect(0, 0, 512, 512);
+    }
     const img = ctx.getImageData(0, 0, 512, 512);
     for (let i = 0; i < img.data.length; i += 4) {
       const n = (Math.random() - 0.5) * 18;
@@ -264,7 +298,7 @@ export function feltTexture(): THREE.CanvasTexture {
     ctx.fillText('SOKAK', 256, 244);
     ctx.font = '700 17px "Baloo 2", serif';
     ctx.fillText('KIRAATHANESİ', 256, 272);
-  });
+  }
 }
 
 // ------------------------------------------------------------------ counter props
