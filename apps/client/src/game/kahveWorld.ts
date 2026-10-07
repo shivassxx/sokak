@@ -19,6 +19,7 @@ import {
 import { Builder, canvasTex, decal, hash } from './world';
 import { PAT, patternize } from './materials';
 import { STEEL, LIGHT_OAK, TABLE_TOP, feltTexture, modernChair, modernOkeyTable, parasol, patioHeater, samovar, caydanlik, bentwoodChair } from './kahveProps';
+import { vapurHorn } from './audio';
 import { classicLamp, gull, hillMosque, houseRow, iskele, kizKulesi, parkBench, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
 import type { Quality } from './postfx';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -684,6 +685,31 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   const ferry = vapur();
   ferry.position.set(-500, -1.1, 300);
   scene.add(ferry);
+  // a second vapur calls at the Üsküdar pier every few minutes: comes in, waits, sounds the horn, leaves
+  const pierObj = KAHVE_OBJECTS.find((o) => o.kind === 'pier');
+  const DOCK = new THREE.Vector3(pierObj ? pierObj.x : 40, -1.1, (pierObj ? pierObj.z + pierObj.d / 2 : 38) + 4.6);
+  const IN_FROM = new THREE.Vector3(-420, -1.1, 210);
+  const IN_CTRL = new THREE.Vector3(DOCK.x - 140, -1.1, DOCK.z);
+  const OUT_CTRL = new THREE.Vector3(DOCK.x + 140, -1.1, DOCK.z);
+  const OUT_TO = new THREE.Vector3(540, -1.1, 230);
+  const CYCLE = 170;
+  const caller = vapur();
+  scene.add(caller);
+  let callerPhase = -1;
+  const listener = new THREE.Vector2();
+  const bez = (a: THREE.Vector3, c: THREE.Vector3, b: THREE.Vector3, s: number, out: THREE.Vector3) => {
+    const u = 1 - s;
+    return out.set(u * u * a.x + 2 * u * s * c.x + s * s * b.x, a.y, u * u * a.z + 2 * u * s * c.z + s * s * b.z);
+  };
+  const tmpA = new THREE.Vector3();
+  const tmpB = new THREE.Vector3();
+  const moveCaller = (a: THREE.Vector3, c: THREE.Vector3, b: THREE.Vector3, s: number) => {
+    bez(a, c, b, s, caller.position);
+    bez(a, c, b, Math.min(1, s + 0.01), tmpA);
+    bez(a, c, b, Math.max(0, s - 0.01), tmpB);
+    caller.rotation.y = Math.atan2(-(tmpA.z - tmpB.z), tmpA.x - tmpB.x);
+  };
+  const horn = () => vapurHorn(Math.max(0.12, 1 - Math.hypot(listener.x - DOCK.x, listener.y - DOCK.z) / 220));
   const skyline = new THREE.Mesh(
     new THREE.CylinderGeometry(820, 820, 112, 64, 1, true, -1.55, 2.2),
     new THREE.MeshBasicMaterial({ map: skylineTexture(), transparent: true, side: THREE.BackSide, fog: false, depthWrite: false }),
@@ -741,6 +767,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   return {
     tavlaBoards,
     follow(x, z) {
+      listener.set(x, z);
       sky.position.set(x, 0, z);
       const sx = Math.round(x / 2) * 2;
       const sz = Math.round(z / 2) * 2;
@@ -770,6 +797,24 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       ferry.position.x += dt * 7;
       if (ferry.position.x > 700) ferry.position.x = -700;
       ferry.position.y = -1.1 + Math.sin(t * 0.8) * 0.08;
+      {
+        // start half-way through the approach so a fresh visitor sees it soon
+        const ct = (t + 25) % CYCLE;
+        const ease = (x: number) => 1 - (1 - x) * (1 - x);
+        const phase = ct < 60 ? 0 : ct < 88 ? 1 : ct < 148 ? 2 : 3;
+        caller.visible = phase !== 3;
+        if (phase === 0) moveCaller(IN_FROM, IN_CTRL, DOCK, ease(ct / 60));
+        else if (phase === 1) {
+          caller.position.copy(DOCK);
+          caller.rotation.y = 0;
+        } else if (phase === 2) {
+          const s = (ct - 88) / 60;
+          moveCaller(DOCK, OUT_CTRL, OUT_TO, s * s);
+        }
+        caller.position.y = -1.1 + Math.sin(t * 0.9) * 0.06;
+        if (callerPhase !== -1 && phase !== callerPhase && (phase === 1 || phase === 2)) horn();
+        callerPhase = phase;
+      }
       if (flag) flag.rotation.y = Math.sin(t * 2.3) * 0.25;
       for (const q of gulls) {
         const a = t * q.sp + q.ph;

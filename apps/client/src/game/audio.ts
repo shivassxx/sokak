@@ -293,6 +293,30 @@ export function seaside(level: number): void {
   surf.level.gain.setTargetAtTime(Math.min(1, level) * 1.6, c.currentTime, 0.6);
 }
 
+/** A ferry's horn: a deep, slightly out-of-tune chord. */
+export function vapurHorn(volume = 0.6): void {
+  const c = ctx;
+  if (!c || !sfxBus || muted) return;
+  const t = c.currentTime;
+  const lp = c.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 700;
+  const g = c.createGain();
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(volume * 0.18, t + 0.18);
+  g.gain.setValueAtTime(volume * 0.18, t + 1.7);
+  g.gain.exponentialRampToValueAtTime(0.001, t + 2.5);
+  lp.connect(g).connect(sfxBus);
+  for (const f of [98, 147.5, 196.8]) {
+    const o = c.createOscillator();
+    o.type = 'sawtooth';
+    o.frequency.value = f;
+    o.connect(lp);
+    o.start(t);
+    o.stop(t + 2.6);
+  }
+}
+
 /** A seagull's cry: a few squeaky falling "kyow" calls. */
 export function gullCry(volume = 0.5, pan = 0): void {
   const c = ctx;
