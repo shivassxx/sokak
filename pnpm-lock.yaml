@@ -96,6 +96,8 @@ importers:
 
   packages/shared: {}
 
+  packages/tavla: {}
+
 packages:
 
   '@babel/code-frame@7.29.7':
