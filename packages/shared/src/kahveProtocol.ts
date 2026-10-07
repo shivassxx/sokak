@@ -107,6 +107,8 @@ export interface TableView {
   dealer: number;
   /** who showed the gösterge this hand (−101) */
   shown: boolean[];
+  /** discards made by each seat this hand */
+  turnsDone: number[];
 }
 
 export interface HandResultView {

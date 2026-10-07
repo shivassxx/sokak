@@ -100,7 +100,7 @@ export class OkeyGame {
   /** showed the gösterge's twin on the first turn (−101) */
   shown = [false, false, false, false];
   /** discards made by each seat this hand (the gösterge can only be shown before the first) */
-  private turnsDone = [0, 0, 0, 0];
+  turnsDone = [0, 0, 0, 0];
   lastSteal: StealRecord | null = null;
   result: HandResult | null = null;
   private nextMeldId = 1;
@@ -474,6 +474,7 @@ export class OkeyGame {
       stealUsed: [...this.stealUsed],
       dealer: this.dealer,
       shown: [...this.shown],
+      turnsDone: [...this.turnsDone],
     };
   }
 }
@@ -495,6 +496,8 @@ export interface PublicView {
   dealer: number;
   /** who showed the gösterge this hand */
   shown: boolean[];
+  /** discards made by each seat this hand */
+  turnsDone: number[];
 }
 
 export { FAKE_OKEYS };

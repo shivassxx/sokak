@@ -125,7 +125,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
     myTurn &&
     !view.shown?.[mySeat] &&
     !opened &&
-    view.discards[mySeat]!.length === 0 &&
+    (view.turnsDone?.[mySeat] ?? 1) === 0 &&
     hand.some((t) => t < 104 && t !== view.gosterge && Math.floor(t / 26) === Math.floor(view.gosterge / 26) && t % 13 === view.gosterge % 13);
   const plan = useMemo(() => (ctx ? openPlan(rack, ctx) : null), [rack, ctx?.okey.color, ctx?.okey.num]); // eslint-disable-line react-hooks/exhaustive-deps
   const seatPlayer = (s: number) => players[table.seats[s] ?? ''];
