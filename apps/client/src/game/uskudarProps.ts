@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Builder, canvasTex, hash } from './world';
 import { PAT } from './materials';
 
@@ -212,12 +213,12 @@ export function vapur(): THREE.Group {
   const dark = new THREE.MeshStandardMaterial({ color: 0x2a2f35, roughness: 0.6 });
   const yellow = new THREE.MeshStandardMaterial({ color: 0xe8b23a, roughness: 0.5 });
   const win = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
+  // parts are collected per material and merged: a whole ferry is 4 draw calls
+  const parts = new Map<THREE.Material, THREE.BufferGeometry[]>();
   const add = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number) => {
-    const o = new THREE.Mesh(geo, m);
-    o.position.set(x, y, z);
-    o.castShadow = true;
-    g.add(o);
-    return o;
+    const gg = (geo.index ? geo.toNonIndexed() : geo).translate(x, y, z);
+    for (const k of Object.keys(gg.attributes)) if (k !== 'position' && k !== 'normal') gg.deleteAttribute(k);
+    parts.set(m, [...(parts.get(m) ?? []), gg]);
   };
   const hull = new THREE.CylinderGeometry(4, 4, 34, 12, 1);
   hull.rotateZ(Math.PI / 2);
@@ -229,6 +230,11 @@ export function vapur(): THREE.Group {
   for (let k = 0; k < 12; k++) for (const s of [-1, 1]) add(new THREE.BoxGeometry(1.2, 0.8, 0.05), win, -12 + k * 2.2, 3.8, s * 3.32);
   add(new THREE.CylinderGeometry(0.9, 1.0, 3.2, 12), yellow, 2, 8.6, 0);
   add(new THREE.CylinderGeometry(0.92, 0.92, 0.8, 12), dark, 2, 10.2, 0);
+  for (const [m, geos] of parts) {
+    const o = new THREE.Mesh(mergeGeometries(geos), m);
+    o.castShadow = m !== win;
+    g.add(o);
+  }
   return g;
 }
 
