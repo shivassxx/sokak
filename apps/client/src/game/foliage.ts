@@ -142,6 +142,12 @@ export class Foliage {
   private seed = 1;
 
   /**
+   * `density` < 1 thins every crown (phones: alpha-tested cards are costly overdraw);
+   * the cards grow a little so the crowns still read as full.
+   */
+  constructor(private readonly density = 1) {}
+
+  /**
    * An ellipsoid crown of `n` cards of `size` metres centred at (cx, cy, cz).
    * `tint` multiplies the leaf colour (autumn-ish < 1 in red/green etc.).
    */
@@ -152,6 +158,8 @@ export class Foliage {
     const t1 = new THREE.Vector3();
     const t2 = new THREE.Vector3();
     const up = new THREE.Vector3(0, 1, 0);
+    n = Math.max(4, Math.round(n * this.density));
+    size *= 1 + (1 - this.density) * 0.45;
     for (let i = 0; i < n; i++) {
       // a direction on the sphere, a radius biased to the outer shell
       const u = rnd() * 2 - 1;

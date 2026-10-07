@@ -352,7 +352,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     for (const s of [-1, 1]) bentwoodChair(b, t.x + s * 0.85, t.z, s > 0 ? Math.PI / 2 : -Math.PI / 2);
   }
   // big plants
-  const plants = new Foliage();
+  const plants = new Foliage(low ? 0.6 : 1);
   for (const o of KAHVE_OBJECTS) {
     if (o.kind !== 'planter') continue;
     const outdoor = o.z > 18;
@@ -416,7 +416,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   houseRow(b, -110, 90, -55, 1, 9, 2, true);
 
   // -------------------------------------------------------------- street & sahil furniture
-  const trees = new Foliage();
+  const trees = new Foliage(low ? 0.6 : 1);
   for (const o of KAHVE_OBJECTS) {
     if (o.kind === 'lamp') classicLamp(b, o.x, o.z);
     else if (o.kind === 'planter' && o.z > 18) planeTree(b, o.x, o.z, 1, trees);

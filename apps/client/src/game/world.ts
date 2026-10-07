@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { BASE, BASE_RADIUS, MAP_HALF, MAP_OBJECTS, type MapObject } from '@sokak/shared';
 import { PAT, patternize, type Pattern } from './materials';
 import { Foliage } from './foliage';
+import { initialQuality } from './postfx';
 import { parkedCar } from './cars';
 
 /**
@@ -568,7 +569,7 @@ export function buildWorld(scene: THREE.Scene): World {
   const lampPools: THREE.Vector3[] = [];
   const sheets: { x: number; z: number; w: number; h: number; y: number; c: number }[] = [];
   const trunks = MAP_OBJECTS.filter((o) => o.kind === 'trunk');
-  const leaves = new Foliage();
+  const leaves = new Foliage(initialQuality() === 'low' ? 0.6 : 1);
   let entranceN = 0;
 
   MAP_OBJECTS.forEach((o, i) => {
