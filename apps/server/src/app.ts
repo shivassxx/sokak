@@ -116,6 +116,8 @@ export async function startServer(port: number, opts: {
         static override analyticsSink = {
           tableStarted: (players: number, bet: number) => analytics.tableStarted(players, bet),
           handPlayed: () => analytics.okeyHandPlayed(),
+          tavlaStarted: (players: number, bet: number) => analytics.tavlaStarted(players, bet),
+          tavlaGamePlayed: () => analytics.tavlaGamePlayed(),
         };
       },
     )

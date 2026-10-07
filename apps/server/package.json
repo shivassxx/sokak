@@ -14,6 +14,7 @@
     "@colyseus/ws-transport": "0.16.5",
     "@sokak/okey": "workspace:*",
     "@sokak/shared": "workspace:*",
+    "@sokak/tavla": "workspace:*",
     "express": "4.22.3"
   },
   "devDependencies": {

@@ -100,12 +100,41 @@ for (const [x, z] of [
 ] as const)
   box('planter', x, z, 0.9, 0.9, 0.7);
 
-// tavla tables in the entrance lounge (the regulars play here)
+/**
+ * Playable tavla tables in the entrance lounge, two either side of the door. The board's
+ * long side runs along x; seat 0 (white) sits on the south side, seat 1 (black) on the north.
+ */
 export const TAVLA_TABLES: readonly Vec2[] = [
-  { x: -14.5, z: -2.4 },
-  { x: 8.5, z: -2.4 },
+  { x: -16.5, z: -2.6 },
+  { x: -12.5, z: -2.6 },
+  { x: 6.5, z: -2.6 },
+  { x: 10.5, z: -2.6 },
 ];
+export const TAVLA_COUNT = TAVLA_TABLES.length;
 for (const t of TAVLA_TABLES) box('tavla', t.x, t.z, 0.9, 0.9, 0.75);
+/** chair distance from the tavla table centre */
+export const TAVLA_SEAT_DIST = 0.85;
+/** Sit at a tavla table if within this distance of its centre. */
+export const TAVLA_REACH = 2.2;
+
+export function tavlaSeatPosition(table: number, seat: number): Vec2 & { yaw: number } {
+  const t = TAVLA_TABLES[table]!;
+  // seat 0 south facing north (yaw 0), seat 1 north facing south
+  return seat === 0 ? { x: t.x, z: t.z + TAVLA_SEAT_DIST, yaw: 0 } : { x: t.x, z: t.z - TAVLA_SEAT_DIST, yaw: Math.PI };
+}
+for (let i = 0; i < TAVLA_TABLES.length; i++)
+  for (let s = 0; s < 2; s++) {
+    const p = tavlaSeatPosition(i, s);
+    box('chair', p.x, p.z, 0.5, 0.5, 0.48, { solid: false });
+  }
+
+/** The regulars (NPC amcas) sit on chairs along the side walls, watching the room. */
+export const REGULAR_SEATS: readonly (Vec2 & { yaw: number })[] = [
+  { x: HALL.x0 + 0.9, z: -9, yaw: -Math.PI / 2 },
+  { x: HALL.x0 + 0.9, z: -14.2, yaw: -Math.PI / 2 },
+  { x: HALL.x1 - 0.9, z: -9, yaw: Math.PI / 2 },
+  { x: HALL.x1 - 0.9, z: -14.2, yaw: Math.PI / 2 },
+];
 
 /** Okey table centres: 6 × 3 in the hall, 4 on the terrace. */
 const TABLE_LIST: Vec2[] = [];
@@ -325,7 +354,7 @@ export const START_MONEY = 1000;
 
 /** Daily missions: small goals around the kahve, rewarded with play money once a day. */
 export const DAILY_MISSIONS: readonly { id: string; text: string; goal: number; reward: number }[] = [
-  { id: 'match', text: 'Bir okey maçı bitir', goal: 1, reward: 150 },
+  { id: 'match', text: 'Bir okey ya da tavla maçı bitir', goal: 1, reward: 150 },
   { id: 'tea', text: 'Masana çay ısmarla', goal: 1, reward: 40 },
   { id: 'fish', text: 'Sahilde bir balık tut', goal: 1, reward: 60 },
   { id: 'gulls', text: 'Martılara 3 kez simit at', goal: 3, reward: 40 },

@@ -14,6 +14,8 @@ export class KPlayer extends Schema {
   @type('int32') money = 0;
   @type('int8') table = -1;
   @type('int8') seat = -1;
+  /** tavla table index while seated at one (seat is then 0 or 1), −1 otherwise */
+  @type('int8') tavla = -1;
   /** item in hand (market / simitçi), '' = nothing */
   @type('string') holding = '';
   @type('uint8') uses = 0;
@@ -49,9 +51,31 @@ export class KTable extends Schema {
   @type('string') lastMatch = '';
 }
 
+/** A two-seat tavla table (everything about a tavla game is public). */
+export class TTable extends Schema {
+  @type('uint8') id = 0;
+  /** open | playing | between | result */
+  @type('string') status = 'open';
+  @type('uint16') bet = 0;
+  /** points needed to win the match */
+  @type('uint8') target = 1;
+  /** game number within the match */
+  @type('uint8') game = 0;
+  @type(['string']) seats = new ArraySchema<string>('', '');
+  @type('string') hostId = '';
+  @type(['uint8']) score = new ArraySchema<number>(0, 0);
+  @type('uint32') pot = 0;
+  @type('float64') turnEndsAt = 0;
+  /** JSON TavlaView */
+  @type('string') view = '';
+  @type('string') lastGame = '';
+  @type('string') lastMatch = '';
+}
+
 export class KahveState extends Schema {
   /** salon name shown in the lobby and the HUD */
   @type('string') name = '';
   @type({ map: KPlayer }) players = new MapSchema<KPlayer>();
   @type([KTable]) tables = new ArraySchema<KTable>();
+  @type([TTable]) tavla = new ArraySchema<TTable>();
 }
