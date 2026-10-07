@@ -381,6 +381,11 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - **Evler:** çerçeveli pencereler, parlak camlar, panjurlar, saksılar, köşe çıtaları, kapı sundurmaları.
 - **Saklambaç mahallesi:** ağaçlar artık yapraklı ve saklanmaya elverişli, sık taçlı. Kamyonetlerin yerinde sedanlar duruyor, köşedeki hurda araba da paslı ve lastiği inik. Binalar ve çocuk karakterler oyunun neşeli tarzında kaldı.
 - **Işık:** salon zemini aynalı olmaktan çıkarıldı. Önceden akşam güneşinin yansıması ekranın yarısını beyaza boyuyordu.
+- **Masa başı:** gerçekçi karakterler oturunca ellerini ıstakanın üstünde tutuyor. Bir oyuncu taş çekince, atınca ya da per açınca kolunu masaya uzatıyor.
+- **Çay ocağı ve çay bahçesi:** krom çay kazanları, ikili demlikler, askılı çay tepsileri, tabaklı dolu çay bardakları ve şekerlikler var. Sahilde de hasır tabureler, bardaklı alçak ahşap masalar.
+- **Ufuk:** tarihi yarımada silueti puslu katmanlar, akşam yanan pencere ve sahil ışıkları ile gerçek cami, minare ve kule siluetleriyle çiziliyor.
+- **Martılar:** sarı gagasında kırmızı benek, gri kanatlar, siyah kanat uçları.
+- **Saklambaç gökyüzü:** köşeli çizgi film bulutlarının yerinde yumuşak boyanmış bulutlar var.
 
 **Performans ve boyut**
 - Toplam indirme 4,48 MB (gzip), yani 5 MB sınırının altında. Lobiyi açmak için gereken kısım hâlâ 137 KB.
