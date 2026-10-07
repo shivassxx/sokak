@@ -10,6 +10,8 @@ services:
     environment:
       - NODE_ENV=production
       - STATS_TOKEN=${STATS_TOKEN:-}
+      - SOKAK_OWNER_PASSWORD=${SOKAK_OWNER_PASSWORD:-}
+      - STAFF_FILE=${STAFF_FILE:-/app/data/staff.json}
     volumes:
       - app_data:/app/data
     expose:

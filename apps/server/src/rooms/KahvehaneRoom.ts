@@ -16,6 +16,9 @@ import {
   KAHVE_SPAWN,
   KAHVE_WORLD,
   KMSG,
+  STAFF_CLOSE_CODE,
+  STAFF_KICK_CODE,
+  type StaffSalonInfo,
   MAX_KAHVE_PLAYERS,
   MENU,
   MSG,
@@ -179,6 +182,8 @@ export class KahvehaneRoom extends Room<KahveState> {
   static salonNames = ['Salacak', 'Kuzguncuk', 'Çengelköy', 'Doğancılar', 'Ahmediye', 'Bağlarbaşı', 'Validebağ', 'Altunizade', 'Beylerbeyi', 'Kandilli'];
   static salonCounter = 0;
   private meta: SalonMeta = { name: '', private: false, playing: 0, waiting: 0, humans: 0 };
+  /** devices kicked by staff: they cannot come back to this salon */
+  private staffBanned = new Set<string>();
 
   override onCreate(options: JoinOptions = {}): void {
     this.roomId = generateRoomId();
@@ -271,6 +276,7 @@ export class KahvehaneRoom extends Room<KahveState> {
 
   // ------------------------------------------------------------ players
   override onJoin(client: Client, options: JoinOptions = {}): void {
+    if (typeof options.device === 'string' && this.staffBanned.has(options.device)) throw new Error('kicked');
     let name = cleanNickname(options.name);
     if (!isValidNicknameLength(name) || isOffensive(name)) name = randomNickname();
     const p = new KPlayer();
@@ -1504,6 +1510,53 @@ export class KahvehaneRoom extends Room<KahveState> {
 
   private tavlaEvent(ti: number, e: TavlaEventMsg['e']): void {
     this.broadcast(KMSG.tavlaEvent, { table: ti, e } satisfies TavlaEventMsg);
+  }
+
+  // ------------------------------------------------------------ staff (admin panel, via matchMaker.remoteRoomCall)
+  /** players of this salon for the owner's panel (no device tokens) */
+  staffInfo(): StaffSalonInfo {
+    const players: StaffSalonInfo['players'] = [];
+    this.state.players.forEach((p) => players.push({ sessionId: p.id, name: p.name, money: p.money, isBot: p.isBot, connected: p.connected, table: p.table }));
+    return { roomId: this.roomId, name: this.meta.name, private: this.meta.private, players };
+  }
+
+  /** remove a player (not a bot) from this salon; their device cannot rejoin it */
+  staffKick(sessionId: string): boolean {
+    const p = this.state.players.get(sessionId);
+    const a = this.avatars.get(sessionId);
+    if (!p || p.isBot || !a) return false;
+    if (a.device) this.staffBanned.add(a.device);
+    const c = a.client;
+    if (p.aboard) this.leaveVapur(sessionId, false);
+    // remove first: the player's seat goes to a bot and the wallet is saved
+    this.removePlayer(sessionId);
+    c?.leave(STAFF_KICK_CODE);
+    return true;
+  }
+
+  /** close the salon: everybody is sent back to the lobby with a notice */
+  staffClose(): number {
+    const n = this.clients.length;
+    for (const id of [...this.avatars.keys()]) this.saveWallet(id);
+    void this.disconnect(STAFF_CLOSE_CODE);
+    return n;
+  }
+
+  /** banner for everybody in this salon */
+  staffAnnounce(text: string): void {
+    this.broadcast(KMSG.announce, String(text).slice(0, 160));
+  }
+
+  /** give (or take) play money; returns the new balance, or null for an unknown/bot player */
+  staffGrant(sessionId: string, amount: number): number | null {
+    const p = this.state.players.get(sessionId);
+    if (!p || p.isBot || !Number.isFinite(amount)) return null;
+    const before = p.money;
+    p.money = Math.max(0, Math.min(1_000_000_000, Math.round(p.money + amount)));
+    this.saveWallet(sessionId);
+    const d = p.money - before;
+    if (d) this.avatars.get(sessionId)?.client?.send(KMSG.notice, d > 0 ? `🎁 Kahvehaneden hediye: +${d} ₺` : `🧾 Bakiyen düzeltildi: ${d} ₺`);
+    return p.money;
   }
 
   // ------------------------------------------------------------ test helpers

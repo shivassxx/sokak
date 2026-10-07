@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import type { Room } from 'colyseus.js';
+import { STAFF_CLOSE_CODE, STAFF_KICK_CODE } from '@sokak/shared';
 import { forgetRoom, joinKahve, tryReconnect } from '../net/connection';
 import { Home } from './Home';
 import { KahveLobby } from './kahve/KahveLobby';
@@ -50,6 +51,15 @@ export function App() {
     setLobby(null);
     r.onLeave(async (code) => {
       if (leavingRef.current || code === 4000 || code === 1000) return;
+      // removed by staff: back to the start page with a notice, no reconnect
+      if (code === STAFF_KICK_CODE || code === STAFF_CLOSE_CODE) {
+        forgetRoom();
+        setUrlRoom(null);
+        setInvite(null);
+        setRoom(null);
+        setError(code === STAFF_KICK_CODE ? 'Bir yetkili seni salondan çıkardı.' : 'Bu salon bir yetkili tarafından kapatıldı. Lobiden başka bir salona girebilirsin.');
+        return;
+      }
       // unexpected drop: retry within the reconnect window
       setReconnecting(true);
       const t0 = Date.now();
