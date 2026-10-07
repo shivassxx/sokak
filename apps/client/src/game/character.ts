@@ -829,11 +829,19 @@ export class Character {
       this.legL.lower.rotation.set(-1.5, 0, 0);
       this.legR.lower.rotation.set(-1.5, 0, 0);
       this.chest.rotation.set(-0.16 + Math.sin(t * 2) * 0.01, 0, 0);
-      // hands resting at the table edge
-      this.armL.upper.rotation.set(0.3, 0, -0.18);
-      this.armR.upper.rotation.set(0.3, 0, 0.18);
-      this.armL.lower.rotation.set(1.25, 0, 0.45);
-      this.armR.lower.rotation.set(1.25, 0, -0.45);
+      // hands resting at the table edge (realistic avatars: on the ıstaka, palms down, fiddling)
+      if (this.real) {
+        const f = Math.sin(t * 0.7) * 0.05;
+        this.armL.upper.rotation.set(0.6, 0, -0.12);
+        this.armR.upper.rotation.set(0.6 + f, 0, 0.12);
+        this.armL.lower.rotation.set(0.75, -0.9, 0.25);
+        this.armR.lower.rotation.set(0.75 - f, 0.9, -0.25);
+      } else {
+        this.armL.upper.rotation.set(0.3, 0, -0.18);
+        this.armR.upper.rotation.set(0.3, 0, 0.18);
+        this.armL.lower.rotation.set(1.25, 0, 0.45);
+        this.armR.lower.rotation.set(1.25, 0, -0.45);
+      }
       if (this.pose === 'sitThink') {
         this.armR.upper.rotation.set(0.9, 0, -0.25);
         this.armR.lower.rotation.set(2.0, 0, 0);
