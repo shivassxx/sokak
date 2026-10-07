@@ -794,22 +794,88 @@ export function vapur(): THREE.Group {
   return g;
 }
 
-/** A gull: body + two flapping wings (animate wings[0/1].rotation.z). */
+/**
+ * A herring gull (martı), flying towards +x: white streamlined body with a grey mantle,
+ * round head, yellow bill with the red spot, white tail; long swept grey wings with black
+ * tips. children[1] / children[2] are the wing pivots (animate their rotation.x to flap).
+ */
+let gullParts: { body: THREE.BufferGeometry; mats: THREE.Material[]; wing: THREE.BufferGeometry; tip: THREE.BufferGeometry } | null = null;
 export function gull(): THREE.Group {
-  const g = new THREE.Group();
-  const m = new THREE.MeshStandardMaterial({ color: 0xf6f6f2, roughness: 0.8, side: THREE.DoubleSide });
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.3, 3, 6), m);
-  body.rotation.z = Math.PI / 2;
-  g.add(body);
-  for (const s of [-1, 1]) {
-    const wg = new THREE.Group();
-    const wing = new THREE.Mesh(new THREE.PlaneGeometry(0.55, 0.18), new THREE.MeshStandardMaterial({ color: 0xd9dde0, side: THREE.DoubleSide }));
-    wing.rotation.x = Math.PI / 2;
-    wing.position.z = s * 0.28;
-    wing.rotation.z = 0;
-    wg.add(wing);
-    g.add(wg);
+  if (!gullParts) {
+    const white = new THREE.MeshStandardMaterial({ color: 0xf7f7f3, roughness: 0.75, side: THREE.DoubleSide });
+    const grey = new THREE.MeshStandardMaterial({ color: 0xaab3bb, roughness: 0.7, side: THREE.DoubleSide });
+    const black = new THREE.MeshStandardMaterial({ color: 0x1e2226, roughness: 0.7, side: THREE.DoubleSide });
+    const yellow = new THREE.MeshStandardMaterial({ color: 0xf2c12e, roughness: 0.5 });
+    // body: a lathe from tail (−x) to breast (+x)
+    const prof = [
+      [0.0, -0.26],
+      [0.025, -0.22],
+      [0.06, -0.1],
+      [0.072, 0.02],
+      [0.065, 0.12],
+      [0.04, 0.18],
+      [0.0, 0.2],
+    ].map(([r, y]) => new THREE.Vector2(r!, y!));
+    const body = new THREE.LatheGeometry(prof, 10);
+    body.rotateZ(-Math.PI / 2);
+    body.scale(1, 0.9, 1);
+    const mantle = new THREE.SphereGeometry(0.06, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2);
+    mantle.scale(2.2, 0.55, 1.05);
+    mantle.translate(-0.02, 0.025, 0);
+    const head = new THREE.SphereGeometry(0.05, 10, 8);
+    head.translate(0.22, 0.04, 0);
+    const bill = new THREE.ConeGeometry(0.014, 0.075, 6);
+    bill.rotateZ(-Math.PI / 2);
+    bill.translate(0.3, 0.035, 0);
+    const spot = new THREE.SphereGeometry(0.008, 5, 4);
+    spot.translate(0.3, 0.026, 0);
+    const tail = new THREE.ConeGeometry(0.05, 0.12, 4, 1);
+    tail.rotateZ(Math.PI / 2);
+    tail.scale(1, 0.25, 1);
+    tail.translate(-0.3, 0.0, 0);
+    const eyes = [-1, 1].map((sd) => new THREE.SphereGeometry(0.007, 5, 4).translate(0.245, 0.055, sd * 0.038));
+    const strip = (geos: THREE.BufferGeometry[]) => mergeGeometries(geos.map((q) => { const n = q.index ? q.toNonIndexed() : q; for (const k of Object.keys(n.attributes)) if (k !== 'position' && k !== 'normal') n.deleteAttribute(k); return n; }));
+    const parts: [THREE.BufferGeometry, THREE.Material][] = [
+      [strip([body, head, tail]), white],
+      [strip([mantle]), grey],
+      [strip([bill]), yellow],
+      [strip([spot]), new THREE.MeshStandardMaterial({ color: 0xc8302a })],
+      [strip(eyes), black],
+    ];
+    const bodyGeo = mergeGeometries(parts.map(([geo]) => geo), true);
+    // wing planform (x forward, y outward): broad inner wing, swept, pointed black tip
+    const w = new THREE.Shape();
+    w.moveTo(0.07, 0);
+    w.quadraticCurveTo(0.1, 0.22, 0.04, 0.42);
+    w.lineTo(-0.1, 0.42);
+    w.quadraticCurveTo(-0.13, 0.2, -0.1, 0);
+    w.closePath();
+    const t = new THREE.Shape();
+    t.moveTo(0.04, 0.42);
+    t.quadraticCurveTo(0.0, 0.56, -0.1, 0.66);
+    t.quadraticCurveTo(-0.1, 0.52, -0.1, 0.42);
+    t.closePath();
+    const wing = new THREE.ShapeGeometry(w, 6).rotateX(Math.PI / 2);
+    const tip = new THREE.ShapeGeometry(t, 6).rotateX(Math.PI / 2);
+    gullParts = { body: bodyGeo, mats: parts.map(([, m]) => m), wing, tip };
   }
+  const { body, mats, wing, tip } = gullParts;
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(body, mats));
+  for (const sd of [1, -1]) {
+    const pivot = new THREE.Group();
+    pivot.position.z = sd * 0.04;
+    const wm = new THREE.Mesh(wing, mats[1]);
+    const tm = new THREE.Mesh(tip, mats[4]);
+    if (sd < 0) {
+      wm.scale.z = -1;
+      tm.scale.z = -1;
+    }
+    pivot.add(wm, tm);
+    g.add(pivot);
+  }
+  g.scale.setScalar(1.25);
+  g.name = 'gull';
   return g;
 }
 
