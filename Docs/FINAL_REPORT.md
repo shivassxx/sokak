@@ -49,7 +49,7 @@ Linke tıklayınca saniyeler içinde açılan, telefonda ve bilgisayarda çalı�
 
 Ayrıntılı liste (isim, yapan, adres, lisans, tarih, nerede kullanıldığı, yapılan değişiklik) `Docs/ThirdPartyAssets.md` dosyasında. Özet:
 
-- **Kenney** (CC0): Saklambaç'taki park etmiş kamyonetler, adım/zıplama/ortam sesleri, çocuk karakterlerin iskeletli gövdesi (`pmndrs/market-assets` GitHub deposundan).
+- **Kenney** (CC0): adım, zıplama ve ortam sesleri; çocuk karakterlerin iskeletli gövdesi (`pmndrs/market-assets` GitHub deposundan). Önceden kullanılan oyuncak kamyonetler kaldırıldı, yerlerine kodla yapılmış arabalar geldi.
 - **Microsoft Rocketbox** (MIT, lisans metni `public/models/ROCKETBOX_LICENSE.txt`): kahvehanedeki 9 gerçekçi yetişkin karakter (oyuncular ve NPC'ler).
 - **ambientCG Fabric030** (CC0): okey masasındaki çuha dokusu.
 - **Baloo 2** yazı tipi (SIL OFL 1.1): arayüz yazıları.
@@ -379,6 +379,7 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - **Sahil ve sokak:** yapraklı çınar ağaçları, salonda gerçek saksı ficusları, camlı vitrinli kırmızı simit arabası, Şehir Hatları vapuru (pencereli kamaralar, üst güverte, can simitleri, sarı-siyah baca), 90'lar sedanları ve sarı taksi, tarihi görünümlü Üsküdar Vapur İskelesi (kemerler, pilastrlar, korniş, saatli çatı feneri).
 - **Hasan Market:** reyonlarda marka blokları hâlinde ürünler, camlı içecek dolapları, süt ürünleri dolabı, yazar kasa, sigara dolabı ("18 yaş altına tütün satılmaz" uyarısıyla), dondurma dolabı, kapıda meyve-sebze kasaları.
 - **Evler:** çerçeveli pencereler, parlak camlar, panjurlar, saksılar, köşe çıtaları, kapı sundurmaları.
+- **Saklambaç mahallesi:** ağaçlar artık yapraklı ve saklanmaya elverişli, sık taçlı. Kamyonetlerin yerinde sedanlar duruyor, köşedeki hurda araba da paslı ve lastiği inik. Binalar ve çocuk karakterler oyunun neşeli tarzında kaldı.
 - **Işık:** salon zemini aynalı olmaktan çıkarıldı. Önceden akşam güneşinin yansıması ekranın yarısını beyaza boyuyordu.
 
 **Performans ve boyut**

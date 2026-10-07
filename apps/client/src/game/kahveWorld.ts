@@ -19,10 +19,11 @@ import { Builder, canvasTex, decal, hash } from './world';
 import { PAT, patternize } from './materials';
 import { STEEL, LIGHT_OAK, TABLE_TOP, feltTexture, modernChair, modernOkeyTable, parasol, patioHeater, samovar, caydanlik, bentwoodChair } from './kahveProps';
 import { vapurHorn } from './audio';
-import { classicLamp, facadeWindow, gull, hillMosque, houseRow, iskele, kizKulesi, limb, parkBench, parkedCar, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
+import { classicLamp, facadeWindow, gull, hillMosque, houseRow, iskele, kizKulesi, limb, parkBench, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
 import type { Quality } from './postfx';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Foliage } from './foliage';
+import { parkedCar } from './cars';
 import { marketFitout } from './marketProps';
 
 /**

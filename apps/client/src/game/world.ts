@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { BASE, BASE_RADIUS, MAP_HALF, MAP_OBJECTS, type MapObject } from '@sokak/shared';
 import { PAT, patternize, type Pattern } from './materials';
+import { Foliage } from './foliage';
+import { parkedCar } from './cars';
 
 /**
  * The mahalle, built procedurally so every visual exactly matches its
@@ -245,48 +246,6 @@ function entrance(b: Builder, slab: MapObject, n: number): void {
 }
 
 // ------------------------------------------------------------------ vehicles
-function proceduralCar(b: Builder, o: MapObject, color: number, broken: boolean): void {
-  const alongX = o.w >= o.d;
-  const len = alongX ? o.w : o.d;
-  const wid = alongX ? o.d : o.w;
-  const ry = alongX ? 0 : Math.PI / 2;
-  const c = Math.cos(ry);
-  const s = Math.sin(ry);
-  const put = (geo: THREE.BufferGeometry, col: number, lx: number, y: number, lz: number, rx = 0, rz = 0, bucket?: Bucket) =>
-    b.add(geo, col, o.x + lx * c + lz * s, y, o.z - lx * s + lz * c, rx, ry, rz, bucket);
-  const body = broken ? 0xcbb482 : color;
-  // three-box sedan: hood, cabin, trunk
-  put(new THREE.BoxGeometry(len, 0.5, wid), body, 0, 0.55, 0);
-  put(new THREE.BoxGeometry(len * 0.46, 0.48, wid * 0.9), body, -len * 0.04, 1.03, 0);
-  put(new THREE.BoxGeometry(len * 0.47, 0.36, wid * 0.92), 0x2c3a4a, -len * 0.04, 1.03, 0);
-  put(new THREE.BoxGeometry(len + 0.06, 0.12, wid + 0.04), 0x3b3b3b, 0, 0.32, 0);
-  for (const z of [wid * 0.32, -wid * 0.32]) {
-    put(new THREE.BoxGeometry(0.06, 0.14, 0.32), 0xfff6c8, len / 2, 0.62, z, 0, 0, broken ? 'main' : 'glow');
-    put(new THREE.BoxGeometry(0.06, 0.14, 0.32), 0xd02b2b, -len / 2, 0.62, z);
-  }
-  for (const [lx, lz] of [
-    [len * 0.32, wid / 2],
-    [len * 0.32, -wid / 2],
-    [-len * 0.32, wid / 2],
-    [-len * 0.32, -wid / 2],
-  ] as const) {
-    const flat = broken && lx > 0 && lz > 0;
-    const w = new THREE.CylinderGeometry(0.33, 0.33, 0.24, 14);
-    w.rotateX(Math.PI / 2);
-    put(w, 0x1e1e1e, lx, flat ? 0.24 : 0.33, lz);
-    const hub = new THREE.CylinderGeometry(0.16, 0.16, 0.26, 10);
-    hub.rotateX(Math.PI / 2);
-    if (!(broken && lx < 0)) put(hub, 0xc8ccd0, lx, flat ? 0.24 : 0.33, lz);
-  }
-  if (broken) {
-    // rust patches, a primer-grey door, weeds
-    put(new THREE.BoxGeometry(0.9, 0.3, 0.04), 0x8a4a22, len * 0.1, 0.7, wid / 2 + 0.01);
-    put(new THREE.BoxGeometry(0.8, 0.42, 0.04), 0x8f9295, -len * 0.05, 0.62, -wid / 2 - 0.01);
-    put(new THREE.BoxGeometry(0.5, 0.2, 0.04), 0x7a3f1d, -len * 0.35, 0.5, -wid / 2 - 0.01);
-    for (let i = 0; i < 6; i++) b.blob(o.x + (hash(i) - 0.5) * 2.6, 0.15, o.z + (hash(i + 9) - 0.5) * 4.6, 0.25, 0x6aa84f, 0.7, 0, 'foliage');
-  }
-}
-
 function dolmus(b: Builder, o: MapObject): void {
   b.pat = PAT.none;
   b.box(o.x, 0.35, o.z, o.w, o.h - 0.35, o.d, 0xf2cf3b);
@@ -317,36 +276,35 @@ function dolmus(b: Builder, o: MapObject): void {
 }
 
 // ------------------------------------------------------------------ nature
-function tree(b: Builder, trunk: MapObject | null, canopy: MapObject, idx: number): void {
-  const greens = [0x4f9a3f, 0x5fae47, 0x3f8a3a, 0x6bb24f];
+function tree(b: Builder, trunk: MapObject | null, canopy: MapObject, idx: number, leaves: Foliage): void {
   const r = canopy.w / 2;
+  const cy = canopy.y + canopy.h * 0.5;
   if (trunk) {
+    // trunk with a slight lean, three limbs into the crown
     b.pat = PAT.wood;
-    b.cyl(trunk.x, 0, trunk.z, trunk.w / 2, trunk.h + 0.6, 0x6b4a2f, 9, trunk.w * 0.3);
-    // two branches
-    const br = new THREE.CylinderGeometry(0.06, 0.1, 1.2, 6);
-    b.add(br.clone(), 0x6b4a2f, trunk.x + 0.35, trunk.h - 0.2, trunk.z, 0, 0, -0.7);
-    b.add(br, 0x6b4a2f, trunk.x - 0.3, trunk.h, trunk.z + 0.2, 0.5, 0, 0.6);
+    const top = new THREE.Vector3(trunk.x + (hash(idx) - 0.5) * 0.3, canopy.y + 0.3, trunk.z + (hash(idx + 3) - 0.5) * 0.3);
+    branch(b, new THREE.Vector3(trunk.x, 0, trunk.z), top, trunk.w / 2, trunk.w * 0.3, 0x6b4a2f);
+    for (let k = 0; k < 3; k++) {
+      const a = (k / 3) * Math.PI * 2 + idx;
+      branch(b, top, new THREE.Vector3(top.x + Math.cos(a) * r * 0.55, cy + 0.2, top.z + Math.sin(a) * r * 0.55), trunk.w * 0.22, trunk.w * 0.1, 0x6b4a2f);
+    }
     b.pat = PAT.none;
   }
-  b.pat = PAT.leaves;
-  const cy = canopy.y + canopy.h * 0.5;
-  b.blob(canopy.x, cy, canopy.z, r * 0.9, greens[idx % 4]!, 0.78, 1, 'foliage');
+  // dense leaf-card crowns: a core and clumps around it (trees are hiding spots, keep them full)
+  leaves.crown(canopy.x, cy, canopy.z, r * 0.85, canopy.h * 0.48, r * 0.85, Math.round(75 * r), 1.05);
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2 + idx;
-    b.blob(
-      canopy.x + Math.cos(a) * r * 0.55,
-      cy + (hash(idx * 7 + i) - 0.3) * canopy.h * 0.4,
-      canopy.z + Math.sin(a) * r * 0.55,
-      r * (0.45 + hash(idx + i) * 0.15),
-      greens[(idx + i) % 4]!,
-      0.85,
-      1,
-      'foliage',
-    );
+    leaves.crown(canopy.x + Math.cos(a) * r * 0.5, cy + (hash(idx * 7 + i) - 0.3) * canopy.h * 0.35, canopy.z + Math.sin(a) * r * 0.5, r * 0.55, canopy.h * 0.36, r * 0.55, Math.round(28 * r), 0.95);
   }
-  b.blob(canopy.x, cy + canopy.h * 0.35, canopy.z, r * 0.55, greens[(idx + 2) % 4]!, 0.8, 1, 'foliage');
-  b.pat = PAT.none;
+}
+
+const _yUp = new THREE.Vector3(0, 1, 0);
+function branch(b: Builder, a: THREE.Vector3, e: THREE.Vector3, r0: number, r1: number, color: number): void {
+  const d = e.clone().sub(a);
+  const len = d.length();
+  const g = new THREE.CylinderGeometry(r1, r0, len, 7, 1);
+  g.translate(0, len / 2, 0);
+  b.addMatrix(g, color, new THREE.Matrix4().compose(a, new THREE.Quaternion().setFromUnitVectors(_yUp, d.normalize()), new THREE.Vector3(1, 1, 1)));
 }
 
 function bush(b: Builder, o: MapObject, i: number): void {
@@ -586,8 +544,8 @@ export function buildWorld(scene: THREE.Scene): World {
   skyline(b);
   const lampPools: THREE.Vector3[] = [];
   const sheets: { x: number; z: number; w: number; h: number; y: number; c: number }[] = [];
-  const carSlots: { o: MapObject; color: number }[] = [];
   const trunks = MAP_OBJECTS.filter((o) => o.kind === 'trunk');
+  const leaves = new Foliage();
   let entranceN = 0;
 
   MAP_OBJECTS.forEach((o, i) => {
@@ -662,13 +620,10 @@ export function buildWorld(scene: THREE.Scene): World {
         break;
       }
       case 'car':
-        carSlots.push({ o, color: CAR_COLORS[(o.tint ?? 0) % CAR_COLORS.length]! });
-        b.bucket = 'cars';
-        proceduralCar(b, o, CAR_COLORS[(o.tint ?? 0) % CAR_COLORS.length]!, false);
-        b.bucket = 'main';
+        parkedCar(b, o.x, o.z, o.w >= o.d ? (i % 2 ? Math.PI : 0) : (i % 2 ? Math.PI / 2 : -Math.PI / 2), 0, { paint: CAR_COLORS[(o.tint ?? 0) % CAR_COLORS.length]! });
         break;
       case 'brokenCar':
-        proceduralCar(b, o, 0xcdb682, true);
+        parkedCar(b, o.x, o.z, o.w >= o.d ? 0 : Math.PI / 2, 0, { broken: true });
         break;
       case 'minibus':
         dolmus(b, o);
@@ -691,7 +646,7 @@ export function buildWorld(scene: THREE.Scene): World {
         break;
       case 'canopy': {
         const t = trunks.find((tr) => Math.abs(tr.x - o.x) < 0.01 && Math.abs(tr.z - o.z) < 0.01) ?? null;
-        tree(b, t, o, i);
+        tree(b, t, o, i, leaves);
         break;
       }
       case 'bush':
@@ -821,7 +776,10 @@ export function buildWorld(scene: THREE.Scene): World {
   add(b.build('ground'), groundMat, false, true);
   add(b.build('foliage'), foliageMat, true, true);
   add(b.build('glow'), glowMat, false, false);
-  const fallbackCars = add(b.build('cars'), mainMat, true, true);
+  // car paint: glossy clearcoat (windows are dark paint here too)
+  add(b.build('cars'), new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.32, metalness: 0.25, clearcoat: 1, clearcoatRoughness: 0.08 }), true, true);
+  add(b.build('detail'), mainMat, false, true);
+  if (!leaves.empty) scene.add(leaves.build('plane'));
 
   // ---- grass tufts and wild flowers (instanced)
   const tuftGeo = new THREE.ConeGeometry(0.045, 0.22, 3);
@@ -903,38 +861,6 @@ export function buildWorld(scene: THREE.Scene): World {
     return g;
   });
   if (pools.length) scene.add(new THREE.Mesh(mergeGeometries(pools, false), poolMat));
-
-  // ---- Kenney CC0 vehicles replace the procedural cars once loaded
-  const models = ['vehicle-truck-red', 'vehicle-truck-yellow', 'vehicle-truck-purple', 'vehicle-truck-green'];
-  void Promise.all(models.map((m) => new GLTFLoader().loadAsync(`${import.meta.env.BASE_URL}models/${m}.glb`)))
-    .then((gltfs) => {
-      carSlots.forEach(({ o }, i) => {
-        const src = gltfs[i % gltfs.length]!.scene;
-        const car = src.clone(true);
-        const alongX = o.w >= o.d;
-        // model faces +z: fit its footprint to the collider
-        car.rotation.y = alongX ? Math.PI / 2 : 0;
-        const box = new THREE.Box3().setFromObject(car);
-        const size = box.getSize(new THREE.Vector3());
-        const sx = o.w / size.x;
-        const sz = o.d / size.z;
-        const sy = Math.min(sx, sz) * 0.95;
-        car.scale.set(alongX ? sy : sx, sy, alongX ? sx : sz);
-        const b2 = new THREE.Box3().setFromObject(car);
-        car.position.set(o.x - (b2.min.x + b2.max.x) / 2, -b2.min.y, o.z - (b2.min.z + b2.max.z) / 2);
-        car.traverse((n) => {
-          if ((n as THREE.Mesh).isMesh) {
-            n.castShadow = true;
-            n.receiveShadow = true;
-          }
-        });
-        scene.add(car);
-      });
-      if (fallbackCars) fallbackCars.visible = false;
-    })
-    .catch(() => {
-      /* keep the procedural cars */
-    });
 
   // ---- ambient life: pigeons on the plaza, clouds
   const pigeons: Pigeon[] = [];

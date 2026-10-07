@@ -6,7 +6,7 @@ Every third-party asset (models, textures, sounds, fonts) must be listed here.
 
 | Name | Creator | URL | License | Date | Purpose | Changes |
 |---|---|---|---|---|---|---|
-| vehicle-truck-red/yellow/purple/green.glb + Textures/colormap.png (Starter Kit Racing) | Kenney | https://github.com/KenneyNL/Starter-Kit-Racing | CC0 1.0 (assets; repo code MIT) | 2026-10-06 | Parked cars in the mahalle (`apps/client/public/models/`) | none; scaled at runtime to the car colliders |
+| vehicle-truck-red/yellow/purple/green.glb + Textures/colormap.png (Starter Kit Racing) | Kenney | https://github.com/KenneyNL/Starter-Kit-Racing | CC0 1.0 (assets; repo code MIT) | 2026-10-06 | Parked cars in the mahalle (`apps/client/public/models/`) | none; scaled at runtime to the car colliders **Removed 2026-10-07:** replaced by procedural sedans (`cars.ts`) in both maps. |
 | walking, jump, land, coin, break .ogg (Starter Kit 3D Platformer) | Kenney | https://github.com/KenneyNL/Starter-Kit-3D-Platformer | CC0 1.0 | 2026-10-06 | Footsteps, jump/land, kurtuldu chime, sobe thud (`public/sfx/`) | none |
 | ambience.ogg, toggle.ogg → click.ogg, placement-a.ogg → pop.ogg (Starter Kit City Builder) | Kenney | https://github.com/KenneyNL/Starter-Kit-City-Builder | CC0 1.0 | 2026-10-06 | Street ambience loop, UI click, chat pop | renamed |
 | impact.ogg → thud.ogg (Starter Kit Racing) | Kenney | https://github.com/KenneyNL/Starter-Kit-Racing | CC0 1.0 | 2026-10-06 | Pebble landing | renamed, played pitched up |
