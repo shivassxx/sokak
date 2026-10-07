@@ -7,6 +7,8 @@ describe('world clock (gece-gündüz)', () => {
   it('one day is 40 real minutes and covers 24 game hours', () => {
     expect(DAY_MINUTES).toBe(40);
     expect(DAY_MS).toBe(40 * MIN);
+    expect(DAY_SEGMENTS.reduce((s, g) => s + g.minutes, 0)).toBe(DAY_MINUTES);
+    expect(DAY_SEGMENTS[0]!.from).toBe(DAY_START_HOUR);
     expect(DAY_SEGMENTS.reduce((s, g) => s + g.hours, 0)).toBe(24);
     // segments are contiguous
     for (let i = 1; i < DAY_SEGMENTS.length; i++) {

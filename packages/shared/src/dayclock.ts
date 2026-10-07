@@ -27,11 +27,12 @@ export const DAY_SEGMENTS: readonly DaySegment[] = [
   { phase: 'dusk', from: 19.5, hours: 1.5, minutes: 6 },
   { phase: 'night', from: 21, hours: 8, minutes: 12 },
 ];
-export const DAY_MINUTES = DAY_SEGMENTS.reduce((s, g) => s + g.minutes, 0);
+/** real minutes per game day (= the segments' sum; a literal so bundlers can drop unused code) */
+export const DAY_MINUTES = 40;
 /** one game day in real milliseconds (40 minutes) */
 export const DAY_MS = DAY_MINUTES * 60_000;
 /** the game hour at epoch 0 */
-export const DAY_START_HOUR = DAY_SEGMENTS[0]!.from;
+export const DAY_START_HOUR = 5;
 /** the simitçi packs up his cart at night */
 export const SIMIT_CLOSES_AT = 22;
 export const SIMIT_OPENS_AT = 6;
