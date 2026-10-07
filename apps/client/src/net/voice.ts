@@ -18,6 +18,7 @@ interface Peer {
   el: HTMLAudioElement | null;
   target: number;
   level: number;
+  openedAt: number;
 }
 
 const ICE: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }];
@@ -31,6 +32,10 @@ export class VoiceChat {
   private ctx: AudioContext | null = null;
   private muted = new Set<string>();
   private buf = new Float32Array(256);
+  /** peers we want right now (last sync); signalling from anyone else is ignored */
+  private wanted = new Set<string>();
+  /** set by disable(): an enable() still waiting for the mic permission must give up */
+  private disposed = false;
   enabled = false;
   micMuted = false;
   hasMic = false;
@@ -42,21 +47,28 @@ export class VoiceChat {
 
   /** Switch voice on (asks for the microphone; listen-only if refused). */
   async enable(): Promise<void> {
-    if (this.enabled) return;
+    if (this.enabled || this.disposed) return;
     this.ctx = new AudioContext();
     void this.ctx.resume();
+    let stream: MediaStream | null = null;
     try {
-      this.local = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
-      this.hasMic = true;
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     } catch {
-      this.local = null;
-      this.hasMic = false;
+      stream = null;
     }
+    if (this.disposed) {
+      // switched off (or left the kahve) while the permission prompt was open
+      stream?.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    this.local = stream;
+    this.hasMic = !!stream;
     this.enabled = true;
     this.room.send(KMSG.voice, true);
   }
 
   disable(): void {
+    this.disposed = true;
     for (const id of [...this.peers.keys()]) this.close(id);
     this.local?.getTracks().forEach((t) => t.stop());
     this.local = null;
@@ -90,6 +102,11 @@ export class VoiceChat {
    */
   sync(wanted: Map<string, number>): void {
     if (!this.enabled) return;
+    this.wanted = new Set(wanted.keys());
+    // watchdog: a connection that never came up (e.g. both sides offered while one was not
+    // listening yet) is dropped and renegotiated from scratch
+    const now = performance.now();
+    for (const [id, p] of this.peers) if (p.pc.connectionState !== 'connected' && now - p.openedAt > 8000) this.close(id);
     for (const [id, gain] of wanted) {
       const p = this.peers.get(id) ?? this.open(id);
       p.target = gain;
@@ -117,7 +134,8 @@ export class VoiceChat {
 
   /** Signalling from the server. */
   async onSignal(m: SignalMsg): Promise<void> {
-    if (!this.enabled) return;
+    // only talk to people we want to hear; they reconnect through our own offer when we do
+    if (!this.enabled || !this.wanted.has(m.peer)) return;
     const p = this.peers.get(m.peer) ?? this.open(m.peer);
     const { sdp, ice } = m.data;
     try {
@@ -127,6 +145,14 @@ export class VoiceChat {
         if (p.ignoreOffer) return;
         await p.pc.setRemoteDescription(sdp as RTCSessionDescriptionInit);
         if (sdp.type === 'offer') {
+          // make sure the m-line the other side offered carries our mic
+          const track = this.local?.getAudioTracks()[0];
+          if (track)
+            for (const tr of p.pc.getTransceivers())
+              if (tr.mid && tr.currentDirection !== 'stopped' && tr.receiver.track.kind === 'audio' && !tr.sender.track) {
+                await tr.sender.replaceTrack(track);
+                tr.direction = 'sendrecv';
+              }
           await p.pc.setLocalDescription();
           this.send(m.peer, { sdp: p.pc.localDescription!.toJSON() as { type: string; sdp: string } });
         }
@@ -149,11 +175,13 @@ export class VoiceChat {
 
   private open(id: string): Peer {
     const pc = new RTCPeerConnection({ iceServers: ICE });
-    const p: Peer = { pc, polite: this.me > id, makingOffer: false, ignoreOffer: false, gain: null, analyser: null, el: null, target: 0, level: 0 };
+    const p: Peer = { pc, polite: this.me > id, makingOffer: false, ignoreOffer: false, gain: null, analyser: null, el: null, target: 0, level: 0, openedAt: performance.now() };
     this.peers.set(id, p);
-    const tr = pc.addTransceiver('audio', { direction: 'sendrecv' });
+    // addTrack (not addTransceiver): after an offer collision the polite side rolls back and
+    // the remote offer can then reuse this sender, so the mic doesn't end up on a dead m-line
     const track = this.local?.getAudioTracks()[0];
-    if (track) void tr.sender.replaceTrack(track);
+    if (track && this.local) pc.addTrack(track, this.local);
+    else pc.addTransceiver('audio', { direction: 'recvonly' });
     pc.onicecandidate = (e) => e.candidate && this.send(id, { ice: e.candidate.toJSON() });
     pc.onnegotiationneeded = async () => {
       try {

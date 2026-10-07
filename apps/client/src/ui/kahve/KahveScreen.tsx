@@ -396,7 +396,9 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     return () => clearInterval(iv);
   }, [game, voiceOn, me]);
   useEffect(() => () => voiceRef.current?.disable(), []);
+  const voicePending = useRef(false);
   const toggleVoice = async () => {
+    if (voicePending.current) return; // the mic permission prompt is still open
     if (voiceRef.current?.enabled) {
       voiceRef.current.disable();
       voiceRef.current = null;
@@ -406,7 +408,10 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     const vc = new VoiceChat(room, me);
     voiceRef.current = vc;
     if (import.meta.env.DEV) (window as unknown as { __voice: VoiceChat }).__voice = vc;
+    voicePending.current = true;
     await vc.enable();
+    voicePending.current = false;
+    if (!vc.enabled) return; // left the kahve while asking
     setVoiceOn(true);
     setVoicePanel(true);
     pushToast({ text: vc.hasMic ? '🎙️ Sesli sohbet açık. Masandakiler ve yanındakiler seni duyar.' : '🎧 Mikrofon izni yok: sadece dinliyorsun.', kind: 'info' });
