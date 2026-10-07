@@ -88,7 +88,7 @@ Linke tıklayınca saniyeler içinde açılan, telefonda ve bilgisayarda çalı�
    ```
 7. Testler ve üretim derlemesi:
    ```bash
-   pnpm test          # 64 test
+   pnpm test          # 115 test (gece çalışması sonunda)
    pnpm typecheck
    pnpm build
    pnpm check:size    # indirme boyutu kontrolü
@@ -313,12 +313,13 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 - Liderlik tablosu sadece o an çevrimiçi olanları gösteriyor. Geçmişe dönük sıralama için takma adları saklamak gerekirdi; bunu yapmadım.
 
 **Nasıl test edildi**
-- 113 otomatik test geçiyor (bazıları yeni kontroller içeriyor). Gece eklenen testler:
+- 115 otomatik test geçiyor (bazıları yeni kontroller içeriyor). Gece eklenen testler:
   - Market alışverişi ve kullanma, bank ve sahil duvarı oturma.
   - Cüzdanın aynı cihazda korunması, hızlı oturma ve botla başlatma.
   - Maç bitince insan oyuncunun maç/galibiyet sayısının artması (botların artmaması), lobinin sadece kendi cüzdanını okuyabilmesi.
   - Liderlik tablosu, sayfa yenilemeden sonra elin geri gelmesi.
   - Balık tutma: denizden uzakta olta atılamaması, erken çekince kaçması, vurunca çekince balık çıkması, uzaklaşınca oltanın toplanması.
+  - Gösterge kuralı: göstergenin eşi sadece ilk sırada ve bir kez gösterilebiliyor, puandan 101 düşüyor.
   - Çaycının yol bulması (markete, sahile, çay bahçesine giden rotalar duvar içinden geçmiyor).
 - Playwright ile tarayıcıda denenenler:
   - Lobi → hızlı oyna → botlar → 5 tur taş çekip atma.
@@ -329,6 +330,14 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
   - İki ayrı tarayıcı arasında sesli sohbet.
   - Telefon boyutunda yatay ekran.
 - Toplam indirme 2,18 MB (gzip), lobiyi göstermek için gereken 136 KB.
+
+**101 Okey'i adım adım deneme**
+1. `pnpm dev` ile başlat (yukarıdaki 6. bölüm), tarayıcıda **http://localhost:5173** aç.
+2. Ana sayfada **101 Okey**'i seç, takma adını yaz, **Lobiye gir**.
+3. Lobide **⚡ Hızlı oyna** de. Seni boş bir masaya oturtur; **🤖 Botlarla hemen başla** ile hemen oyna. Arkadaşınla oynamak için **Yeni salon aç**, içeride **🔗 Davet et** ile linki gönder.
+4. Masada: desteye ya da soldaki yığına dokunup taş çek, taşları sürükleyerek diz, atacağın taşı sağ köşedeki yığına sürükle. İlk sıranda parlayan **Göstergeyi göster** düğmesi çıkarsa bas.
+5. Masadan kalkıp kapıdan çık: teras, sokak, market (sağda), sahil ve Kız Kulesi. **E** = otur / alışveriş / izle, **Q** = elindekini kullan (sahilde olta at, simidi martılara at).
+6. Sesli sohbeti denemek için iki ayrı tarayıcıda aynı salona gir ve ikisinde de **🎙️**'ya bas.
 
 **Bilinen sınırlar**
 - **Sesli sohbet:** bazı mobil ağlarda (sıkı NAT) bağlantı kurulamayabilir. Bunun için sunucuda bir TURN sunucusu kurulmalı; adımlar `Docs/Deploy.md` dosyasında. Bu iş hesap ve sunucu gerektirdiği için sana bıraktım.
