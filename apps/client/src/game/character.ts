@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { SKINS, type Look } from '@sokak/shared';
 import { paintSkin, type Outfit } from './skinPainter';
@@ -22,6 +23,60 @@ export interface CharacterOpts {
   adult?: boolean;
   /** NPC-only extras (moustache, bald, grey hair, waistcoat …) */
   extra?: Partial<Outfit>;
+  /** a realistic, textured avatar (Microsoft Rocketbox) instead of the painted Kenney mesh */
+  real?: RealAvatar;
+}
+
+/** Realistic adult avatars (Microsoft Rocketbox, MIT): men and women in everyday clothes. */
+export type RealAvatar = 'm05' | 'm01' | 'f01' | 'm14' | 'm02' | 'm03' | 'm08' | 'f04' | 'f09';
+export const REAL_AVATARS: readonly RealAvatar[] = ['m05', 'm01', 'f01', 'm14', 'm02', 'm03', 'm08', 'f04', 'f09'];
+/** the subset phones load (≈0.4 MB each) */
+const REAL_AVATARS_LITE: readonly RealAvatar[] = ['m05', 'm01', 'f01', 'm14'];
+const realKit = new Map<RealAvatar, THREE.Object3D>();
+let realPromise: Promise<void> | null = null;
+
+/** Load the realistic avatars (≈0.4 MB each, meshopt + WebP). Failures leave the painted fallback. */
+export function loadRealKit(lite = false): Promise<void> {
+  realPromise ??= (async () => {
+    const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+    await Promise.all(
+      (lite ? REAL_AVATARS_LITE : REAL_AVATARS).map(async (id) => {
+        try {
+          const g = await loader.loadAsync(`${import.meta.env.BASE_URL}models/rb_${id}.glb`);
+          g.scene.traverse((o) => {
+            const m = o as THREE.SkinnedMesh;
+            if (m.isSkinnedMesh) {
+              m.castShadow = true;
+              m.frustumCulled = false;
+            }
+          });
+          realKit.set(id, g.scene);
+        } catch {
+          /* keep the painted character for this one */
+        }
+      }),
+    );
+  })();
+  return realPromise;
+}
+
+/** A realistic avatar for a player's look (stable per look), if they are loaded. */
+export function realAvatarFor(look: { color: string; skin: number; hair: number }): RealAvatar | undefined {
+  if (!realKit.size) return undefined;
+  let h = look.skin * 7 + look.hair * 13;
+  for (const ch of look.color) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  // the same pick on every client when they loaded the same set; otherwise the nearest loaded one
+  const want = REAL_AVATARS[h % REAL_AVATARS.length]!;
+  if (realKit.has(want)) return want;
+  const avail = REAL_AVATARS.filter((a) => realKit.has(a));
+  return avail[h % avail.length];
+}
+
+/** An avatar for an NPC: the wanted one if loaded, else any loaded one (stable per wish). */
+export function realAvatarOr(want: RealAvatar): RealAvatar | undefined {
+  if (realKit.has(want)) return want;
+  const avail = REAL_AVATARS.filter((a) => realKit.has(a));
+  return avail.length ? avail[REAL_AVATARS.indexOf(want) % avail.length] : undefined;
 }
 
 // ------------------------------------------------------------------ kit
@@ -147,6 +202,22 @@ export function outfitFor(look: Look, opts: CharacterOpts = {}): Outfit {
 
 // ------------------------------------------------------------------ rig
 type JointName = 'hips' | 'chest' | 'neck' | 'armL' | 'foreL' | 'armR' | 'foreR' | 'legL' | 'shinL' | 'legR' | 'shinR';
+// (GLTFLoader turns the spaces of 'Bip01 L UpperArm' into underscores)
+const REAL_BONE_OF: Record<JointName, string> = {
+  hips: 'Bip01_Pelvis',
+  chest: 'Bip01_Spine1',
+  neck: 'Bip01_Neck',
+  armL: 'Bip01_L_UpperArm',
+  foreL: 'Bip01_L_Forearm',
+  armR: 'Bip01_R_UpperArm',
+  foreR: 'Bip01_R_Forearm',
+  legL: 'Bip01_L_Thigh',
+  shinL: 'Bip01_L_Calf',
+  legR: 'Bip01_R_Thigh',
+  shinR: 'Bip01_R_Calf',
+};
+const REAL_SCALE = 0.95;
+
 const BONE_OF: Record<JointName, string> = {
   hips: 'Hips',
   chest: 'Spine',
@@ -180,6 +251,10 @@ interface BoneInfo {
 }
 
 const _q2 = new THREE.Quaternion();
+const _qa = new THREE.Quaternion();
+const CURL = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.9));
+const CURL_THUMB = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0.35));
+const _qb = new THREE.Quaternion();
 
 export class Character {
   readonly root = new THREE.Group();
@@ -206,9 +281,12 @@ export class Character {
   private hatGroup = new THREE.Group();
   private hairGroup = new THREE.Group();
   private propGroup = new THREE.Group();
+  private fingersR: THREE.Bone[] = [];
   private material: THREE.MeshStandardMaterial;
   private adult: boolean;
   private extra: Partial<Outfit> | undefined;
+  /** realistic textured avatar: no painted skin, hair or hats */
+  readonly real: boolean;
   /** standing hip height in metres (for sitting / crouching offsets) */
   readonly hipHeight: number;
 
@@ -235,6 +313,8 @@ export class Character {
     if (!kit) throw new Error('character kit not loaded');
     this.adult = !!opts.adult;
     this.extra = opts.extra;
+    const realScene = opts.real ? realKit.get(opts.real) : undefined;
+    this.real = !!realScene;
 
     // virtual joint hierarchy: body(bob) → hips → (legs, chest → arms, neck)
     this.body.add(this.hips);
@@ -266,44 +346,47 @@ export class Character {
     };
 
     // the skinned model: faces +Z in the file, we face -Z
-    this.model = cloneSkinned(kit.scene);
-    const scale = this.adult ? 0.8 : 0.72;
+    this.model = cloneSkinned(realScene ?? kit.scene);
+    const scale = this.real ? REAL_SCALE : this.adult ? 0.8 : 0.72;
     this.model.scale.setScalar(scale);
     this.model.rotation.y = Math.PI;
     this.body.add(this.model);
     let sk: THREE.SkinnedMesh | null = null;
     this.model.traverse((o) => {
-      if ((o as THREE.SkinnedMesh).isSkinnedMesh) sk = o as THREE.SkinnedMesh;
+      if ((o as THREE.SkinnedMesh).isSkinnedMesh) sk ??= o as THREE.SkinnedMesh;
     });
     if (!sk) throw new Error('character mesh missing');
     this.skinned = sk;
     this.material = new THREE.MeshStandardMaterial({ roughness: 0.78, metalness: 0 });
-    this.material.onBeforeCompile = rimLight;
-    this.material.customProgramCacheKey = () => 'char-rim';
-    this.skinned.material = this.material;
+    if (!this.real) {
+      this.material.onBeforeCompile = rimLight;
+      this.material.customProgramCacheKey = () => 'char-rim';
+      this.skinned.material = this.material;
+    }
     this.skinned.castShadow = true;
 
     this.model.updateMatrixWorld(true);
     const bones = this.skinned.skeleton.bones;
     const byName = new Map(bones.map((b) => [b.name, b]));
-    this.headBone = byName.get('Head')!;
-    this.handR = byName.get('RightHand') ?? null;
-    if (!this.adult) this.headBone.scale.setScalar(1.1);
+    const boneOf = this.real ? REAL_BONE_OF : BONE_OF;
+    this.headBone = byName.get(this.real ? 'Bip01_Head' : 'Head')!;
+    this.handR = byName.get(this.real ? 'Bip01_R_Hand' : 'RightHand') ?? null;
+    if (!this.adult && !this.real) this.headBone.scale.setScalar(1.1);
 
     // rest orientations in the body frame (root/body are still identity here)
     // the deform chain hangs off HipsCtrl (other top-level bones are IK controls)
-    const topBone = byName.get('HipsCtrl') ?? bones.find((b) => !(b.parent as THREE.Bone | null)?.isBone)!;
+    const topBone = byName.get(this.real ? 'Bip01' : 'HipsCtrl') ?? bones.find((b) => !(b.parent as THREE.Bone | null)?.isBone)!;
     topBone.parent!.getWorldQuaternion(this.parentRest);
     const jointOfBone = new Map<string, JointName>();
-    for (const [j, b] of Object.entries(BONE_OF)) jointOfBone.set(b, j as JointName);
+    for (const [j, b] of Object.entries(boneOf)) jointOfBone.set(b, j as JointName);
     const hangDown = (b: THREE.Bone, tip: string): THREE.Quaternion => {
       const p0 = b.getWorldPosition(new THREE.Vector3());
       const p1 = byName.get(tip)!.getWorldPosition(new THREE.Vector3());
       const dir = p1.sub(p0).normalize();
       return new THREE.Quaternion().setFromUnitVectors(dir, new THREE.Vector3(0, -1, 0));
     };
-    const baseArmL = hangDown(byName.get('LeftArm')!, 'LeftHand');
-    const baseArmR = hangDown(byName.get('RightArm')!, 'RightHand');
+    const baseArmL = this.real ? hangDown(byName.get('Bip01_L_UpperArm')!, 'Bip01_L_Hand') : hangDown(byName.get('LeftArm')!, 'LeftHand');
+    const baseArmR = this.real ? hangDown(byName.get('Bip01_R_UpperArm')!, 'Bip01_R_Hand') : hangDown(byName.get('RightArm')!, 'RightHand');
     const build = (b: THREE.Bone): BoneInfo => {
       const joint = jointOfBone.get(b.name) ?? null;
       const info: BoneInfo = {
@@ -319,7 +402,7 @@ export class Character {
       return info;
     };
     this.boneRoot = build(topBone);
-    const hipsBone = byName.get('Hips')!;
+    const hipsBone = byName.get(this.real ? 'Bip01_Pelvis' : 'Hips')!;
     this.hipHeight = hipsBone.getWorldPosition(new THREE.Vector3()).y;
 
     // accessories on the head bone; head-local box ≈ x ±0.44, y −0.09…1.07, z ±0.52 (front +Z)
@@ -329,6 +412,12 @@ export class Character {
     this.headAnchor.add(this.hairGroup, this.hatGroup);
     this.headBone.add(this.headAnchor);
     if (this.handR) this.handR.add(this.propGroup);
+    if (this.real && this.handR) {
+      // realistic hands: hold props in the palm (part-way to the middle finger), kept upright
+      const f = byName.get('Bip01_R_Finger2') ?? byName.get('Bip01_R_Finger1');
+      if (f) this.propGroup.position.copy(f.position).multiplyScalar(0.6);
+      for (const b of bones) if (/^Bip01_R_Finger[0-4]/.test(b.name)) this.fingersR.push(b);
+    }
 
     // "!" marker shown when spotted
     this.marker = mesh(G.marker, new THREE.MeshBasicMaterial({ color: 0xffc533 }), 0, 2.45, 0, false);
@@ -345,9 +434,23 @@ export class Character {
     this.applyRig();
   }
 
+  /** Realistic hands turn every which way: keep the glass/simit/cone level with the body instead. */
+  private keepPropsUpright(): void {
+    // curl the fingers round the prop (they are reset to rest every frame by applyRig)
+    for (const b of this.fingersR) b.quaternion.multiply(b.name.startsWith('Bip01_R_Finger0') ? CURL_THUMB : CURL);
+    this.handR!.getWorldQuaternion(_qa);
+    this.root.getWorldQuaternion(_qb);
+    this.propGroup.quaternion.copy(_qa.invert().multiply(_qb));
+  }
+
   /** Change outfit color, skin tone, hair style and hat. */
   setLook(look: Look): void {
     const outfit = outfitFor(look, { adult: this.adult, extra: this.extra });
+    if (this.real) {
+      // the avatar brings its own clothes and hair; only hand props (tespih) apply
+      this.buildExtras({ ...outfit, glasses: false });
+      return;
+    }
     this.material.map = paintSkin(outfit);
     this.material.needsUpdate = true;
     this.buildHair(outfit, look.hat);
@@ -471,10 +574,17 @@ export class Character {
     obj.userData.held = true;
     // hand bone units: the model is scaled ≈0.5, so props are scaled up to stay life-size
     // stylised big hands: props are drawn ~1.6× life size so they read on screen
-    const s = 1.6 / (this.model.scale.x * 0.64);
+    const s = this.real ? 1.2 : 1.6 / (this.model.scale.x * 0.64);
     obj.scale.setScalar(s);
-    obj.position.set(0, 0.045 * s, 0.02 * s);
-    obj.rotation.set(0, 0, Math.PI);
+    if (this.real) {
+      // propGroup is turned upright every frame (keepPropsUpright): centre the prop on the palm
+      // a çay glass stands on its saucer on top of the fist, a cone sticks out of it
+      obj.position.set(0, (obj.name === 'cay' ? 0.04 : obj.name === 'dondurma' ? 0.025 : -0.03) * s, 0);
+      obj.rotation.set(0, 0, 0);
+    } else {
+      obj.position.set(0, 0.045 * s, 0.02 * s);
+      obj.rotation.set(0, 0, Math.PI);
+    }
     this.propGroup.add(obj);
   }
 
@@ -592,6 +702,10 @@ export class Character {
   /** World position of the mouth (for smoke puffs). */
   mouthPosition(out = new THREE.Vector3()): THREE.Vector3 {
     this.headBone.updateWorldMatrix(true, false);
+    if (this.real) {
+      this.headBone.getWorldPosition(out);
+      return out.set(out.x - Math.sin(this.facing) * 0.11, out.y + 0.04, out.z - Math.cos(this.facing) * 0.11);
+    }
     return this.headBone.localToWorld(out.set(0, 0.25, 0.45));
   }
 
@@ -659,6 +773,7 @@ export class Character {
     this.applyEmote(dt, moving);
     this.applyUse(dt);
     this.applyRig();
+    if (this.real && this.propGroup.children.length) this.keepPropsUpright();
   }
 
   /** Map the virtual joints onto the skeleton (no allocations: runs for every character every frame). */

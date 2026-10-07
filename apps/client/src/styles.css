@@ -322,6 +322,7 @@ kbd { font: 800 11px/1 'Baloo 2', system-ui; padding: 3px 6px; border-radius: 6p
 .hand-result .lose { color: #b3261e; }
 .drink { font-size: 16px; animation: pop .4s ease-out; }
 .kahve.seated .hud-top .lbl, .kahve.seated .salon-name { display: none; }
+@media (max-width: 1100px) { .kahve .hud-top .lbl { display: none; } .kahve .hud-top .btn.small { white-space: nowrap; } .wallet { white-space: nowrap; } }
 .kahve.seated .toasts { top: auto; bottom: 42%; }
 .kahve.seated .toast { font-size: 14px; padding: 5px 12px; }
 @media (max-width: 760px) {

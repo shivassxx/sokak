@@ -36,5 +36,6 @@ kenney.nl, quaternius.com and polyhaven.com are blocked in the dev container (Ke
 | Asset | Creator | Source | License | Date | Used for | Changes |
 |---|---|---|---|---|---|---|
 | Fabric030 (felt) | ambientCG (Lennart Demes) | ambientcg.com/a/Fabric030 (fetched from a GitHub mirror: pwmarcz/autotable) | CC0 | 2026-10-07 | `public/textures/felt_detail.jpg`: woven detail multiplied into the okey table felt | greyscale, 256 px, JPEG q82 (6 KB) |
+| Microsoft Rocketbox Avatar Library — Male_Adult_01, 02, 03, 05, 08, 14; Female_Adult_01, 04, 09 | Microsoft (Mar Gonzalez-Franco et al.) | github.com/microsoft/Microsoft-Rocketbox | MIT (licence text shipped as `public/models/ROCKETBOX_LICENSE.txt`) | 2026-10-07 | `public/models/rb_*.glb`: realistic adult avatars for players and NPCs in the 101 Okey kahvehane | FBX → glTF (FBX2glTF); hi-poly LOD only, animations and facial blendshapes stripped (the procedural rig drives the Biped bones); colour 1024², normal 512², opacity (lashes/hair cards) 256²; meshopt geometry + WebP q72 (0.3–0.46 MB each) |
 
 Keep the total download under 5 MB (CLAUDE.md performance budget).

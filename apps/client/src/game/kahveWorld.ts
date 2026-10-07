@@ -147,7 +147,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   });
   concrete.wrapS = concrete.wrapT = THREE.RepeatWrapping;
   concrete.repeat.set((HALL.x1 - HALL.x0) / 3, (HALL.z1 - HALL.z0) / 3);
-  const hallFloor = new THREE.Mesh(new THREE.PlaneGeometry(HALL.x1 - HALL.x0, HALL.z1 - HALL.z0), new THREE.MeshStandardMaterial({ map: concrete, roughness: 0.32, metalness: 0.05 }));
+  const hallFloor = new THREE.Mesh(new THREE.PlaneGeometry(HALL.x1 - HALL.x0, HALL.z1 - HALL.z0), new THREE.MeshStandardMaterial({ map: concrete, roughness: 0.46, metalness: 0.02 }));
   hallFloor.rotation.x = -Math.PI / 2;
   hallFloor.position.set((HALL.x0 + HALL.x1) / 2, 0.005, (HALL.z0 + HALL.z1) / 2);
   hallFloor.receiveShadow = true;

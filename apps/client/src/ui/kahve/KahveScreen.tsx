@@ -44,6 +44,7 @@ import { TouchControls, isTouch } from '../TouchControls';
 import { OkeyBoard } from '../okey/OkeyBoard';
 import { shareRoom } from '../Lobby';
 import { VoiceChat } from '../../net/voice';
+import { initialQuality } from '../../game/postfx';
 
 /** standing (or sitting) at the sea railing / ledge, not on the pier */
 const bySea = (p: { x: number; z: number } | null | undefined): boolean => !!p && p.z > SEA_Z - 3.2 && p.x < 32;
@@ -117,8 +118,8 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   useEffect(() => {
     let g: Game | null = null;
     let cancelled = false;
-    void Promise.all([import('../../game/Game'), import('../../game/kahveScene')]).then(async ([{ Game, loadCharacterKit }, { buildKahve }]) => {
-      await loadCharacterKit();
+    void Promise.all([import('../../game/Game'), import('../../game/kahveScene')]).then(async ([{ Game, loadCharacterKit, loadRealKit }, { buildKahve }]) => {
+      await Promise.all([loadCharacterKit(), loadRealKit(initialQuality() === 'low')]);
       if (cancelled || !canvasRef.current) return;
       g = new Game(canvasRef.current, 'kahve', buildKahve);
       if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = g;

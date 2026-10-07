@@ -58,19 +58,20 @@ export function itemModel(id: string): THREE.Group | null {
       return fishingRod(false);
     case 'cay': {
       add(new THREE.CylinderGeometry(0.05, 0.045, 0.008, 14), mat(0xffffff, 0.25), 0, -0.02, 0);
-      add(
-        new THREE.LatheGeometry([new THREE.Vector2(0.018, 0), new THREE.Vector2(0.026, 0.02), new THREE.Vector2(0.02, 0.05), new THREE.Vector2(0.028, 0.085)], 10),
-        mat(0x9b2a14, 0.15),
-        0,
-        -0.015,
-        0,
-      );
+      // ince belli bardak: clear glass round a column of dark-red tea
+      const tulip = (k: number, h: number) =>
+        new THREE.LatheGeometry([new THREE.Vector2(0.001, 0), new THREE.Vector2(0.018 * k, 0), new THREE.Vector2(0.026 * k, 0.02 * h), new THREE.Vector2(0.02 * k, 0.05 * h), new THREE.Vector2(0.028 * k, 0.085 * h)], 12);
+      add(tulip(0.9, 0.86), mat(0xa3260a, 0.12, { emissive: 0x3a0800 }), 0, -0.012, 0);
+      const glass = add(tulip(1, 1), mat(0xffffff, 0.05, { transparent: true, opacity: 0.16, depthWrite: false }), 0, -0.015, 0);
+      glass.renderOrder = 2;
+      glass.castShadow = false;
       break;
     }
     default:
       return null;
   }
   g.traverse((o) => ((o as THREE.Mesh).castShadow = true));
+  g.name = id;
   return g;
 }
 

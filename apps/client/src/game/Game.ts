@@ -22,9 +22,9 @@ import {
   type Look,
   type MoveInput,
 } from '@sokak/shared';
-import { Character, type Emote, type Pose } from './character';
+import { Character, realAvatarFor, type Emote, type Pose } from './character';
 import { itemModel, type UseKind } from './items';
-export { loadCharacterKit } from './character';
+export { loadCharacterKit, loadRealKit } from './character';
 import { Input } from './input';
 import { buildWorld, type Mover, type World } from './world';
 import { setupLighting, type Lighting } from './lighting';
@@ -234,7 +234,7 @@ export class Game {
     this.facing = facing;
     this.camYaw = facing;
     if (!this.localChar) {
-      this.localChar = new Character(look, { adult: this.level === 'kahve' });
+      this.localChar = new Character(look, { adult: this.level === 'kahve', real: this.level === 'kahve' ? realAvatarFor(look) : undefined });
       this.scene.add(this.localChar.root);
     } else this.localChar.setLook(look);
     this.localChar.root.visible = true;
@@ -368,7 +368,7 @@ export class Game {
     const key = `${look.color}|${look.hat}|${look.hair}|${look.skin}|${label}|${labelColor ?? ''}`;
     if (r?.key === key) return;
     if (!r) {
-      r = { char: new Character(look, { adult: this.level === 'kahve' }), key, buf: [], lastSeen: 0, prevX: 0, prevZ: 0, fixed: null };
+      r = { char: new Character(look, { adult: this.level === 'kahve', real: this.level === 'kahve' ? realAvatarFor(look) : undefined }), key, buf: [], lastSeen: 0, prevX: 0, prevZ: 0, fixed: null };
       r.char.root.visible = false;
       this.scene.add(r.char.root);
       this.remotes.set(id, r);

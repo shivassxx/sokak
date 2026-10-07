@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, type TableView } from '@sokak/shared';
 import type { OkeyCtx } from '@sokak/okey';
 import { canvasTex, type Mover, type World } from './world';
-import { Character } from './character';
+import { Character, realAvatarOr, type RealAvatar } from './character';
 import { fishingRod, itemModel } from './items';
 import { RACK_DIST, TABLE_TOP } from './kahveProps';
 import { buildKahveWorld } from './kahveWorld';
@@ -335,8 +335,11 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     pose: 'sit' | 'sitThink' | 'drink' | 'read' | 'doze' | 'fish' | 'stand';
   }
   const regulars: Regular[] = [];
+  // the regulars: older men from the avatar set, in turn
+  const AMCAS: RealAvatar[] = ['m14', 'm03', 'm05', 'm02', 'm08'];
+  let amca = 0;
   const addRegular = (x: number, y: number, z: number, yaw: number, pose: Regular['pose'], look: { color: string; skin: number; hat: number }, extra: Record<string, unknown>) => {
-    const ch = new Character({ color: look.color, hat: look.hat, hair: 0, skin: look.skin }, { adult: true, extra: { moustache: true, ...extra } });
+    const ch = new Character({ color: look.color, hat: look.hat, hair: 0, skin: look.skin }, { adult: true, extra: { moustache: true, ...extra }, real: realAvatarOr((extra.real as RealAvatar | undefined) ?? AMCAS[amca++ % AMCAS.length]!) });
     ch.root.position.set(x, y, z);
     ch.root.rotation.y = ch.facing = yaw;
     ch.pose = pose === 'stand' ? 'none' : pose;
@@ -361,7 +364,7 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     f.hold(fishingRod());
   }
   // shop keepers
-  for (const sh of SHOPS) addRegular(sh.seller.x, 0, sh.seller.z, sh.seller.yaw, 'stand', { color: sh.id === 'market' ? '#2e8b57' : '#f4f1e8', skin: 2, hat: sh.id === 'simitci' ? 1 : 0 }, { shirtStyle: 3, apron: true }).setLabel(sh.id === 'market' ? 'Bakkal Hasan' : 'Simitçi Cemal', '#ffe7a8');
+  for (const sh of SHOPS) addRegular(sh.seller.x, 0, sh.seller.z, sh.seller.yaw, 'stand', { color: sh.id === 'market' ? '#2e8b57' : '#f4f1e8', skin: 2, hat: sh.id === 'simitci' ? 1 : 0 }, { shirtStyle: 3, apron: true, real: sh.id === 'market' ? 'm01' : 'm08' }).setLabel(sh.id === 'market' ? 'Bakkal Hasan' : 'Simitçi Cemal', '#ffe7a8');
   const paper = new THREE.Mesh(
     new THREE.PlaneGeometry(0.42, 0.3),
     new THREE.MeshStandardMaterial({
@@ -386,7 +389,7 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     { z: PROMENADE_LANE_A, x0: -40, x1: 10, look: { color: '#2e8b57', hat: 0, hair: 4, skin: 1 }, extra: { moustache: false, shirtStyle: 1 }, item: 'dondurma' },
   ];
   STROLL.slice(0, quality === 'low' ? 2 : STROLL.length).forEach((s, i) => {
-    const ch = new Character(s.look, { adult: true, extra: s.extra });
+    const ch = new Character(s.look, { adult: true, extra: s.extra, real: realAvatarOr((['f04', 'm08', 'f09', 'm02', 'f01'] as const)[i % 5]!) });
     const x = s.x0 + ((i * 17.3) % (s.x1 - s.x0));
     ch.root.position.set(x, 0, s.z);
     if (s.item) {
@@ -410,7 +413,7 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
   let diceT = 0;
 
   // -------------------------------------------------------------- the çaycı
-  const cayci = new Character({ color: '#f4f1e8', hat: 0, hair: 0, skin: 1 }, { adult: true, extra: { vest: '#2b2b2b', moustache: true, shirtStyle: 3 } });
+  const cayci = new Character({ color: '#f4f1e8', hat: 0, hair: 0, skin: 1 }, { adult: true, extra: { vest: '#2b2b2b', moustache: true, shirtStyle: 3 }, real: realAvatarOr('m05') });
   cayci.setLabel('Çaycı Rıza', '#ffe7a8');
   const tray = new THREE.Group();
   const trayMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.015, 20), new THREE.MeshStandardMaterial({ color: 0xc9a24a, metalness: 0.7, roughness: 0.3 }));

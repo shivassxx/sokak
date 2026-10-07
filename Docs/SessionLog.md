@@ -50,3 +50,11 @@
 - Kahve sounds: footsteps, synthesized surf by distance to the sea, gull cries (also when feeding them).
 - Levels from finished matches/wins (device wallet), lobby profile line, ⭐ badge in the HUD and on okey name plates, level-up toast.
 - 113 tests; build OK; 2.18 MB gzip total, 136 KB before the lobby.
+
+## Session 1 (continued) — realism pass (user: "make the models realistic; Kız Kulesi, characters and the okey set are too simple; send a screenshot after every change; keep coding until morning")
+- Kız Kulesi rebuilt (`uskudarProps.ts` `kizKulesi()`), realistic okey tiles/tables/ıstakas (`okeyTiles.ts`, `kahveProps.ts` varnish bucket + grain patterns, `ui/okey/woodTexture.ts`, felt detail texture).
+- Realistic characters: Microsoft Rocketbox avatars converted to meshopt/WebP GLBs (`public/models/rb_*.glb`); `character.ts` supports `real` avatars (Biped bone map, palm-held upright props with curled fingers); kahvehane players and all NPCs use them; phones load a 4-avatar subset.
+- Hall floor less mirror-like (the evening sun's reflection washed out half the screen through bloom).
+- Tea glass is now an ince belli glass with tea inside.
+- Fonts: only latin + latin-ext subsets are bundled.
+- 117 tests; build OK; 4.48 MB gzip total, 137 KB before the lobby.
