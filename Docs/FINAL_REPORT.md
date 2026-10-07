@@ -408,3 +408,10 @@ Senin "saklambaçı kaldırıyoruz, oyunumuz sadece okey olacak" isteğin üzeri
 - **İstatistikler:** başlayan masa, oynanan el, masa başına gerçek oyuncu sayısı ve bahisler sayılıyor. İsim veya kimlik tutulmuyor.
 - **Sonuç:** 62 test geçiyor. Toplam indirme 4,5 MB'tan 3,2 MB'a indi, lobiyi açmak için 128 KB yetiyor.
 - Saklambaç'ın kodu git geçmişinde duruyor. İstersen geri getirilebilir.
+
+## Ek: Karakter seçimi
+
+Ana sayfadaki çizgi film çocuk karakteri ve tişört/saç/şapka seçenekleri kaldırıldı. Bu seçenekler kahvehanede hiçbir şeyi değiştirmiyordu.
+- **Seçim:** kahvehanedeki 9 gerçekçi karakterden birini ‹ › oklarıyla ya da isimlerine tıklayarak seçiyorsun (Yelekli, Çizgili tişört, Pembe gömlek, Gri gömlek, Bej kazak, Ekose ceket, Mavi gömlek, Deri ceket, Kahve ceket). Seçtiğin karakter yanda 3D olarak dönerek el sallıyor.
+- **Oyunda:** herkes seni seçtiğin karakterle görüyor. Telefonlar, sette olmayan bir karakteri gerektiğinde indirip yerine koyuyor. Botlar da farklı karakterler alıyor.
+- **Test:** iki ayrı tarayıcıyla denedim (biri telefon kalitesinde). Ekose ceketli ve deri ceketli oyuncular birbirlerini doğru karakterle görüyor.

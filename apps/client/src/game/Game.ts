@@ -18,7 +18,7 @@ import {
   type Look,
   type MoveInput,
 } from '@sokak/shared';
-import { Character, realAvatarFor, type Emote, type Pose } from './character';
+import { Character, ensureRealAvatar, isRealAvatarLoaded, realAvatarFor, wantedAvatar, type Emote, type Pose } from './character';
 import { itemModel, type UseKind } from './items';
 export { loadCharacterKit, loadRealKit } from './character';
 import { Input } from './input';
@@ -55,6 +55,9 @@ interface Sample {
 interface Remote {
   char: Character;
   key: string;
+  look: Look;
+  label: string;
+  labelColor?: string;
   buf: Sample[];
   lastSeen: number;
   /** placed directly (seated bots), not interpolated */
@@ -196,11 +199,52 @@ export class Game {
     this.pending = [];
     this.facing = facing;
     this.camYaw = facing;
+    this.localLook = look;
     if (!this.localChar) {
       this.localChar = new Character(look, { adult: true, real: realAvatarFor(look) });
       this.scene.add(this.localChar.root);
-    } else this.localChar.setLook(look);
+    } else if (this.localChar.avatar !== realAvatarFor(look)) this.localChar = this.swapChar(this.localChar, look);
+    else this.localChar.setLook(look);
     this.localChar.root.visible = true;
+    this.fetchAvatar(look, () => {
+      if (this.localChar && this.localLook === look) this.localChar = this.swapChar(this.localChar, look);
+    });
+  }
+
+  private localLook: Look | null = null;
+  private labelsOn = true;
+
+  /** The chosen avatar is not loaded yet (phones load a subset): fetch it, then `swap`. */
+  private fetchAvatar(look: Look, swap: () => void): void {
+    const want = wantedAvatar(look);
+    if (!want || isRealAvatarLoaded(want)) return;
+    void ensureRealAvatar(want).then((ok) => {
+      if (ok && !this.disposed) swap();
+    });
+  }
+
+  /** Replace a character by a new one for `look`, keeping where it is and what it does. */
+  private swapChar(old: Character, look: Look, label?: { text: string; color?: string }): Character {
+    const ch = new Character(look, { adult: true, real: realAvatarFor(look) });
+    ch.root.position.copy(old.root.position);
+    ch.root.rotation.copy(old.root.rotation);
+    ch.root.visible = old.root.visible;
+    ch.facing = old.facing;
+    ch.pose = old.pose;
+    if (old.userHeld) {
+      ch.userHeld = old.userHeld;
+      ch.hold(itemModel(old.userHeld));
+    }
+    if (label) {
+      ch.setLabel(label.text, label.color);
+      ch.setLabelVisible(this.labelsOn);
+    }
+    this.scene.remove(old.root);
+    old.dispose();
+    this.scene.add(ch.root);
+    // a fishing line hangs from the old rod's tip: find the new one
+    for (const f of this.floats.values()) if (f.tip && !f.tip.parent?.parent) f.tip = null;
+    return ch;
   }
 
   removeLocal(): void {
@@ -289,16 +333,22 @@ export class Game {
 
   upsertRemote(id: string, look: Look, label: string, labelColor?: string): void {
     let r = this.remotes.get(id);
-    const key = `${look.color}|${look.hat}|${look.hair}|${look.skin}|${label}|${labelColor ?? ''}`;
+    const key = `${look.avatar ?? -1}|${look.color}|${look.hat}|${look.hair}|${look.skin}|${label}|${labelColor ?? ''}`;
     if (r?.key === key) return;
     if (!r) {
-      r = { char: new Character(look, { adult: true, real: realAvatarFor(look) }), key, buf: [], lastSeen: 0, prevX: 0, prevZ: 0, fixed: null };
+      r = { char: new Character(look, { adult: true, real: realAvatarFor(look) }), key, look, label, labelColor, buf: [], lastSeen: 0, prevX: 0, prevZ: 0, fixed: null };
       r.char.root.visible = false;
+      r.char.setLabelVisible(this.labelsOn);
       this.scene.add(r.char.root);
       this.remotes.set(id, r);
-    } else r.char.setLook(look);
-    r.key = key;
+    } else if (r.char.avatar !== realAvatarFor(look)) r.char = this.swapChar(r.char, look);
+    else r.char.setLook(look);
+    Object.assign(r, { key, look, label, labelColor });
     r.char.setLabel(label, labelColor);
+    this.fetchAvatar(look, () => {
+      const cur = this.remotes.get(id);
+      if (cur && cur.look === look) cur.char = this.swapChar(cur.char, look, { text: label, color: labelColor });
+    });
   }
 
   removeRemote(id: string): void {
@@ -420,6 +470,7 @@ export class Game {
 
   /** Hide name tags (e.g. while seated at a table, they would cover the board). */
   setLabelsVisible(v: boolean): void {
+    this.labelsOn = v;
     for (const r of this.remotes.values()) r.char.setLabelVisible(v);
   }
 

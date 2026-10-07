@@ -18,4 +18,4 @@
 
 ## 2026-10-07 — okey only
 - [x] Saklambaç removed at the user's request; the game is the 101 Okey kahvehane (see `Docs/Decisions.md`).
-- [ ] Home: pick one of the realistic avatars instead of the cartoon look editor.
+- [x] Home: pick one of the realistic avatars instead of the cartoon look editor.

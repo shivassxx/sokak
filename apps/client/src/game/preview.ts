@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Look } from '@sokak/shared';
-import { Character } from './character';
+import { Character, ensureRealAvatar, realAvatarFor, wantedAvatar } from './character';
 export { loadCharacterKit } from './character';
 
-/** Small turntable renderer for the character on the home screen. */
+/**
+ * Small turntable renderer for the player's character on the home screen: the realistic
+ * avatar they chose (fetched on demand, ≈0.4 MB), waving when the choice changes.
+ */
 export class CharacterPreview {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
@@ -35,10 +38,12 @@ export class CharacterPreview {
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     this.scene.add(ground);
-    this.char = new Character(look);
+    this.char = new Character(look, { adult: true, real: realAvatarFor(look) });
+    // until the chosen avatar has loaded (setLook), show nothing rather than a stand-in
+    this.char.root.visible = !wantedAvatar(look);
     this.scene.add(this.char.root);
-    this.camera.position.set(0, 1.25, -5.6);
-    this.camera.lookAt(0, 0.95, 0);
+    this.camera.position.set(0, 1.2, -4.4);
+    this.camera.lookAt(0, 0.93, 0);
     this.obs = new ResizeObserver(() => this.resize());
     this.obs.observe(canvas);
     this.resize();
@@ -46,10 +51,24 @@ export class CharacterPreview {
     this.raf = requestAnimationFrame(this.loop);
   }
 
-  setLook(look: Look): void {
-    this.char.setLook(look);
+  /** Show the avatar of `look` (loads it first when needed); resolves once it is on screen. */
+  async setLook(look: Look): Promise<void> {
+    this.look = look;
+    const want = wantedAvatar(look);
+    if (want) await ensureRealAvatar(want);
+    if (this.disposed || this.look !== look) return;
+    if (this.char.avatar !== realAvatarFor(look)) {
+      this.scene.remove(this.char.root);
+      this.char.dispose();
+      this.char = new Character(look, { adult: true, real: realAvatarFor(look) });
+      this.scene.add(this.char.root);
+    } else this.char.setLook(look);
+    this.char.root.visible = true;
     this.char.playEmote('wave');
   }
+
+  private look: Look | null = null;
+  private disposed = false;
 
   private resize(): void {
     const w = this.canvas.clientWidth || 300;
@@ -70,6 +89,7 @@ export class CharacterPreview {
   }
 
   dispose(): void {
+    this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.obs.disconnect();
     this.renderer.dispose();

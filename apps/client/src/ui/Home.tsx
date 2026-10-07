@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { HAIR_NAMES, HAT_NAMES, NAME_MAX, OUTFIT_COLORS, SKINS } from '@sokak/shared';
+import { AVATARS, NAME_MAX } from '@sokak/shared';
 import { loadPrefs, savePrefs, type Prefs } from './prefs';
 import type { CharacterPreview } from '../game/preview';
 import { play } from '../game/audio';
@@ -24,6 +24,7 @@ function Preview({ prefs }: { prefs: Prefs }) {
       await loadCharacterKit();
       if (cancelled || !ref.current) return;
       preview.current = new CharacterPreview(ref.current, latest.current);
+      void preview.current.setLook(latest.current);
     });
     return () => {
       cancelled = true;
@@ -31,8 +32,8 @@ function Preview({ prefs }: { prefs: Prefs }) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    preview.current?.setLook(prefs);
-  }, [prefs.color, prefs.hat, prefs.hair, prefs.skin]); // eslint-disable-line react-hooks/exhaustive-deps
+    void preview.current?.setLook(prefs);
+  }, [prefs.avatar]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="card preview-card">
       <canvas ref={ref} />
@@ -76,38 +77,23 @@ export function Home({ invite, busy, error, onStart }: Props) {
             />
           </label>
           <div className="field">
-            <span>Tişört</span>
-            <div className="colors">
-              {OUTFIT_COLORS.map((c) => (
-                <button key={c} aria-label={c} className={`color ${prefs.color === c ? 'selected' : ''}`} style={{ background: c }} onClick={() => update({ color: c })} />
-              ))}
+            <span>Karakterin</span>
+            <div className="avatar-pick">
+              <button className="btn small" aria-label="önceki karakter" onClick={() => update({ avatar: (prefs.avatar + AVATARS.length - 1) % AVATARS.length })}>
+                ‹
+              </button>
+              <b>
+                {prefs.avatar + 1}/{AVATARS.length} · {AVATARS[prefs.avatar]?.name}
+              </b>
+              <button className="btn small" aria-label="sonraki karakter" onClick={() => update({ avatar: (prefs.avatar + 1) % AVATARS.length })}>
+                ›
+              </button>
             </div>
-          </div>
-          <div className="field">
-            <span>Saç</span>
             <div className="chips">
-              {HAIR_NAMES.map((h, i) => (
-                <button key={h} className={`chip ${prefs.hair === i ? 'on' : ''}`} onClick={() => update({ hair: i })}>
-                  {h}
+              {AVATARS.map((a, i) => (
+                <button key={a.id} className={`chip ${prefs.avatar === i ? 'on' : ''}`} onClick={() => update({ avatar: i })}>
+                  {a.name}
                 </button>
-              ))}
-            </div>
-          </div>
-          <div className="field">
-            <span>Şapka</span>
-            <div className="chips">
-              {HAT_NAMES.map((h, i) => (
-                <button key={h} className={`chip ${prefs.hat === i ? 'on' : ''}`} onClick={() => update({ hat: i })}>
-                  {h}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="field">
-            <span>Ten rengi</span>
-            <div className="colors">
-              {SKINS.map((s, i) => (
-                <button key={s} aria-label={`ten ${i + 1}`} className={`skin ${prefs.skin === i ? 'on' : ''}`} style={{ background: s }} onClick={() => update({ skin: i })} />
               ))}
             </div>
           </div>

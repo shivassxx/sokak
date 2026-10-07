@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { SKINS, type Look } from '@sokak/shared';
+import { AVATARS, SKINS, type AvatarId, type Look } from '@sokak/shared';
 import { paintSkin, type Outfit } from './skinPainter';
 
 /**
@@ -28,46 +28,67 @@ export interface CharacterOpts {
 }
 
 /** Realistic adult avatars (Microsoft Rocketbox, MIT): men and women in everyday clothes. */
-export type RealAvatar = 'm05' | 'm01' | 'f01' | 'm14' | 'm02' | 'm03' | 'm08' | 'f04' | 'f09';
-export const REAL_AVATARS: readonly RealAvatar[] = ['m05', 'm01', 'f01', 'm14', 'm02', 'm03', 'm08', 'f04', 'f09'];
-/** the subset phones load (≈0.4 MB each) */
+export type RealAvatar = AvatarId;
+export const REAL_AVATARS: readonly RealAvatar[] = AVATARS.map((a) => a.id);
+/** the subset phones load up front (≈0.4 MB each); others are fetched when someone uses them */
 const REAL_AVATARS_LITE: readonly RealAvatar[] = ['m05', 'm01', 'f01', 'm14'];
 const realKit = new Map<RealAvatar, THREE.Object3D>();
-let realPromise: Promise<void> | null = null;
+const realLoads = new Map<RealAvatar, Promise<boolean>>();
+let realLoader: GLTFLoader | null = null;
 
-/** Load the realistic avatars (≈0.4 MB each, meshopt + WebP). Failures leave the painted fallback. */
-export function loadRealKit(lite = false): Promise<void> {
-  realPromise ??= (async () => {
-    const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-    await Promise.all(
-      (lite ? REAL_AVATARS_LITE : REAL_AVATARS).map(async (id) => {
-        try {
-          const g = await loader.loadAsync(`${import.meta.env.BASE_URL}models/rb_${id}.glb`);
-          g.scene.traverse((o) => {
-            const m = o as THREE.SkinnedMesh;
-            if (m.isSkinnedMesh) {
-              m.castShadow = true;
-              m.frustumCulled = false;
-            }
-          });
-          realKit.set(id, g.scene);
-        } catch {
-          /* keep the painted character for this one */
+/** Load one realistic avatar (once); resolves false when it cannot be loaded. */
+export function ensureRealAvatar(id: RealAvatar): Promise<boolean> {
+  let p = realLoads.get(id);
+  if (p) return p;
+  realLoader ??= new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  p = realLoader
+    .loadAsync(`${import.meta.env.BASE_URL}models/rb_${id}.glb`)
+    .then((g) => {
+      g.scene.traverse((o) => {
+        const m = o as THREE.SkinnedMesh;
+        if (m.isSkinnedMesh) {
+          m.castShadow = true;
+          m.frustumCulled = false;
         }
-      }),
-    );
-  })();
-  return realPromise;
+      });
+      realKit.set(id, g.scene);
+      return true;
+    })
+    .catch(() => false);
+  realLoads.set(id, p);
+  return p;
 }
 
-/** A realistic avatar for a player's look (stable per look), if they are loaded. */
-export function realAvatarFor(look: { color: string; skin: number; hair: number }): RealAvatar | undefined {
+export function isRealAvatarLoaded(id: RealAvatar): boolean {
+  return realKit.has(id);
+}
+
+/**
+ * Load the realistic avatars (≈0.4 MB each, meshopt + WebP): all of them, or on phones the
+ * lite subset plus `extra` (e.g. the player's own choice). Failures leave the painted fallback.
+ */
+export function loadRealKit(lite = false, extra: readonly RealAvatar[] = []): Promise<void> {
+  const ids = new Set([...(lite ? REAL_AVATARS_LITE : REAL_AVATARS), ...extra]);
+  return Promise.all([...ids].map(ensureRealAvatar)).then(() => undefined);
+}
+
+/** The avatar a look asks for (the player's choice), if any. */
+export function wantedAvatar(look: { avatar?: number }): RealAvatar | undefined {
+  return typeof look.avatar === 'number' ? REAL_AVATARS[look.avatar] : undefined;
+}
+
+/**
+ * The realistic avatar to show for a look: the player's choice when it is loaded, otherwise a
+ * stable stand-in among the loaded ones (callers fetch the wanted one and swap it in later).
+ */
+export function realAvatarFor(look: { color: string; skin: number; hair: number; avatar?: number }): RealAvatar | undefined {
+  const want = wantedAvatar(look);
+  if (want && realKit.has(want)) return want;
   if (!realKit.size) return undefined;
-  let h = look.skin * 7 + look.hair * 13;
+  let h = (look.avatar ?? 0) * 5 + look.skin * 7 + look.hair * 13;
   for (const ch of look.color) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  // the same pick on every client when they loaded the same set; otherwise the nearest loaded one
-  const want = REAL_AVATARS[h % REAL_AVATARS.length]!;
-  if (realKit.has(want)) return want;
+  const pick = want ?? REAL_AVATARS[h % REAL_AVATARS.length]!;
+  if (realKit.has(pick)) return pick;
   const avail = REAL_AVATARS.filter((a) => realKit.has(a));
   return avail[h % avail.length];
 }
@@ -288,6 +309,8 @@ export class Character {
   private extra: Partial<Outfit> | undefined;
   /** realistic textured avatar: no painted skin, hair or hats */
   readonly real: boolean;
+  /** which realistic avatar this is (undefined = the painted character) */
+  readonly avatar: RealAvatar | undefined;
   /** standing hip height in metres (for sitting / crouching offsets) */
   readonly hipHeight: number;
 
@@ -316,6 +339,7 @@ export class Character {
     this.extra = opts.extra;
     const realScene = opts.real ? realKit.get(opts.real) : undefined;
     this.real = !!realScene;
+    this.avatar = realScene ? opts.real : undefined;
 
     // virtual joint hierarchy: body(bob) → hips → (legs, chest → arms, neck)
     this.body.add(this.hips);

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Room } from 'colyseus.js';
 import * as THREE from 'three';
 import {
+  AVATARS,
   BET_OPTIONS,
   HAND_OPTIONS,
   KMSG,
@@ -45,6 +46,7 @@ import { OkeyBoard } from '../okey/OkeyBoard';
 import { shareRoom } from '../share';
 import { VoiceChat } from '../../net/voice';
 import { initialQuality } from '../../game/postfx';
+import { loadPrefs } from '../prefs';
 
 /** standing (or sitting) at the sea railing / ledge, not on the pier */
 const bySea = (p: { x: number; z: number } | null | undefined): boolean => !!p && p.z > SEA_Z - 3.2 && p.x < 32;
@@ -119,7 +121,9 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     let g: Game | null = null;
     let cancelled = false;
     void Promise.all([import('../../game/Game'), import('../../game/kahveScene')]).then(async ([{ Game, loadCharacterKit, loadRealKit }, { buildKahve }]) => {
-      await Promise.all([loadCharacterKit(), loadRealKit(initialQuality() === 'low')]);
+      // phones load a subset of the avatars up front, plus the one this player chose
+      const mine = AVATARS[loadPrefs().avatar]?.id;
+      await Promise.all([loadCharacterKit(), loadRealKit(initialQuality() === 'low', mine ? [mine] : [])]);
       if (cancelled || !canvasRef.current) return;
       g = new Game(canvasRef.current, buildKahve);
       if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = g;

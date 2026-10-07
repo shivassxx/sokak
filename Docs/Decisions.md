@@ -125,3 +125,7 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 
 ### For the record: the removed Saklambaç rules
 3–10 players; one Ebe counts 30 s at the Ebe Duvarı while the others hide; "Önüm arkam sağım solum sobe, saklanmayan ebe!"; the Ebe spots hiders in line of sight ("Gördüm!") and races them to the base (sobelendi / kurtuldu); the last hider touching the base frees everyone ("Herkes kurtuldu!"); 3-minute seeking; the first caught becomes the next Ebe; pebbles to distract, çöp konteyneri hiding, server-side visibility filtering of hider positions.
+
+## Choosing a character (2026-10-07)
+- The home page's cartoon look editor (shirt colour, hair, hat, skin) did nothing in the kahvehane, where everyone is one of the realistic Rocketbox avatars. It is replaced by a choice of the nine avatars (‹ › and name chips, a turntable preview that loads just the chosen model, ≈0.4 MB, after the page shows). The names describe the clothes ("Yelekli", "Ekose ceket" …) so they do not clash with nicknames or NPC names.
+- The choice is an index into the shared `AVATARS` list, sent as a join option and kept in the player schema; every client shows that avatar. Phones still load four avatars up front, plus their own choice; another player's avatar that is not loaded yet is fetched when they appear and swapped in (a stand-in is shown for a moment). Bots get varied avatars.

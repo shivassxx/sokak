@@ -28,10 +28,10 @@ export const AVATARS = [
   { id: 'm05', name: 'Yelekli' },
   { id: 'm01', name: 'Çizgili tişört' },
   { id: 'f01', name: 'Pembe gömlek' },
-  { id: 'm14', name: 'Mavi gömlek' },
+  { id: 'm14', name: 'Gri gömlek' },
   { id: 'm02', name: 'Bej kazak' },
   { id: 'm03', name: 'Ekose ceket' },
-  { id: 'm08', name: 'Gri gömlek' },
+  { id: 'm08', name: 'Mavi gömlek' },
   { id: 'f04', name: 'Deri ceket' },
   { id: 'f09', name: 'Kahve ceket' },
 ] as const;
