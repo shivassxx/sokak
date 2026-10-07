@@ -677,9 +677,9 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   sea.userData.noAO = true;
   scene.add(sea);
   const tower = kizKulesi();
-  tower.position.set(-30, 0, 128);
+  tower.position.set(-30, -1.1, 128);
   tower.rotation.y = 0.5;
-  tower.scale.setScalar(1.3);
+  tower.scale.setScalar(1.2);
   scene.add(tower);
   const flag = tower.getObjectByName('flag');
   const ferry = vapur();

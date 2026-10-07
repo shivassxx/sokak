@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Builder, canvasTex, hash } from './world';
-import { PAT } from './materials';
+import { PAT, patternize } from './materials';
 
 /**
  * The Üsküdar waterfront in code: wooden houses with cumbas, plane trees,
@@ -151,57 +151,311 @@ export function iskele(b: Builder, x0: number, x1: number, z0: number, z1: numbe
 }
 
 // ------------------------------------------------------------------ Kız Kulesi
-/** Kız Kulesi on its rock (a group, built around its own origin). */
+/**
+ * Kız Kulesi (Maiden's Tower) as restored in 2023: a rocky islet with a stone quay and
+ * parapet, the two-storey stone building, and the tower — square lower body, octagonal
+ * Baroque shaft with arched windows and cornices, an iron gallery around the glazed
+ * lighthouse lantern, an ogee lead dome with a gilded alem; a small beacon on the quay
+ * and the Turkish flag. Built around its own origin (sea level y = 0) in metres; the stone
+ * uses the shared world-space pattern shader so blocks and mortar read up close.
+ */
 export function kizKulesi(): THREE.Group {
   const g = new THREE.Group();
-  const stone = new THREE.MeshStandardMaterial({ color: 0xf1ebe0, roughness: 0.75 });
-  const lead = new THREE.MeshStandardMaterial({ color: 0x7d8c96, roughness: 0.45, metalness: 0.4 });
-  const rock = new THREE.MeshStandardMaterial({ color: 0x6f6a62, roughness: 0.95, flatShading: true });
-  const dark = new THREE.MeshStandardMaterial({ color: 0x30353d, roughness: 0.6 });
-  const glow = new THREE.MeshBasicMaterial({ color: 0xffd9a0 });
-  glow.color.multiplyScalar(1.6);
-  const add = (geo: THREE.BufferGeometry, m: THREE.Material, x: number, y: number, z: number, ry = 0) => {
-    const o = new THREE.Mesh(geo, m);
-    o.position.set(x, y, z);
-    o.rotation.y = ry;
-    o.castShadow = o.receiveShadow = m !== glow;
-    g.add(o);
-    return o;
+  const b = new Builder();
+  const STONE = 0xd9cfbf;
+  const STONE_DARK = 0xb9ad99;
+  const TRIM = 0xefe8da;
+  const IRON = 0x2b2f33;
+  const LEAD = 0x6f7a80;
+  const add = (geo: THREE.BufferGeometry, color: number, x: number, y: number, z: number, ry = 0, rx = 0, rz = 0) => b.add(geo, color, x, y, z, rx, ry, rz);
+
+  // ---- the islet: a big low rock mass and boulders breaking the surface
+  b.pat = PAT.stone;
+  const rock = (r: number, sx: number, sy: number, sz: number, seed: number) => {
+    const geo = new THREE.IcosahedronGeometry(r, 2);
+    const pos = geo.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      const z = pos.getZ(i);
+      const n = 1 + 0.22 * Math.sin(x * 1.7 + seed) * Math.cos(z * 1.3 + seed * 2) + 0.12 * Math.sin(y * 3.1 + seed * 5);
+      pos.setXYZ(i, x * n * sx, y * n * sy, z * n * sz);
+    }
+    const flat = geo.toNonIndexed();
+    flat.computeVertexNormals();
+    return flat;
   };
-  const isle = new THREE.DodecahedronGeometry(14, 1);
-  isle.scale(1.6, 0.25, 1.0);
-  add(isle, rock, 0, -1.2, 0);
-  add(new THREE.BoxGeometry(30, 2.2, 18), stone, 0, 0.6, 0);
-  // the low building with arched windows
-  add(new THREE.BoxGeometry(17, 6, 10), stone, -4, 4.7, 0);
-  const roofGeo = new THREE.ConeGeometry(10.5, 2.4, 4);
-  roofGeo.rotateY(Math.PI / 4);
-  roofGeo.scale(1.15, 1, 0.68);
-  add(roofGeo, lead, -4, 8.9, 0);
-  for (let k = 0; k < 6; k++) {
-    add(new THREE.BoxGeometry(1.0, 1.9, 0.1), k % 2 ? dark : glow, -11 + k * 2.6, 4.6, 5.05);
-    add(new THREE.CylinderGeometry(0.5, 0.5, 0.1, 10, 1, false, 0, Math.PI), k % 2 ? dark : glow, -11 + k * 2.6, 5.55, 5.05).rotation.set(Math.PI / 2, 0, Math.PI / 2);
-  }
-  // the tower: square base, octagonal shaft, gallery, lantern, lead cone, finial
-  add(new THREE.BoxGeometry(6.5, 11, 6.5), stone, 7.5, 7, 0);
-  add(new THREE.CylinderGeometry(2.9, 3.2, 6, 8), stone, 7.5, 15.5, 0, Math.PI / 8);
-  add(new THREE.CylinderGeometry(3.8, 3.8, 0.4, 8), stone, 7.5, 18.6, 0, Math.PI / 8);
+  add(rock(1, 24, 2.6, 14, 1), 0x6d665d, 0, -1.9, 0);
   for (let k = 0; k < 16; k++) {
-    const a = (k / 16) * Math.PI * 2;
-    add(new THREE.BoxGeometry(0.12, 0.9, 0.12), dark, 7.5 + Math.sin(a) * 3.6, 19.2, Math.cos(a) * 3.6);
+    const a = (k / 16) * Math.PI * 2 + hash(k) * 0.3;
+    const rr = 1.3 + hash(k + 9) * 2.2;
+    add(rock(rr, 1, 0.7, 1, k * 3.1), k % 3 ? 0x5f5951 : 0x7a7268, Math.cos(a) * (19 + hash(k + 3) * 4), -0.6 + hash(k + 5) * 0.6, Math.sin(a) * (11 + hash(k + 7) * 3), a);
   }
-  add(new THREE.CylinderGeometry(2.3, 2.5, 3.2, 8), stone, 7.5, 20.4, 0, Math.PI / 8);
+  // ---- the quay: rounded stone platform with a parapet
+  const quay = new THREE.Shape();
+  const QW = 17;
+  const QD = 10;
+  const QR = 4;
+  quay.moveTo(-QW + QR, -QD);
+  quay.lineTo(QW - QR, -QD);
+  quay.quadraticCurveTo(QW, -QD, QW, -QD + QR);
+  quay.lineTo(QW, QD - QR);
+  quay.quadraticCurveTo(QW, QD, QW - QR, QD);
+  quay.lineTo(-QW + QR, QD);
+  quay.quadraticCurveTo(-QW, QD, -QW, QD - QR);
+  quay.lineTo(-QW, -QD + QR);
+  quay.quadraticCurveTo(-QW, -QD, -QW + QR, -QD);
+  const slab = new THREE.ExtrudeGeometry(quay, { depth: 2.2, bevelEnabled: false, curveSegments: 6 });
+  slab.rotateX(-Math.PI / 2);
+  add(slab, STONE_DARK, 0, -0.9, 0);
+  const ring = new THREE.Shape(quay.getPoints(6));
+  const inner = new THREE.Path();
+  const iw = QW - 0.45;
+  const id = QD - 0.45;
+  inner.moveTo(-iw + QR, -id);
+  inner.lineTo(iw - QR, -id);
+  inner.quadraticCurveTo(iw, -id, iw, -id + QR);
+  inner.lineTo(iw, id - QR);
+  inner.quadraticCurveTo(iw, id, iw - QR, id);
+  inner.lineTo(-iw + QR, id);
+  inner.quadraticCurveTo(-iw, id, -iw, id - QR);
+  inner.lineTo(-iw, -id + QR);
+  inner.quadraticCurveTo(-iw, -id, -iw + QR, -id);
+  ring.holes.push(inner);
+  const parapet = new THREE.ExtrudeGeometry(ring, { depth: 0.75, bevelEnabled: false, curveSegments: 6 });
+  parapet.rotateX(-Math.PI / 2);
+  add(parapet, STONE, 0, 1.3, 0);
+  b.pat = PAT.none;
+  const cap = new THREE.ExtrudeGeometry(ring, { depth: 0.08, bevelEnabled: false, curveSegments: 6 });
+  cap.rotateX(-Math.PI / 2);
+  add(cap, TRIM, 0, 2.05, 0);
+  // landing steps on the town side
+  b.pat = PAT.stone;
+  for (let k = 0; k < 4; k++) b.box(-QW - 0.6 - k * 0.6, -0.9, 3, 0.6, 2.2 - k * 0.5, 4, STONE_DARK);
+
+  // ---- helpers: arched window / door with a light stone surround, facing angle ry
+  const archShape = (w: number, h: number) => {
+    const s = new THREE.Shape();
+    const r = w / 2;
+    s.moveTo(-r, 0);
+    s.lineTo(r, 0);
+    s.lineTo(r, h - r);
+    s.absarc(0, h - r, r, 0, Math.PI, false);
+    s.lineTo(-r, 0);
+    return s;
+  };
+  const toWorld = (geo: THREE.BufferGeometry, x: number, y: number, z: number, ry: number) => {
+    geo.rotateY(ry);
+    geo.translate(x, y, z);
+    return geo;
+  };
+  const arch = (x: number, y: number, z: number, ry: number, w: number, h: number, lit: boolean) => {
+    const out = Math.sin(ry);
+    const outZ = Math.cos(ry);
+    b.pat = PAT.none;
+    const frame = new THREE.ExtrudeGeometry(archShape(w + 0.36, h + 0.22), { depth: 0.08, bevelEnabled: false, curveSegments: 8 });
+    b.addMatrix(toWorld(frame, x + out * 0.01, y - 0.12, z + outZ * 0.01, ry), TRIM, new THREE.Matrix4());
+    const glass = new THREE.ShapeGeometry(archShape(w, h), 8);
+    b.addMatrix(toWorld(glass, x + out * 0.1, y, z + outZ * 0.1, ry), lit ? 0xffd28a : 0x2c3238, new THREE.Matrix4(), lit ? 'glow' : 'main');
+    // sill
+    b.add(new THREE.BoxGeometry(w + 0.5, 0.1, 0.22), TRIM, x + out * 0.1, y - 0.14, z + outZ * 0.1, 0, ry, 0);
+  };
+
+  // ---- the two-storey building
+  const BX = -6.5;
+  const BW = 15;
+  const BD = 10;
+  b.pat = PAT.stone;
+  b.box(BX, 1.3, 0, BW, 7.6, BD, STONE);
+  b.pat = PAT.none;
+  b.box(BX, 4.9, 0, BW + 0.3, 0.22, BD + 0.3, TRIM); // string course
+  b.box(BX, 8.7, 0, BW + 0.5, 0.35, BD + 0.5, TRIM); // cornice
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(BX + sx * (BW / 2 - 0.25), 1.3, sz * (BD / 2 - 0.25), 0.62, 7.4, 0.62, TRIM); // quoins
+  for (let k = 0; k < 5; k++) {
+    const x = BX - BW / 2 + 1.8 + k * ((BW - 3.6) / 4);
+    for (const side of [-1, 1]) {
+      const ry = side > 0 ? 0 : Math.PI;
+      arch(x, 2.0, side * (BD / 2), ry, 1.0, 2.2, (k + (side > 0 ? 0 : 1)) % 3 === 0);
+      arch(x, 5.6, side * (BD / 2), ry, 1.0, 2.2, (k + 1) % 2 === 0);
+    }
+  }
+  for (const z of [-2.6, 2.6]) {
+    arch(BX - BW / 2, 5.6, z, -Math.PI / 2, 1.0, 2.2, z > 0);
+  }
+  arch(BX - BW / 2, 1.3, 0, -Math.PI / 2, 1.8, 3.2, true); // the door to the landing
+  // low hipped lead roof
+  b.bucket = 'cars';
+  const roof = new THREE.ConeGeometry(1, 1, 4, 1);
+  roof.rotateY(Math.PI / 4);
+  roof.scale((BW + 0.6) / Math.SQRT2, 2.0, (BD + 0.6) / Math.SQRT2);
+  add(roof, LEAD, BX, 10.05, 0);
+  b.bucket = 'main';
+
+  // ---- the tower
+  const TX = 5.2;
+  // square lower body
+  b.pat = PAT.stone;
+  b.box(TX, 1.3, 0, 7.4, 10.2, 7.4, STONE);
+  b.pat = PAT.none;
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(TX + sx * 3.45, 1.3, sz * 3.45, 0.7, 10.0, 0.7, TRIM);
+  b.box(TX, 4.9, 0, 7.7, 0.22, 7.7, TRIM);
+  b.box(TX, 11.3, 0, 8.1, 0.45, 8.1, TRIM);
+  for (const [ry, dx, dz] of [
+    [0, 0, 3.7],
+    [Math.PI, 0, -3.7],
+    [Math.PI / 2, 3.7, 0],
+  ] as const) {
+    arch(TX + dx, 2.0, dz, ry, 1.1, 2.3, ry === 0);
+    arch(TX + dx, 6.1, dz, ry, 1.1, 2.6, ry !== Math.PI);
+  }
+  // octagonal Baroque shaft (two storeys)
+  const oct = (r: number, h: number, y: number, color: number, pat: number) => {
+    b.pat = pat as typeof b.pat;
+    const c = new THREE.CylinderGeometry(r, r, h, 8, 1);
+    c.rotateY(Math.PI / 8);
+    add(c, color, TX, y + h / 2, 0);
+  };
+  oct(3.25, 7.2, 11.75, STONE, PAT.stone);
+  oct(3.45, 0.24, 15.2, TRIM, PAT.none);
+  oct(3.6, 0.42, 18.95, TRIM, PAT.none);
+  const apo = 3.25 * Math.cos(Math.PI / 8);
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2;
+    const x = TX + Math.sin(a) * apo;
+    const z = Math.cos(a) * apo;
+    arch(x, 12.3, z, a, 0.8, 2.0, k % 2 === 0);
+    if (k % 2 === 0) arch(x, 15.8, z, a, 0.8, 2.2, true);
+    else {
+      // round "oculus" between the upper windows
+      b.pat = PAT.none;
+      add(new THREE.TorusGeometry(0.42, 0.1, 6, 16), TRIM, x + Math.sin(a) * 0.05, 16.9, z + Math.cos(a) * 0.05, a);
+    }
+  }
+  // gallery slab and iron railing
+  oct(4.2, 0.28, 19.35, TRIM, PAT.none);
+  for (let k = 0; k < 24; k++) {
+    const a = (k / 24) * Math.PI * 2;
+    b.box(TX + Math.sin(a) * 3.95, 19.63, Math.cos(a) * 3.95, 0.06, 1.0, 0.06, IRON);
+  }
+  const rail = new THREE.TorusGeometry(3.95, 0.045, 4, 8);
+  rail.rotateX(Math.PI / 2);
+  rail.rotateY(Math.PI / 8);
+  add(rail, IRON, TX, 20.6, 0);
+  // the lantern: slim stone piers with glazing between them
+  oct(2.35, 0.3, 19.63, TRIM, PAT.none);
   for (let k = 0; k < 8; k++) {
     const a = (k / 8) * Math.PI * 2 + Math.PI / 8;
-    add(new THREE.BoxGeometry(0.6, 1.4, 0.1), glow, 7.5 + Math.sin(a) * 2.42, 20.6, Math.cos(a) * 2.42, a);
+    b.box(TX + Math.sin(a) * 2.3, 19.93, Math.cos(a) * 2.3, 0.32, 2.7, 0.32, TRIM, 'main', a);
   }
-  add(new THREE.ConeGeometry(2.8, 5.2, 8), lead, 7.5, 24.6, 0, Math.PI / 8);
-  add(new THREE.CylinderGeometry(0.12, 0.12, 2.4, 6), dark, 7.5, 28.2, 0);
-  add(new THREE.SphereGeometry(0.35, 8, 6), new THREE.MeshStandardMaterial({ color: 0xd9b45a, metalness: 0.8, roughness: 0.3 }), 7.5, 27.4, 0);
-  const flag = add(new THREE.PlaneGeometry(1.6, 1.05), new THREE.MeshStandardMaterial({ color: 0xd32f2f, side: THREE.DoubleSide, roughness: 0.8 }), 8.35, 28.8, 0);
+  b.bucket = 'glow';
+  const glazing = new THREE.CylinderGeometry(2.15, 2.15, 2.6, 8, 1, true);
+  glazing.rotateY(Math.PI / 8);
+  add(glazing, 0xffe2a8, TX, 21.25, 0);
+  b.bucket = 'main';
+  oct(2.6, 0.32, 22.6, TRIM, PAT.none);
+  // ogee lead dome (eight facets) and the gilded alem
+  b.bucket = 'cars';
+  const prof = [
+    [2.62, 0],
+    [2.66, 0.22],
+    [2.5, 0.9],
+    [2.18, 1.7],
+    [1.7, 2.45],
+    [1.12, 3.15],
+    [0.62, 3.75],
+    [0.3, 4.25],
+    [0.12, 4.65],
+    [0, 4.8],
+  ].map(([r, y]) => new THREE.Vector2(r, y));
+  const dome = new THREE.LatheGeometry(prof, 8);
+  dome.rotateY(Math.PI / 8);
+  add(dome, LEAD, TX, 22.92, 0);
+  b.bucket = 'foliage';
+  const GOLD = 0xd6b25a;
+  add(new THREE.CylinderGeometry(0.05, 0.07, 1.6, 6), GOLD, TX, 28.4, 0);
+  for (const [y, r] of [
+    [27.95, 0.2],
+    [28.45, 0.15],
+    [28.85, 0.11],
+  ] as const)
+    add(new THREE.SphereGeometry(r, 10, 8), GOLD, TX, y, 0);
+  const crescent = new THREE.TorusGeometry(0.28, 0.05, 6, 16, Math.PI * 1.35);
+  crescent.rotateZ(Math.PI * 0.32);
+  add(crescent, GOLD, TX, 29.45, 0);
+  b.bucket = 'main';
+
+  // ---- small beacon at the far end of the quay
+  const LX = 13.5;
+  b.pat = PAT.plaster;
+  b.cyl(LX, 1.3, 5.2, 0.85, 4.2, 0xf3eee4, 16, 0.75);
+  b.pat = PAT.none;
+  b.cyl(LX, 5.5, 5.2, 1.1, 0.18, TRIM, 16);
+  b.bucket = 'glow';
+  b.cyl(LX, 5.68, 5.2, 0.55, 0.9, 0x9fe0a0, 12);
+  b.bucket = 'cars';
+  add(new THREE.ConeGeometry(0.75, 0.8, 12), 0xb83a2f, LX, 7.0, 5.2);
+  b.bucket = 'main';
+  // lamp posts on the quay
+  for (const [x, z] of [
+    [-15.5, -8.5],
+    [-15.5, 8.5],
+    [15.5, -8.5],
+    [2, 9],
+  ] as const) {
+    b.cyl(x, 2.05, z, 0.07, 2.8, IRON, 6);
+    b.bucket = 'glow';
+    b.add(new THREE.SphereGeometry(0.22, 10, 8), 0xffe0a0, x, 5.0, z);
+    b.bucket = 'main';
+  }
+
+  // ---- meshes
+  const mk = (geo: THREE.BufferGeometry | null, mat: THREE.Material, shadow = true) => {
+    if (!geo) return;
+    const m = new THREE.Mesh(geo, mat);
+    m.castShadow = m.receiveShadow = shadow;
+    g.add(m);
+  };
+  mk(b.build('main'), patternize(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 }), 0.18));
+  mk(b.build('cars'), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.35 }));
+  mk(b.build('foliage'), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.28, metalness: 0.9 }));
+  const glow = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });
+  glow.color.setScalar(1.25);
+  mk(b.build('glow'), glow, false);
+  // the flag on a pole at the corner of the building
+  b.pat = PAT.none;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 7, 6), new THREE.MeshStandardMaterial({ color: 0xe9e6df, roughness: 0.4 }));
+  pole.position.set(BX - BW / 2 + 0.8, 8.9 + 3.5, BD / 2 - 0.8);
+  g.add(pole);
+  const flagTex = canvasTex(256, 168, (ctx) => {
+    ctx.fillStyle = '#e30a17';
+    ctx.fillRect(0, 0, 256, 168);
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(96, 84, 42, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#e30a17';
+    ctx.beginPath();
+    ctx.arc(107, 84, 34, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    for (let k = 0; k < 10; k++) {
+      const a = -Math.PI / 2 + (k * Math.PI) / 5;
+      const r = k % 2 ? 9 : 22;
+      ctx.lineTo(150 + Math.cos(a) * r, 84 + Math.sin(a) * r);
+    }
+    ctx.fill();
+  });
+  const flagGeo = new THREE.PlaneGeometry(2.7, 1.8, 8, 1);
+  flagGeo.translate(1.35, 0, 0);
+  const flag = new THREE.Mesh(flagGeo, new THREE.MeshStandardMaterial({ map: flagTex, side: THREE.DoubleSide, roughness: 0.8 }));
+  flag.position.set(pole.position.x, pole.position.y + 2.5, pole.position.z);
   flag.name = 'flag';
-  // a small jetty
-  add(new THREE.BoxGeometry(2.5, 0.5, 9), new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 0.9 }), -14, 0.3, 12);
+  g.add(flag);
+  // a little jetty for the boats
+  const jetty = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.35, 8), new THREE.MeshStandardMaterial({ color: 0x6f5238, roughness: 0.9 }));
+  jetty.position.set(-QW - 2.8, 0.25, -4.5);
+  g.add(jetty);
   return g;
 }
 
