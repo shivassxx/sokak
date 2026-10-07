@@ -164,13 +164,16 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
         _v.copy(p).project(cam);
         return { x: ((_v.x + 1) / 2) * W, y: ((1 - _v.y) / 2) * H, ok: _v.z < 1 };
       };
-      const place = (key: string, p: THREE.Vector3 | null) => {
+      // keep name plates clear of the hint line at the top
+      const hint = document.querySelector('.okey-hint');
+      const minY = hint ? hint.getBoundingClientRect().bottom - el.getBoundingClientRect().top + 34 : 0;
+      const place = (key: string, p: THREE.Vector3 | null, clampTop = false) => {
         const node = spots.current.get(key);
         if (!node) return;
         if (!p) return void (node.style.display = 'none');
         const s = proj(p);
         node.style.display = s.ok ? '' : 'none';
-        node.style.transform = `translate(${s.x.toFixed(1)}px, ${s.y.toFixed(1)}px)`;
+        node.style.transform = `translate(${s.x.toFixed(1)}px, ${(clampTop ? Math.max(s.y, minY) : s.y).toFixed(1)}px)`;
       };
       place('deck', a?.deck ?? null);
       for (let s = 0; s < 4; s++) place(`pile-${s}`, a?.piles[s] ?? null);
@@ -180,7 +183,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
         // just above each opponent's ıstaka
         const sp = seatPosition(table.id, s);
         const k = (s - mySeat + 4) % 4 === 2 ? 0.42 : 0.5;
-        place(`plate-${s}`, _v.set(c.x + (sp.x - c.x) * k, 0.9, c.z + (sp.z - c.z) * k).clone());
+        place(`plate-${s}`, _v.set(c.x + (sp.x - c.x) * k, 0.9, c.z + (sp.z - c.z) * k).clone(), true);
       }
       for (const m of a?.melds ?? []) {
         const node = spots.current.get(`meld-${m.id}`);
