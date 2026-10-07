@@ -1,3 +1,5 @@
+import type { TvStreamType } from './tvStream';
+
 /**
  * The kıraathane TV: staff (owner/admins) put a derby on and every salon watches the same
  * simulated match. Team names are colour nicknames only — no real club names or logos.
@@ -22,10 +24,17 @@ export const TV_TEAMS: readonly TvTeam[] = [
 
 export const tvTeam = (id: string): TvTeam | undefined => TV_TEAMS.find((t) => t.id === id);
 
-/** What the server broadcasts to every salon: the match is deterministic from `seed` and `startedAt`. */
+/**
+ * What the server broadcasts to every salon. A simulated derby (`kind` 'sim', or missing for
+ * older payloads) is deterministic from `seed` and `startedAt`; a real stream (`kind` 'stream')
+ * carries the owner's channel title and link and stays on until staff stop it.
+ */
 export interface TvBroadcast {
   /** unique per broadcast */
   id: string;
+  /** missing = 'sim' (backwards compatible) */
+  kind?: 'sim' | 'stream';
+  /** team ids of the simulated derby ('' for a stream) */
   home: string;
   away: string;
   /** epoch ms (server clock) of the kick-off */
@@ -33,7 +42,18 @@ export interface TvBroadcast {
   seed: number;
   /** staff username that started it (shown in the admin panel only) */
   by: string;
+  /** stream only: the channel shown ("Derbi: GS–FB") */
+  title?: string;
+  /** stream only: the https link (validated by normalizeStreamUrl) */
+  url?: string;
+  /** stream only */
+  streamType?: TvStreamType;
+  /** stream only: the owner's channel it came from */
+  channelId?: string;
 }
+
+export const isTvStream = (b: TvBroadcast | null | undefined): b is TvBroadcast & { kind: 'stream'; url: string; title: string; streamType: TvStreamType } =>
+  !!b && b.kind === 'stream' && typeof b.url === 'string' && !!b.url;
 
 // ------------------------------------------------------------------ the simulated match
 /**

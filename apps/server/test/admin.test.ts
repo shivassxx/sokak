@@ -195,3 +195,89 @@ describe('admin panel API', () => {
     await a.leave();
   });
 });
+
+describe('TV channels (real streams)', () => {
+  it('owner adds, lists and deletes channels; admins get 403 on channel routes; links are validated', async () => {
+    const owner = await login('shivass', OWNER_PW, '10.0.5.1');
+    await api('POST', 'users', owner, { username: 'ocakci', password: 'semaver123' });
+    const admin = await login('ocakci', 'semaver123', '10.0.5.2');
+    for (const [m, route, body] of [
+      ['GET', 'channels'],
+      ['POST', 'channels', { title: 'X', url: 'https://cdn.example.com/a.mp4' }],
+      ['DELETE', 'channels/abc'],
+    ] as [string, string, unknown?][])
+      expect((await api(m, route, admin, body)).status, route).toBe(403);
+
+    for (const bad of [
+      { title: 'Derbi', url: 'http://cdn.example.com/a.mp4' },
+      { title: 'Derbi', url: 'javascript:alert(1)' },
+      { title: 'Derbi', url: 'data:video/mp4;base64,AAAA' },
+      { title: 'Derbi', url: `https://cdn.example.com/${'a'.repeat(500)}.mp4` },
+      { title: 'x'.repeat(61), url: 'https://cdn.example.com/a.mp4' },
+      { title: '', url: 'https://cdn.example.com/a.mp4' },
+    ])
+      expect((await api('POST', 'channels', owner, bad)).status, JSON.stringify(bad).slice(0, 60)).toBe(400);
+
+    const vid = await api('POST', 'channels', owner, { title: 'Derbi: GS–FB', url: 'https://cdn.example.com/live/index.m3u8' });
+    expect(vid.status).toBe(200);
+    expect(vid.body).toMatchObject({ title: 'Derbi: GS–FB', url: 'https://cdn.example.com/live/index.m3u8', type: 'video', createdBy: 'shivass' });
+    const yt = await api('POST', 'channels', owner, { title: 'Maç özeti', url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' });
+    expect(yt.body).toMatchObject({ type: 'embed', url: 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1' });
+    const list = await api('GET', 'channels', owner);
+    expect(list.body.map((c: { title: string }) => c.title)).toEqual(['Derbi: GS–FB', 'Maç özeti']);
+    // persisted next to the staff accounts
+    expect(readFileSync(staffFile, 'utf8')).toContain('cdn.example.com/live/index.m3u8');
+    expect(new StaffStore(staffFile, { ownerPassword: OWNER_PW }).listChannels()).toHaveLength(2);
+
+    // admins see the channels by title, without links
+    const tv = await api('GET', 'tv', admin);
+    expect(tv.body.channels).toEqual([
+      { id: vid.body.id, title: 'Derbi: GS–FB', type: 'video' },
+      { id: yt.body.id, title: 'Maç özeti', type: 'embed' },
+    ]);
+    expect(tv.text).not.toContain('example.com');
+
+    expect((await api('DELETE', `channels/${yt.body.id}`, owner)).status).toBe(200);
+    expect((await api('DELETE', `channels/${yt.body.id}`, owner)).status).toBe(404);
+    expect((await api('GET', 'channels', owner)).body).toHaveLength(1);
+    const actions = (await api('GET', 'log', owner)).body.map((e: { action: string }) => e.action);
+    expect(actions).toContain('channels/add');
+    expect(actions).toContain('channels/remove');
+  });
+
+  it('an admin puts a channel on air by id (never a raw link); joined clients get the stream; stop works', async () => {
+    const owner = await login('shivass', OWNER_PW, '10.0.6.1');
+    const admin = await login('ocakci', 'semaver123', '10.0.6.2');
+    const ch = (await api('POST', 'channels', owner, { title: 'Canlı derbi', url: 'https://cdn.example.com/derbi.mp4' })).body;
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 'Seyirci' });
+    await until(() => !!(a.room.state as any).players?.get(a.id));
+
+    expect((await api('POST', 'tv/start', admin, { url: 'https://evil.example.com/a.mp4' })).status).toBe(400);
+    expect((await api('POST', 'tv/start', admin, { channelId: ch.id, url: 'https://evil.example.com/a.mp4' })).status).toBe(400);
+    expect((await api('POST', 'tv/start', admin, { channelId: 'nope' })).status).toBe(404);
+    expect(server.tv.current()).toBeNull();
+
+    const start = await api('POST', 'tv/start', admin, { channelId: ch.id });
+    expect(start.status).toBe(200);
+    expect(start.body.current).toMatchObject({ kind: 'stream', title: 'Canlı derbi', url: 'https://cdn.example.com/derbi.mp4', streamType: 'video', by: 'ocakci' });
+    const tvOf = () => {
+      const s = (a.room.state as { tv?: string }).tv;
+      return s ? JSON.parse(s) : null;
+    };
+    await until(() => tvOf()?.kind === 'stream');
+    expect(tvOf()).toMatchObject({ kind: 'stream', url: 'https://cdn.example.com/derbi.mp4', title: 'Canlı derbi', streamType: 'video' });
+
+    // a stream does not expire on its own like a simulated derby
+    const cur = server.tv.current()!;
+    cur.startedAt -= 24 * 3600_000;
+    expect(server.tv.current()).not.toBeNull();
+
+    expect((await api('POST', 'tv/stop', admin)).status).toBe(200);
+    await until(() => tvOf() === null);
+    expect(server.tv.current()).toBeNull();
+    const log = (await api('GET', 'log', owner)).body as { action: string; detail?: string }[];
+    expect(log.find((e) => e.action === 'tv/start')?.detail).toContain('Canlı derbi');
+    await a.leave();
+    await api('DELETE', 'users/ocakci', owner);
+  });
+});

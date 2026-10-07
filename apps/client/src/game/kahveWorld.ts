@@ -14,6 +14,8 @@ import {
   REGULAR_SEATS,
   TAVLA_TABLES,
   TERRACE,
+  MAIN_TV,
+  isTvStream,
   seatPosition,
   vapurState,
   type TvBroadcast,
@@ -22,7 +24,7 @@ import {
 import { Builder, canvasTex, decal, hash, type Mover } from './world';
 import { PAT, patternize } from './materials';
 import { STEEL, LIGHT_OAK, TABLE_TOP, feltTexture, modernChair, modernOkeyTable, parasol, patioHeater, samovar, caydanlik, bentwoodChair } from './kahveProps';
-import { vapurHorn } from './audio';
+import { isMuted, vapurHorn } from './audio';
 import { classicLamp, facadeWindow, gull, hillMosque, houseRow, iskele, kizKulesi, limb, parkBench, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
 import type { Quality } from './postfx';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -30,6 +32,7 @@ import { Foliage } from './foliage';
 import { parkedCar } from './cars';
 import { Pigeons } from './pigeons';
 import { TvScreen } from './tvScreen';
+import { TvVideo } from './tvStream';
 import { tavlaTable } from './tavlaBoard';
 import { marketFitout } from './marketProps';
 
@@ -49,8 +52,10 @@ export interface KahveWorld {
   feedGulls(x: number, z: number, y?: number): void;
   /** the server clock (epoch ms) that drives the shared vapur timeline and the TV */
   setClock(clock: () => number): void;
-  /** the derby on the shared TV (null = normal programme) */
+  /** the derby or real stream on the shared TV (null = normal programme) */
   setTv(b: TvBroadcast | null): void;
+  /** false while the stream is watched in the 2D overlay (no double sound) */
+  setTvAudio(on: boolean): void;
 }
 
 const BRICK = 0x9c4a32;
@@ -692,6 +697,35 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   const tvScreen = new TvScreen();
   const bezelMat = new THREE.MeshStandardMaterial({ color: 0x0b0b0d, roughness: 0.32, metalness: 0.5 });
   const screenMat = new THREE.MeshBasicMaterial({ map: tvScreen.texture, toneMapped: false });
+  // a real `video` stream: the same VideoTexture on every TV, with a "● CANLI · title" strip on top
+  const liveCanvas = document.createElement('canvas');
+  liveCanvas.width = 512;
+  liveCanvas.height = 48;
+  const liveTex = new THREE.CanvasTexture(liveCanvas);
+  liveTex.colorSpace = THREE.SRGBColorSpace;
+  const liveMat = new THREE.MeshBasicMaterial({ map: liveTex, transparent: true, toneMapped: false, depthWrite: false });
+  const liveStrips: THREE.Mesh[] = [];
+  let tvBroadcast: TvBroadcast | null = null;
+  let tvAudio = true;
+  const drawLiveStrip = (title: string) => {
+    const c = liveCanvas.getContext('2d')!;
+    c.clearRect(0, 0, 512, 48);
+    c.fillStyle = 'rgba(8,12,24,0.72)';
+    c.fillRect(0, 0, 512, 48);
+    tvScreen.liveBadge(c, 8, 10);
+    c.fillStyle = '#ffffff';
+    c.font = '700 20px system-ui, sans-serif';
+    c.textAlign = 'left';
+    c.fillText(title, 112, 25, 390);
+    liveTex.needsUpdate = true;
+  };
+  const tvVideo = new TvVideo((st) => {
+    const live = st === 'playing';
+    screenMat.map = live ? tvVideo.texture : tvScreen.texture;
+    screenMat.needsUpdate = true;
+    for (const m of liveStrips) m.visible = live;
+    tvScreen.streamLoading = st === 'loading';
+  });
   for (const o of KAHVE_OBJECTS) {
     if (o.kind !== 'tv') continue;
     const side = o.w < o.d;
@@ -706,7 +740,12 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     const screen = new THREE.Mesh(new THREE.PlaneGeometry(width - 0.05, o.h - 0.05), screenMat);
     screen.position.z = 0.027;
     screen.userData.noAO = true;
-    g.add(bezel, screen);
+    const strip = new THREE.Mesh(new THREE.PlaneGeometry(Math.min(width - 0.05, o.h * 1.6), Math.min(width - 0.05, o.h * 1.6) * (48 / 512)), liveMat);
+    strip.position.set(-(width - 0.05) / 2 + Math.min(width - 0.05, o.h * 1.6) / 2, (o.h - 0.05) / 2 - strip.geometry.parameters.height / 2, 0.03);
+    strip.visible = false;
+    strip.userData.noAO = true;
+    liveStrips.push(strip);
+    g.add(bezel, screen, strip);
     if (width > 2.6) {
       // the big one gets a soundbar under it
       const bar = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.08, 0.1), bezelMat);
@@ -800,6 +839,13 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       listener.set(x, z);
       // the TVs are only seen from inside the hall or through the storefront
       tvVisible.v = x > HALL.x0 - 6 && x < HALL.x1 + 6 && z < TERRACE.z1 + 4;
+      // the stream's sound comes from the big screen: loud nearby, quiet outside the hall
+      if (tvVideo.status === 'playing') {
+        const inHall = x > HALL.x0 && x < HALL.x1 && z > HALL.z0 && z < HALL.z1;
+        const d = Math.hypot(x - MAIN_TV.x, z - MAIN_TV.z);
+        const near = inHall ? Math.min(1, Math.max(0.2, 1.15 - d / 26)) : tvVisible.v ? 0.06 : 0;
+        tvVideo.setVolume(tvAudio && !isMuted() ? near * 0.8 : 0);
+      }
       sky.position.set(x, 0, z);
       const sx = Math.round(x / 2) * 2;
       const sz = Math.round(z / 2) * 2;
@@ -811,6 +857,20 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     },
     setTv(b) {
       tvScreen.setBroadcast(b);
+      tvBroadcast = b;
+      if (isTvStream(b) && b.streamType === 'video') {
+        drawLiveStrip(b.title);
+        tvVideo.play(b.url);
+      } else tvVideo.stop();
+    },
+    setTvAudio(on) {
+      tvAudio = on;
+      if (!on) tvVideo.setVolume(0);
+      // an unusable video (CORS, error) gets another try when the overlay closes
+      else if (tvVideo.status === 'failed' && isTvStream(tvBroadcast) && tvBroadcast.streamType === 'video') {
+        tvVideo.stop();
+        tvVideo.play(tvBroadcast.url);
+      }
     },
     feedGulls(x, z, y = 0) {
       const hand = new THREE.Vector3(x, y + 1.5, z);

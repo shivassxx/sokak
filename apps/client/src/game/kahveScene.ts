@@ -39,6 +39,8 @@ export interface KahveScene extends World {
   setClock(clock: () => number): void;
   /** the derby on the kıraathane TVs (null = normal programme) */
   setTv(b: TvBroadcast | null): void;
+  /** false while the real stream is watched in the 2D overlay */
+  setTvAudio(on: boolean): void;
   /** a goal on the TV: the regulars jump up and the çaycı waves */
   tvGoal(): void;
   /** waiter brings `item` to a world position; drink stays on the table */
@@ -488,6 +490,9 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     },
     setTv(b) {
       world.setTv(b);
+    },
+    setTvAudio(on) {
+      world.setTvAudio(on);
     },
     tvGoal() {
       for (const ch of hallRegulars) {

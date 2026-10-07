@@ -19,3 +19,4 @@
 ## 2026-10-07 — okey only
 - [x] Saklambaç removed at the user's request; the game is the 101 Okey kahvehane (see `Docs/Decisions.md`).
 - [x] Home: pick one of the realistic avatars instead of the cartoon look editor.
+- [x] Real match streams on the kıraathane TV: owner-managed channels (video/HLS on the 3D screen, embeds in a "📺 Maçı izle" overlay), admins pick a channel; simulated derby kept as the second option.

@@ -39,3 +39,8 @@ kenney.nl, quaternius.com and polyhaven.com are blocked in the dev container (Ke
 | Microsoft Rocketbox Avatar Library — Male_Adult_01, 02, 03, 05, 08, 14; Female_Adult_01, 04, 09 | Microsoft (Mar Gonzalez-Franco et al.) | github.com/microsoft/Microsoft-Rocketbox | MIT (licence text shipped as `public/models/ROCKETBOX_LICENSE.txt`) | 2026-10-07 | `public/models/rb_*.glb`: realistic adult avatars for players and NPCs in the 101 Okey kahvehane | FBX → glTF (FBX2glTF); hi-poly LOD only, animations and facial blendshapes stripped (the procedural rig drives the Biped bones); colour 1024², normal 512², opacity (lashes/hair cards) 256²; meshopt geometry + WebP q72 (0.3–0.46 MB each) |
 
 Keep the total download under 5 MB (CLAUDE.md performance budget).
+
+## Libraries added for real match streams
+| Library | Creator | Source | License | Date | Used for | Changes |
+|---|---|---|---|---|---|---|
+| hls.js 1.7.3 (light build, `hls.js/light`) | video-dev / hls.js contributors | https://github.com/video-dev/hls.js | Apache-2.0 | 2026-10-07 | Plays owner-added HLS (.m3u8) streams on the kıraathane TV in browsers without native HLS; loaded lazily as its own chunk | none |

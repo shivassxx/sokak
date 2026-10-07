@@ -55,6 +55,7 @@ import type { Game } from '../../game/Game';
 import { footsteps, goalRoar, gullCry, play, seaside } from '../../game/audio';
 import { useToasts } from '../toasts';
 import { AnnounceBanner } from './AnnounceBanner';
+import { TvWatch } from './TvWatch';
 import { Social } from '../Social';
 import { TouchControls, isTouch } from '../TouchControls';
 import { OkeyBoard } from '../okey/OkeyBoard';
@@ -1267,6 +1268,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       )}
 
       <AnnounceBanner room={room} />
+      <TvWatch game={game} tvJson={tvJson} seated={atTable} toast={pushToast} />
       <div className="toasts">
         {toasts.map((t) => (
           <div key={t.id} className={`toast ${t.kind ?? ''}`}>

@@ -67,6 +67,8 @@ Only staff have accounts; players stay anonymous. The owner account is **`shivas
 
 Security notes: sessions are HttpOnly + SameSite=Strict cookies (Secure behind Caddy's https), 12 h; 5 failed logins per IP or per username in 10 minutes give HTTP 429. Removing an admin ends their sessions immediately. Forgot the owner password: set `SOKAK_OWNER_PASSWORD` and restart.
 
+**Real match streams ("Kanallar"):** the owner adds stream links (https only) in the panel; they are stored in `STAFF_FILE` next to the staff users, so they survive restarts. Only add streams you hold the rights to, or public streams whose owner allows embedding. A `video` link (.mp4/.webm/.m3u8) plays on the 3D TV only if its host sends CORS headers (`Access-Control-Allow-Origin: *` or your domain); otherwise players watch it in the "📺 Maçı izle" window. The Caddyfile sets no Content-Security-Policy, so https frames and media from other hosts are allowed. If you add a CSP later, include `frame-src https:; media-src https: blob:; connect-src 'self' wss: https:` (hls.js fetches the playlist and segments with XHR and plays them from `blob:` URLs).
+
 ## Verified in development
 - `docker build` of this Dockerfile succeeds and the container serves the client, `/health`, `/stats` and a real Colyseus room (tested with a headless bot client).
 - `docker compose config` validates. The Caddy image could not be pulled in the sandbox (no registry access), the Caddyfile uses only the standard `reverse_proxy` + `encode` directives.
