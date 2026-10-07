@@ -69,15 +69,9 @@ importers:
       '@colyseus/ws-transport':
         specifier: 0.16.5
         version: 0.16.5(@colyseus/core@0.16.26(@colyseus/schema@3.0.76)(@pm2/io@6.1.0))
-      '@sokak/bots':
-        specifier: workspace:*
-        version: link:../../packages/bots
       '@sokak/okey':
         specifier: workspace:*
         version: link:../../packages/okey
-      '@sokak/rules':
-        specifier: workspace:*
-        version: link:../../packages/rules
       '@sokak/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -98,22 +92,7 @@ importers:
         specifier: 4.23.15
         version: 4.23.15
 
-  packages/bots:
-    dependencies:
-      '@sokak/shared':
-        specifier: workspace:*
-        version: link:../shared
-      colyseus.js:
-        specifier: 0.16.22
-        version: 0.16.22
-
   packages/okey: {}
-
-  packages/rules:
-    dependencies:
-      '@sokak/shared':
-        specifier: workspace:*
-        version: link:../shared
 
   packages/shared: {}
 

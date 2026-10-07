@@ -1,4 +1,4 @@
-import type { Aabb, MapObject, PropKind, Vec2 } from './map';
+import type { Aabb, MapObject, Vec2 } from './geometry';
 import { CollisionWorld } from './physics';
 
 /**
@@ -33,7 +33,12 @@ export const CAYCI_SPOT: Vec2 = { x: -3, z: -22.8 };
 export const KAHVE_SPAWN: Vec2 = { x: -3, z: -2.6 };
 
 export type KahveKind =
-  | PropKind
+  | 'wall'
+  | 'building'
+  | 'fence'
+  | 'railing'
+  | 'car'
+  | 'bench'
   | 'okeyTable'
   | 'chair'
   | 'counter'
@@ -58,9 +63,7 @@ export type KahveKind =
   | 'ledge'
   | 'tavla';
 
-export interface KahveObject extends Omit<MapObject, 'kind'> {
-  kind: KahveKind;
-}
+export type KahveObject = MapObject<KahveKind>;
 
 const objs: KahveObject[] = [];
 function box(kind: KahveKind, x: number, z: number, w: number, d: number, h: number, o: { y?: number; solid?: boolean; opaque?: boolean; tint?: number } = {}): void {

@@ -15,7 +15,7 @@ import {
   TERRACE,
   seatPosition,
 } from '@sokak/shared';
-import { Builder, canvasTex, decal, hash } from './world';
+import { Builder, canvasTex, decal, hash, type Mover } from './world';
 import { PAT, patternize } from './materials';
 import { STEEL, LIGHT_OAK, TABLE_TOP, feltTexture, modernChair, modernOkeyTable, parasol, patioHeater, samovar, caydanlik, bentwoodChair } from './kahveProps';
 import { vapurHorn } from './audio';
@@ -24,6 +24,7 @@ import type { Quality } from './postfx';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Foliage } from './foliage';
 import { parkedCar } from './cars';
+import { Pigeons } from './pigeons';
 import { marketFitout } from './marketProps';
 
 /**
@@ -33,7 +34,7 @@ import { marketFitout } from './marketProps';
  * shadows stay sharp near the camera.
  */
 export interface KahveWorld {
-  update(dt: number): void;
+  update(dt: number, movers?: readonly Mover[]): void;
   follow(x: number, z: number): void;
   /** a piece of simit thrown from (x, z) towards the sea; the nearest gull dives for it */
   feedGulls(x: number, z: number): void;
@@ -824,6 +825,16 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     out.lerpVectors(d.hand, d.land, s).setY(d.hand.y + (d.land.y - d.hand.y) * s + Math.sin(Math.PI * s) * 3);
   const tmpG = new THREE.Vector3();
 
+  // pigeons pecking behind the benches, between the strollers' lanes (z 24.8 / 29.8)
+  const pigeonHomes: THREE.Vector3[] = [];
+  for (const [cx, n] of [
+    [8, low ? 4 : 7],
+    [-16, low ? 3 : 5],
+    [-28, low ? 2 : 4],
+  ] as const)
+    for (let i = 0; i < n; i++) pigeonHomes.push(new THREE.Vector3(cx + (hash(i * 3 + cx) - 0.5) * 5, 0.02, PROMENADE.z0 + 8.7 + (hash(i * 5 + cx) - 0.5) * 0.6));
+  const pigeons = new Pigeons(scene, pigeonHomes);
+
   let t = 0;
   let tvT = 0;
   return {
@@ -853,7 +864,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       piecePos(d, 0.55, d.catchAt);
       best.dive = d;
     },
-    update(dt) {
+    update(dt, movers = []) {
+      pigeons.update(dt, movers);
       t += dt;
       water.uniforms.uTime!.value = t;
       ferry.position.x += dt * 7;

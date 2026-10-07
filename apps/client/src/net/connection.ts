@@ -1,5 +1,5 @@
 import { Client, type Room } from 'colyseus.js';
-import { KAHVE_ROOM, ROOM_NAME, SERVER_PORT, type JoinOptions, type LeaderInfo, type SalonInfo } from '@sokak/shared';
+import { KAHVE_ROOM, SERVER_PORT, type JoinOptions, type LeaderInfo, type SalonInfo } from '@sokak/shared';
 
 export function serverEndpoint(): string {
   const env = import.meta.env.VITE_SERVER_URL as string | undefined;
@@ -26,18 +26,6 @@ export function forgetRoom(): void {
   } catch {
     /* ignore */
   }
-}
-
-export async function createRoom(opts: JoinOptions): Promise<Room> {
-  const room = await client.create(ROOM_NAME, opts);
-  remember(room);
-  return room;
-}
-
-export async function joinRoom(roomId: string, opts: JoinOptions): Promise<Room> {
-  const room = await client.joinById(roomId, opts);
-  remember(room);
-  return room;
 }
 
 /** Try to resume a previous seat (page reload / network drop). */
@@ -120,6 +108,6 @@ export async function joinKahve(opts: JoinOptions, how: KahveJoin = {}): Promise
   return room;
 }
 
-export function roomLink(roomId: string, kind: 'oda' | 'kahve' = 'oda'): string {
-  return `${location.origin}${location.pathname}?${kind}=${encodeURIComponent(roomId)}`;
+export function roomLink(roomId: string): string {
+  return `${location.origin}${location.pathname}?kahve=${encodeURIComponent(roomId)}`;
 }

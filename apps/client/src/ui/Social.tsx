@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Room } from 'colyseus.js';
-import { EMOTES, MSG, QUICK_CHAT, type EmoteId } from '@sokak/shared';
+import { EMOTES, MSG, QUICK_CHAT_OKEY, type EmoteId } from '@sokak/shared';
 import type { Input } from '../game/input';
 import { isMuted, play, setMuted } from '../game/audio';
 
@@ -8,7 +8,7 @@ const EMOTE_ICON: Record<EmoteId, string> = { wave: '👋', laugh: '😂', dance
 const EMOTE_NAME: Record<EmoteId, string> = { wave: 'El salla', laugh: 'Gül', dance: 'Dans et', point: 'Göster' };
 
 /** Emote buttons + preset quick-chat (no free text, child-safe). */
-export function Social({ room, input, phrases = QUICK_CHAT }: { room: Room; input: Input; phrases?: readonly string[] }) {
+export function Social({ room, input, phrases = QUICK_CHAT_OKEY }: { room: Room; input: Input; phrases?: readonly string[] }) {
   const [open, setOpen] = useState(false);
   const [muted, setM] = useState(isMuted());
 

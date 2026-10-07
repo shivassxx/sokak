@@ -459,7 +459,6 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
 
   let t = 0;
   return {
-    setDusk() {},
     follow(x, z) {
       world.follow(x, z);
     },
@@ -517,11 +516,13 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
       const target = tablePoint(table, yaw, 0, cy - Math.sin(pitch), cz - Math.cos(pitch));
       return { pos, target, fov: THREE.MathUtils.radToDeg(2 * Math.atan(f)) };
     },
-    update(dt: number, _movers: Mover[]) {
+    update(dt: number, movers: Mover[]) {
       t += dt;
       if (dirty) rebuildTiles();
       drawTiles(dt);
-      world.update(dt);
+      // the sahil strollers scare the pigeons too
+      for (const w of walkers) movers.push({ x: w.ch.root.position.x, z: w.ch.root.position.z, speed: 1.2 });
+      world.update(dt, movers);
       // regulars
       for (const r of regulars) {
         r.ch.animate(dt, 0, false, false);

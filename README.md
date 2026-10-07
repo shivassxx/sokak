@@ -1,6 +1,6 @@
 # Sokak Oyunları
 
-Çocukluğun mahalle oyunları, tarayıcıda ve çok oyunculu. İlk mod: **Saklambaç**.
+Üsküdar'da bir kıraathanede **101 Okey**: tarayıcıda, çok oyunculu, hesapsız.
 
 ```bash
 pnpm install

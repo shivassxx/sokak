@@ -4,17 +4,15 @@ import { loadPrefs, savePrefs, type Prefs } from './prefs';
 import type { CharacterPreview } from '../game/preview';
 import { play } from '../game/audio';
 
-export type Mode = 'saklambac' | 'okey';
-
 interface Props {
-  invite: { kind: 'oda' | 'kahve'; id: string } | null;
+  /** opened from a friend's salon link */
+  invite: boolean;
   busy: boolean;
   error: string | null;
-  onStart: (mode: Mode, p: Prefs) => void;
-  onPractice: () => void;
+  onStart: (p: Prefs) => void;
 }
 
-/** Live 3D turntable of the player's kid (loaded lazily after the page shows). */
+/** Live 3D turntable of the player's character (loaded lazily after the page shows). */
 function Preview({ prefs }: { prefs: Prefs }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const preview = useRef<CharacterPreview | null>(null);
@@ -43,7 +41,7 @@ function Preview({ prefs }: { prefs: Prefs }) {
   );
 }
 
-export function Home({ invite, busy, error, onStart, onPractice }: Props) {
+export function Home({ invite, busy, error, onStart }: Props) {
   const [prefs, setPrefs] = useState<Prefs>(loadPrefs);
   const update = (p: Partial<Prefs>) => {
     const next = { ...prefs, ...p };
@@ -51,29 +49,13 @@ export function Home({ invite, busy, error, onStart, onPractice }: Props) {
     savePrefs(next);
     play('click');
   };
-  const [mode, setMode] = useState<Mode>(invite?.kind === 'kahve' ? 'okey' : 'saklambac');
-  const go = () => onStart(mode, prefs);
-  const joining = (mode === 'saklambac' && invite?.kind === 'oda') || (mode === 'okey' && invite?.kind === 'kahve');
+  const go = () => onStart(prefs);
   return (
     <div className="home">
       <h1 className="logo">
         SOKAK<span>OYUNLARI</span>
       </h1>
-      <p className="tagline">
-        {invite?.kind === 'oda' ? 'Arkadaşların seni Saklambaç’a çağırıyor!' : invite?.kind === 'kahve' ? 'Arkadaşların kahvehanede, okey masası seni bekliyor!' : 'Bugün ne oynuyoruz?'}
-      </p>
-      <div className="modes">
-        <button className={`mode ${mode === 'saklambac' ? 'on' : ''}`} onClick={() => setMode('saklambac')}>
-          <span className="mode-ico">🙈</span>
-          <b>Saklambaç</b>
-          <small>Mahallede saklan, Ebe’den kaç</small>
-        </button>
-        <button className={`mode ${mode === 'okey' ? 'on' : ''}`} onClick={() => setMode('okey')}>
-          <span className="mode-ico">🀄</span>
-          <b>101 Okey</b>
-          <small>Kahvehanede masaya otur, çayları ısmarla</small>
-        </button>
-      </div>
+      <p className="tagline">{invite ? 'Arkadaşların kahvehanede, okey masası seni bekliyor!' : '101 Okey · Üsküdar’da bir kıraathane, çaylar bizden'}</p>
       <div className="home-main">
         <Preview prefs={prefs} />
         <div className="card">
@@ -130,29 +112,26 @@ export function Home({ invite, busy, error, onStart, onPractice }: Props) {
             </div>
           </div>
           <button className="btn big" disabled={busy} onClick={go}>
-            {busy ? 'Bağlanıyor…' : mode === 'okey' ? (joining ? 'Arkadaşlarının salonuna gir' : 'Lobiye gir') : joining ? 'Oyuna katıl' : 'Oda kur'}
+            {busy ? 'Bağlanıyor…' : invite ? 'Arkadaşlarının salonuna gir' : 'Lobiye gir'}
           </button>
           {error && <div className="error">{error}</div>}
-          <button className="link" onClick={onPractice}>
-            ya da tek başına mahallede dolaş
-          </button>
         </div>
       </div>
       <div className="howto">
         <div>
-          <b>1. Oda kur</b>
-          <span>Linki arkadaşlarına gönder. Tıklayan saniyeler içinde mahallede!</span>
+          <b>1. Salona gir</b>
+          <span>Lobiden bir salon seç ya da yeni salon aç. Linki arkadaşlarına gönder, saniyeler içinde yanına gelsinler.</span>
         </div>
         <div>
-          <b>2. Saklan</b>
-          <span>Ebe 30’a kadar sayarken çalıya, merdiven altına ya da çöp konteynerine gir. Çömel, sessiz ol.</span>
+          <b>2. Masaya otur</b>
+          <span>Boş bir masaya otur, bahsi ve el sayısını seç. Eksik yerlere bot çağırabilirsin.</span>
         </div>
         <div>
-          <b>3. Sobele ya da kurtul</b>
-          <span>Ebe “Gördüm!” der, herkes Ebe Duvarı’na koşar. Taş atıp Ebe’yi kandır, son kalan herkesi kurtarır!</span>
+          <b>3. 101'i aç, eli bitir</b>
+          <span>Taşlarını diz, 101'i geçince elini aç, okeyi yerinde kullan. Kazanınca çaylar senden!</span>
         </div>
       </div>
-      <p className="fineprint">Hesap yok, kayıt yok. Sadece bir takma ad. 3–10 oyuncu (boş yerlere bot eklenebilir), telefonda ve bilgisayarda.</p>
+      <p className="fineprint">Hesap yok, kayıt yok. Sadece bir takma ad. Oyun parası gerçek değildir. Telefonda ve bilgisayarda oynanır.</p>
     </div>
   );
 }

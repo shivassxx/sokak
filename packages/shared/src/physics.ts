@@ -1,4 +1,4 @@
-import { COLLIDERS, MAP_HALF, type Aabb } from './map';
+import type { Aabb } from './geometry';
 
 /**
  * Simple deterministic kinematic movement shared by client (prediction)
@@ -92,11 +92,8 @@ export class CollisionWorld {
   }
 }
 
-/** The Saklambaç mahalle. */
-export const MAHALLE_WORLD = new CollisionWorld(COLLIDERS, MAP_HALF);
-
 /** Solid colliders whose footprint may overlap the given rect. */
-export function solidsNear(minX: number, maxX: number, minZ: number, maxZ: number, world: CollisionWorld = MAHALLE_WORLD): Set<Aabb> {
+export function solidsNear(minX: number, maxX: number, minZ: number, maxZ: number, world: CollisionWorld): Set<Aabb> {
   return world.solidsNear(minX, maxX, minZ, maxZ);
 }
 
@@ -109,7 +106,7 @@ function blocksAt(c: Aabb, y: number, stepAllowance: number): boolean {
 }
 
 /** Highest walkable surface under the footprint that is at most `maxTop`. */
-export function groundHeight(x: number, z: number, maxTop: number, world: CollisionWorld = MAHALLE_WORLD): number {
+export function groundHeight(x: number, z: number, maxTop: number, world: CollisionWorld): number {
   let g = 0;
   const r = PLAYER_RADIUS;
   for (const c of world.solidsNear(x - r, x + r, z - r, z + r)) {
@@ -121,7 +118,7 @@ export function groundHeight(x: number, z: number, maxTop: number, world: Collis
 const EPS = 1e-4;
 
 /** Advance a body by one fixed step. Mutates `body`. */
-export function stepBody(body: Body, input: MoveInput, dt: number = SIM_DT, world: CollisionWorld = MAHALLE_WORLD): void {
+export function stepBody(body: Body, input: MoveInput, dt: number, world: CollisionWorld): void {
   let mx = input.mx;
   let mz = input.mz;
   const len = Math.hypot(mx, mz);

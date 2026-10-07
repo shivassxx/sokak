@@ -15,3 +15,7 @@
 | K3 | Kahvehane client: mode select, 3D kahvehane + çaycı, okey board (rack drag & drop, seri/çift diz, open/lay/işle/swap, steal/accuse), menu, drinks | ✅ done |
 | Q2 | Quality pass 2: rigged CC0 characters with painted skins, post-processing tiers, bump-mapped surfaces, rebuilt kıraathane (karo, wainscot, windows + sun, çay ocağı, Thonet chairs, new okey tables, regulars), 3D okey table with animated tiles and an insert-and-slide ıstaka | ✅ done |
 | N1 | Night session: bug fixes (camera jitter, stuck bodies, black halos, leaving the venue), modern kıraathane with terrace + 22 tables, Üsküdar sahil with Kız Kulesi, market (virtual items incl. sigara with warning), benches/ledge sitting, lobby (salons, quick play, private salons, invite), persistent device wallet + daily bonus, online leaderboard, opt-in voice chat, çaycı path finding, reload resync | ✅ done |
+
+## 2026-10-07 — okey only
+- [x] Saklambaç removed at the user's request; the game is the 101 Okey kahvehane (see `Docs/Decisions.md`).
+- [ ] Home: pick one of the realistic avatars instead of the cartoon look editor.

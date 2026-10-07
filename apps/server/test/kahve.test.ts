@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { matchMaker } from '@colyseus/core';
-import { NetBot } from '@sokak/bots/client';
+import { NetBot } from './netBot';
 import { DAILY_MISSIONS, FISH, KAHVE_ROOM, KMSG, MENU, MSG, QUICK_CHAT_OKEY, SEA_Z, SHOPS, SHOP_ITEMS, SIT_SPOTS, START_MONEY, TABLES, TABLE_COUNT, type TableView } from '@sokak/shared';
 import { startServer, type StartedServer } from '../src/app';
 import { until, sleep } from './helpers';
@@ -354,5 +354,24 @@ describe('kahvehane', () => {
     await until(() => table(a, ti).status === 'playing');
     a.room.send(KMSG.stand);
     await a.leave();
+  });
+});
+
+describe('launch features', () => {
+  it('replaces offensive nicknames with a friendly random one', async () => {
+    const a = await new NetBot(endpoint).joinOrCreate(KAHVE_ROOM, { name: 's1kt1r' });
+    await until(() => !!st(a).players?.get(a.id));
+    expect(me(a).name).not.toMatch(/s1kt1r/i);
+    expect(me(a).name.length).toBeGreaterThan(2);
+    await a.leave();
+  });
+
+  it('exposes aggregate stats only (started tables, hands, table sizes)', async () => {
+    const res = await fetch(`http://127.0.0.1:${server.port}/stats`);
+    const json = (await res.json()) as Record<string, unknown>;
+    // the bot match earlier in this file started at least one table
+    expect(json.okeyTablesStarted).toBeGreaterThanOrEqual(1);
+    expect(json.okeyHandsPlayed).toBeGreaterThanOrEqual(1);
+    expect(JSON.stringify(json)).not.toMatch(/name|device|ip/i);
   });
 });

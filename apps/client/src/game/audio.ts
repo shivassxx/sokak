@@ -1,9 +1,8 @@
 /**
- * Sound: CC0 samples from Kenney starter kits (public/sfx) with procedural
- * WebAudio fallbacks, a looping street ambience, footsteps and optional
- * browser speech for the Turkish calls.
+ * Sound: CC0 samples from Kenney starter kits (public/sfx) with procedural WebAudio
+ * fallbacks, footsteps, and synthesized sahil sounds (surf, gulls, the vapur's horn).
  */
-type Sfx = 'tick' | 'go' | 'spotted' | 'caught' | 'safe' | 'herkes' | 'pop' | 'roundEnd' | 'click' | 'jump' | 'land' | 'pebble' | 'step';
+type Sfx = 'go' | 'spotted' | 'caught' | 'safe' | 'herkes' | 'pop' | 'roundEnd' | 'click' | 'jump' | 'land';
 
 const SAMPLE_FILES = {
   walking: 'walking.ogg',
@@ -13,18 +12,16 @@ const SAMPLE_FILES = {
   break: 'break.ogg',
   click: 'click.ogg',
   pop: 'pop.ogg',
-  thud: 'thud.ogg',
-  ambience: 'ambience.ogg',
 } as const;
 type SampleName = keyof typeof SAMPLE_FILES;
 
 let ctx: AudioContext | null = null;
 let master: GainNode | null = null;
 let sfxBus: GainNode | null = null;
+/** the sahil's synthesized surf / gulls / horn */
 let ambienceBus: GainNode | null = null;
 const samples = new Map<SampleName, AudioBuffer>();
 let loading = false;
-let ambienceSrc: AudioBufferSourceNode | null = null;
 let stepSrc: AudioBufferSourceNode | null = null;
 let stepGain: GainNode | null = null;
 
@@ -152,9 +149,6 @@ function noise(start: number, dur: number, vol = 0.3, freq = 800): void {
 export function play(s: Sfx, pan = 0): void {
   if (muted || !ac()) return;
   switch (s) {
-    case 'tick':
-      tone(880, 0, 0.07, 'square', 0.1);
-      break;
     case 'go': // referee whistle
       tone(1800, 0, 0.25, 'sine', 0.3, 2300);
       tone(2300, 0.28, 0.45, 'sine', 0.3, 1900);
@@ -194,12 +188,6 @@ export function play(s: Sfx, pan = 0): void {
     case 'land':
       playSample('land', 0.35);
       break;
-    case 'pebble':
-      if (!playSample('thud', 0.6, 1.8, pan)) noise(0, 0.08, 0.4, 2000);
-      break;
-    case 'step':
-      noise(0, 0.05, 0.12, 900);
-      break;
   }
 }
 
@@ -220,26 +208,6 @@ export function footsteps(speed: number, sprinting: boolean): void {
   const moving = speed > 0.6 && !muted;
   stepGain!.gain.setTargetAtTime(moving ? (sprinting ? 0.5 : 0.32) : 0, c.currentTime, 0.05);
   stepSrc.playbackRate.setTargetAtTime(Math.max(0.6, Math.min(1.7, speed / 4.6)), c.currentTime, 0.1);
-}
-
-/** Street ambience (birds, distant traffic) — starts once samples are loaded. */
-export function ambience(on: boolean): void {
-  const c = ctx;
-  if (!c || !ambienceBus) return;
-  if (!on) {
-    ambienceSrc?.stop();
-    ambienceSrc = null;
-    stepSrc?.stop();
-    stepSrc = null;
-    return;
-  }
-  const buf = samples.get('ambience');
-  if (!buf || ambienceSrc) return;
-  ambienceSrc = c.createBufferSource();
-  ambienceSrc.buffer = buf;
-  ambienceSrc.loop = true;
-  ambienceSrc.connect(ambienceBus);
-  ambienceSrc.start();
 }
 
 let surf: { level: GainNode; nodes: AudioNode[]; src: AudioBufferSourceNode; lfo: OscillatorNode } | null = null;
@@ -346,29 +314,4 @@ export function gullCry(volume = 0.5, pan = 0): void {
     o.start(t);
     o.stop(t + 0.26);
   }
-}
-
-/** Speak a Turkish phrase if the browser has a voice (optional sugar). */
-export function say(text: string, rate = 1.05): void {
-  if (muted) return;
-  const synth = window.speechSynthesis;
-  if (!synth || typeof SpeechSynthesisUtterance === 'undefined') return;
-  const voices = synth.getVoices();
-  const tr = voices.find((v) => v.lang?.toLowerCase().startsWith('tr'));
-  if (!tr) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.voice = tr;
-  u.lang = 'tr-TR';
-  u.rate = rate;
-  synth.cancel();
-  synth.speak(u);
-}
-
-const NUMBERS = ['bir', 'iki', 'üç', 'dört', 'beş', 'altı', 'yedi', 'sekiz', 'dokuz', 'on'];
-export function countWord(n: number): string {
-  if (n <= 10) return NUMBERS[n - 1]!;
-  if (n < 20) return `on ${NUMBERS[n - 11]}`;
-  if (n === 20) return 'yirmi';
-  if (n < 30) return `yirmi ${NUMBERS[n - 21]}`;
-  return 'otuz';
 }

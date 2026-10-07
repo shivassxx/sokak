@@ -38,11 +38,11 @@ import {
 } from '@sokak/shared';
 import type { Game } from '../../game/Game';
 import { footsteps, gullCry, play, seaside } from '../../game/audio';
-import { useToasts } from '../Hud';
+import { useToasts } from '../toasts';
 import { Social } from '../Social';
 import { TouchControls, isTouch } from '../TouchControls';
 import { OkeyBoard } from '../okey/OkeyBoard';
-import { shareRoom } from '../Lobby';
+import { shareRoom } from '../share';
 import { VoiceChat } from '../../net/voice';
 import { initialQuality } from '../../game/postfx';
 
@@ -121,7 +121,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     void Promise.all([import('../../game/Game'), import('../../game/kahveScene')]).then(async ([{ Game, loadCharacterKit, loadRealKit }, { buildKahve }]) => {
       await Promise.all([loadCharacterKit(), loadRealKit(initialQuality() === 'low')]);
       if (cancelled || !canvasRef.current) return;
-      g = new Game(canvasRef.current, 'kahve', buildKahve);
+      g = new Game(canvasRef.current, buildKahve);
       if (import.meta.env.DEV) (window as unknown as { __game: Game }).__game = g;
       setGame(g);
     });
@@ -148,7 +148,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
           const [x, y, z, vy, g, st = 1, tired = 0] = s.me;
           const p = viewRef.current?.players[me];
           if (!game.hasLocal()) game.spawnLocal(x, y, z, p ?? { color: '#e74c3c', hat: 0, hair: 0, skin: 0 }, 0);
-          else game.reconcile(s.a, x, y, z, vy, g === 1, st, tired === 1, -1);
+          else game.reconcile(s.a, x, y, z, vy, g === 1, st, tired === 1);
         }
         for (const p of s.p) game.pushRemote(p[0], s.t, p[1], p[2], p[3], p[4], false);
       }),
@@ -535,7 +535,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   };
   const serverNow = () => Date.now() + offset.current;
   const invite = async () => {
-    const r = await shareRoom(room.roomId, 'kahve', { title: '101 Okey oynayalım mı?', text: `Üsküdar'da kahvedeyiz (${view?.name ?? 'salon'}), gel bir el okey atalım!` });
+    const r = await shareRoom(room.roomId, { title: '101 Okey oynayalım mı?', text: `Üsküdar'da kahvedeyiz (${view?.name ?? 'salon'}), gel bir el okey atalım!` });
     if (r === 'copied') toastRef.current({ text: 'Davet linki kopyalandı! Arkadaşına gönder.', kind: 'good' });
     else if (r === 'failed') toastRef.current({ text: 'Link kopyalanamadı. Adres çubuğundaki linki paylaşabilirsin.', kind: 'info' });
   };

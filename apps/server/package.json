@@ -12,9 +12,7 @@
     "@colyseus/core": "0.16.26",
     "@colyseus/schema": "3.0.76",
     "@colyseus/ws-transport": "0.16.5",
-    "@sokak/bots": "workspace:*",
     "@sokak/okey": "workspace:*",
-    "@sokak/rules": "workspace:*",
     "@sokak/shared": "workspace:*",
     "express": "4.22.3"
   },

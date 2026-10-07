@@ -1,8 +1,10 @@
 # SOKAK OYUNLARI — Final Raporu
 
-**Tarih:** 6–7 Ekim 2026 · **Dal:** `claude/quirky-hamilton-c4mnxp` · **Durum:** M0 → M6, iki kalite geçişi, Mod 2 (101 Okey) ve gece çalışması tamamlandı; 112 test geçiyor. En yeni değişiklikler en alttaki **"Ek: Gece çalışması"** bölümünde.
+**Tarih:** 6–7 Ekim 2026 · **Dal:** `claude/quirky-hamilton-c4mnxp` · **Durum:** Oyun artık **yalnızca 101 Okey**. Senin isteğinle Saklambaç 7 Ekim'de kaldırıldı. 62 test geçiyor. En yeni değişiklikler en alttaki eklerde.
 
-Linke tıklayınca saniyeler içinde açılan, telefonda ve bilgisayarda çalışan, çok oyunculu 3D **Saklambaç** hazır. Oda kur, linki gönder, arkadaşların (ya da botlar) gelsin; Ebe duvara dönüp sayar, herkes saklanır, "Gördüm!" denince Ebe Duvarı'na yarış başlar.
+Linke tıklayınca saniyeler içinde açılan, telefonda ve bilgisayarda çalışan, çok oyunculu 3D **101 Okey** hazır. Mekân, Üsküdar'da bir kıraathane: masaya otur, botlarla ya da arkadaşlarınla oyna, çayları ısmarla, sahile çık.
+
+> **Not:** Bölüm 1–5 projenin geçmişini anlatıyor: önce Saklambaç (M0–M6), sonra okey modu yapıldı. Saklambaç artık oyunda yok. Güncel kullanım için 6. bölüme ve en alttaki eklere bak.
 
 ---
 
@@ -84,8 +86,8 @@ kenney.nl, polyhaven.com, ambientcg.com gibi siteler bu çalışma ortamından a
    pnpm dev
    ```
    Sunucu `:2567`'de, oyun **http://localhost:5173** adresinde açılır.
-5. Takma ad yaz, renk seç, **Oda kur**. Lobideki **Paylaş** ile linki kopyala, ikinci bir sekmede aç. Az kişiyle denemek için **+ Bot ekle** (en az 3 oyuncu gerekir), sonra **Oyunu başlat**.
-6. Kısa ellerle hızlı test için sunucuyu şöyle başlatabilirsin (sayma 6 sn, arama 45 sn):
+5. Takma adını yaz, **Lobiye gir**. **⚡ Hızlı oyna** seni boş bir masaya oturtur, **🤖 Botlarla hemen başla** ile hemen oynarsın. Arkadaşınla oynamak için **Yeni salon aç**, içeride **🔗 Davet et** ile linki gönder ya da ikinci bir sekmede aç.
+6. Hızlı test için sunucuyu şöyle başlatabilirsin (hamle süresi 12 sn, eller arası beklemeler kısa):
    ```bash
    # macOS/Linux
    SOKAK_TIMERS=fast pnpm dev
@@ -94,7 +96,7 @@ kenney.nl, polyhaven.com, ambientcg.com gibi siteler bu çalışma ortamından a
    ```
 7. Testler ve üretim derlemesi:
    ```bash
-   pnpm test          # 116 test (gece çalışması sonunda)
+   pnpm test          # 62 test (Saklambaç kaldırıldıktan sonra)
    pnpm typecheck
    pnpm build
    pnpm check:size    # indirme boyutu kontrolü
@@ -104,11 +106,11 @@ kenney.nl, polyhaven.com, ambientcg.com gibi siteler bu çalışma ortamından a
 ### Aynı Wi-Fi'deki telefonla test
 1. Bilgisayarın yerel IP adresini bul: Windows'ta `ipconfig` (IPv4, ör. `192.168.1.23`), macOS'ta `ipconfig getifaddr en0`, Linux'ta `hostname -I`.
 2. `pnpm dev` çalışırken telefonda **http://192.168.1.23:5173** aç (Vite terminalde "Network:" satırında bu adresi de gösterir).
-3. Oda linkini bilgisayardan paylaş; link `localhost` içeriyorsa telefonda `localhost` yerine IP'yi yaz. En kolayı: odayı **telefondan** kur ve **Paylaş** ile linki diğerlerine gönder.
+3. Salon linkini bilgisayardan paylaş; link `localhost` içeriyorsa telefonda `localhost` yerine IP'yi yaz. En kolayı: salonu **telefondan** aç ve **Davet et** ile linki diğerlerine gönder.
 4. Windows güvenlik duvarı Node.js için izin isterse **Özel ağlar**'a izin ver (5173 ve 2567 portları).
-5. Kontroller: sol tarafta parmağını sürükle = yürü, sağ tarafta sürükle = etrafa bak, sağ alttaki butonlar = Zıpla / Çömel / **Gördüm!**
+5. Kontroller: sol tarafta parmağını sürükle = yürü, sağ tarafta sürükle = etrafa bak; masada taşları parmağınla sürükle.
 
-Masaüstü kontrolleri: WASD/oklar yürü · fare sürükle bak (çift tık = fare kilidi) · Boşluk zıpla · C çömel · E veya F "Gördüm!" · Tab skor · 1–4 ifadeler · T hızlı sohbet.
+Masaüstü kontrolleri: WASD/oklar yürü · fare sürükle bak · **E** otur / alışveriş / izle · **Q** elindekini kullan · 1–4 ifadeler · masada taşları fareyle sürükle.
 
 ## 7. Sunucuya (VDS) kurulum
 
@@ -396,3 +398,13 @@ Uyurken verdiğin listedeki her madde yapıldı. Takip listesi `Docs/NightPlan.m
 **Bilinen sınırlar**
 - Gerçekçi karakterlerin yüz ifadesi yok, animasyonları da prosedürel (kendi yürüme ve oturma sistemimiz). Yine de duruşlar ve eller doğal görünüyor.
 - Gerçek bir telefonda kare hızı henüz ölçülmedi. Tarayıcı testleri yazılımsal grafik sürücüsüyle yapıldı.
+
+## Ek: Saklambaç kaldırıldı, oyun artık sadece okey (7 Ekim)
+
+Senin "saklambaçı kaldırıyoruz, oyunumuz sadece okey olacak" isteğin üzerine:
+- **Kaldırılanlar:** Saklambaç'ın sunucu odası ve testleri, kural motoru (`packages/rules`), botları (`packages/bots`), mahalle haritası ve görüş kontrolü, oyun ekranı, "mahallede tek başına dolaş" modu, Saklambaç lobisi ve HUD'u, mahalle 3D dünyası ve 1,2 MB'lık sokak ambiyans sesi.
+- **Ana sayfa:** mod seçimi yok. Takma adını yazıp doğrudan okey lobisine giriyorsun. Davet linkleri `?kahve=...` biçiminde.
+- **Korunanlar:** hareket fiziği, karakter sistemi, ifadeler, hazır sohbet cümleleri, takma ad filtresi. Saklambaç testlerinde olan "uygunsuz takma ad" ve "istatistik" kontrolleri artık kahvehane üzerinde çalışıyor.
+- **İstatistikler:** başlayan masa, oynanan el, masa başına gerçek oyuncu sayısı ve bahisler sayılıyor. İsim veya kimlik tutulmuyor.
+- **Sonuç:** 62 test geçiyor. Toplam indirme 4,5 MB'tan 3,2 MB'a indi, lobiyi açmak için 128 KB yetiyor.
+- Saklambaç'ın kodu git geçmişinde duruyor. İstersen geri getirilebilir.

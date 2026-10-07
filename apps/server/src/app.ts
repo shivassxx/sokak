@@ -4,9 +4,7 @@ import path from 'node:path';
 import express from 'express';
 import { Server, matchMaker } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
-import { KAHVE_ROOM, ROOM_NAME, type LeaderInfo, type SalonInfo, type SalonMeta } from '@sokak/shared';
-import type { RulesConfig } from '@sokak/rules';
-import { SaklambacRoom } from './rooms/SaklambacRoom';
+import { KAHVE_ROOM, type LeaderInfo, type SalonInfo, type SalonMeta } from '@sokak/shared';
 import { KahvehaneRoom } from './rooms/KahvehaneRoom';
 import { Analytics } from './analytics';
 import { WalletStore } from './wallets';
@@ -22,7 +20,6 @@ export interface StartedServer {
 export async function startServer(port: number, opts: {
     staticDir?: string;
     host?: string;
-    rules?: Partial<RulesConfig>;
     analyticsFile?: string | null;
     statsToken?: string;
     walletFile?: string | null;
@@ -107,14 +104,6 @@ export async function startServer(port: number, opts: {
     transport: new WebSocketTransport({ server: httpServer, pingInterval: 5000, pingMaxRetries: 3 }),
     greet: false,
   });
-  const rules = opts.rules ?? {};
-  gameServer.define(
-    ROOM_NAME,
-    class extends SaklambacRoom {
-      static override rulesConfig = rules;
-      static override analyticsSink = analytics;
-    },
-  );
   const kahveTiming = { ...KahvehaneRoom.timing, ...(opts.kahve?.timing ?? {}) };
   const kahveRng = opts.kahve?.rng ?? Math.random;
   gameServer
@@ -125,7 +114,7 @@ export async function startServer(port: number, opts: {
         static override rng = kahveRng;
         static override wallets = wallets;
         static override analyticsSink = {
-          tableStarted: () => analytics.tableStarted(),
+          tableStarted: (players: number, bet: number) => analytics.tableStarted(players, bet),
           handPlayed: () => analytics.okeyHandPlayed(),
         };
       },

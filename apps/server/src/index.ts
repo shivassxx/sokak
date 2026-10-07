@@ -7,7 +7,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const staticDir = process.env.CLIENT_DIR ?? path.resolve(here, '../../client/dist');
 const port = Number(process.env.PORT ?? SERVER_PORT);
 
-// SOKAK_TIMERS=fast shortens rounds for local testing
+// SOKAK_TIMERS=fast shortens the okey turn timer and the breaks for local testing
 const fast = process.env.SOKAK_TIMERS === 'fast';
 const prod = process.env.NODE_ENV === 'production' || process.argv.includes('--prod');
 const s = await startServer(port, {
@@ -15,7 +15,7 @@ const s = await startServer(port, {
   analyticsFile: process.env.ANALYTICS_FILE ?? (prod ? path.resolve('data/analytics.jsonl') : null),
   statsToken: process.env.STATS_TOKEN,
   walletFile: process.env.WALLET_FILE ?? path.resolve('data/wallets.json'),
-  rules: fast ? { countingMs: 6000, seekingMs: 45000, roundEndMs: 8000 } : {},
+  kahve: fast ? { timing: { turn: 12000, between: 3000, result: 4000 } } : undefined,
 });
 console.log(`[sokak] server listening on :${s.port}`);
 

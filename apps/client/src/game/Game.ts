@@ -1,8 +1,5 @@
 import * as THREE from 'three';
 import {
-  BASE,
-  COLLIDERS,
-  CONTAINERS,
   HALL,
   HALL_DOOR,
   KAHVE_COLLIDERS,
@@ -10,9 +7,8 @@ import {
   KAHVE_SPAWN,
   KAHVE_WORLD,
   SEA_Z,
-  MAHALLE_WORLD,
+  type Aabb,
   type CollisionWorld,
-  EBE_COUNT_SPOT,
   SIM_DT,
   cloneBody,
   createBody,
@@ -26,12 +22,9 @@ import { Character, realAvatarFor, type Emote, type Pose } from './character';
 import { itemModel, type UseKind } from './items';
 export { loadCharacterKit, loadRealKit } from './character';
 import { Input } from './input';
-import { buildWorld, type Mover, type World } from './world';
-import { setupLighting, type Lighting } from './lighting';
+import type { Mover, World } from './world';
 import { PostFX, initialQuality } from './postfx';
 import type { KahveScene } from './kahveScene';
-
-export type Level = 'mahalle' | 'kahve';
 
 export interface InputSender {
   sendInput(seq: number, input: MoveInput, yaw: number): void;
@@ -72,9 +65,8 @@ interface Remote {
 
 // camera occluders: tall, and walls or blocks rather than posts (lamp posts / trunks would make the
 // camera pump in and out)
-const camBlocker = (minH: number) => (c: (typeof COLLIDERS)[number]) =>
+const camBlocker = (minH: number) => (c: Aabb) =>
   c.solid && c.maxY - c.minY > minH && (Math.min(c.maxX - c.minX, c.maxZ - c.minZ) >= 0.5 || Math.max(c.maxX - c.minX, c.maxZ - c.minZ) >= 2);
-const SOLID_CAM_MAHALLE = COLLIDERS.filter(camBlocker(1));
 const SOLID_CAM_KAHVE = [
   // the invisible wall over the sea railing must not pull the camera in
   ...KAHVE_COLLIDERS.filter((c, i) => KAHVE_OBJECTS[i]!.kind !== 'seaWall' && camBlocker(1.5)(c)),
@@ -116,8 +108,6 @@ export class Game {
   private localChar: Character | null = null;
   private crouch = false;
   private jumpQueued = false;
-  /** container index when hiding inside one, -1 otherwise (server authoritative) */
-  inside = -1;
   private wasOnGround = true;
   private shakeT = 0;
   private shakeAmp = 0;
@@ -130,7 +120,7 @@ export class Game {
   private pending: Pending[] = [];
   private acc = 0;
 
-  /** frozen = cannot move (Ebe while counting) */
+  /** frozen = cannot move (seated, watching a table) */
   frozen = false;
   camYaw = 0;
   camPitch = 0.45;
@@ -140,13 +130,12 @@ export class Game {
   private serverOffset: number | null = null;
   sender: InputSender | null = null;
 
-  private lighting: Lighting | null = null;
   private post: PostFX;
   private world: World;
   /** kahvehane-only scene helpers (waiter, drinks, racks) */
   kahve: KahveScene | null = null;
-  private phys: CollisionWorld;
-  private solidCam: typeof SOLID_CAM_MAHALLE;
+  private phys: CollisionWorld = KAHVE_WORLD;
+  private solidCam = SOLID_CAM_KAHVE;
   /** seated at an okey table: camera from the seat looking down at the table */
   seat: { table: number; seat: number } | null = null;
   /** watching a table from beside it (spectator camera) */
@@ -163,8 +152,6 @@ export class Game {
   readonly stats = { corrections: 0, maxErr: 0 };
   /** dev-only: fixed camera for screenshots */
   debugCam: { pos: THREE.Vector3; target: THREE.Vector3 } | null = null;
-  private dusk = 0.15;
-  private duskTarget = 0.15;
   private raf = 0;
   private last = performance.now();
   private resizeObs: ResizeObserver;
@@ -173,11 +160,8 @@ export class Game {
 
   constructor(
     private canvas: HTMLCanvasElement,
-    readonly level: Level = 'mahalle',
-    kahveBuilder?: (scene: THREE.Scene, renderer: THREE.WebGLRenderer) => KahveScene,
+    kahveBuilder: (scene: THREE.Scene, renderer: THREE.WebGLRenderer) => KahveScene,
   ) {
-    this.phys = level === 'kahve' ? KAHVE_WORLD : MAHALLE_WORLD;
-    this.solidCam = level === 'kahve' ? SOLID_CAM_KAHVE : SOLID_CAM_MAHALLE;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.75));
     const quality = initialQuality();
@@ -186,19 +170,13 @@ export class Game {
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
-    if (level === 'kahve' && kahveBuilder) {
-      // the Bosphorus view needs a long far plane (sky, skyline, vapur)
-      this.camera.far = 1500;
-      this.camera.updateProjectionMatrix();
-      this.kahve = kahveBuilder(this.scene, this.renderer);
-      this.world = this.kahve;
-      this.camDist = 4.2;
-    } else {
-      this.lighting = setupLighting(this.scene, this.renderer);
-      this.world = buildWorld(this.scene);
-    }
-    this.post = new PostFX(this.renderer, this.scene, this.camera, quality, level === 'kahve' ? { bloomStrength: 0.28, aoRadius: 0.45, vignette: 0.32 } : {});
-    this.applyDusk();
+    // the Bosphorus view needs a long far plane (sky, skyline, vapur)
+    this.camera.far = 1500;
+    this.camera.updateProjectionMatrix();
+    this.kahve = kahveBuilder(this.scene, this.renderer);
+    this.world = this.kahve;
+    this.camDist = 4.2;
+    this.post = new PostFX(this.renderer, this.scene, this.camera, quality, { bloomStrength: 0.28, aoRadius: 0.45, vignette: 0.32 });
     this.input.attach(canvas);
     this.input.onPress((a) => {
       if (a === 'jump') this.jumpQueued = true;
@@ -211,21 +189,6 @@ export class Game {
     this.raf = requestAnimationFrame(this.loop);
   }
 
-  /** 0 = golden hour, 1 = night; eased over time */
-  setDusk(d: number, instant = false): void {
-    this.duskTarget = Math.max(0, Math.min(1, d));
-    if (instant) {
-      this.dusk = this.duskTarget;
-      this.applyDusk();
-    }
-  }
-
-  private applyDusk(): void {
-    this.lighting?.setDusk(this.dusk);
-    this.world.setDusk(this.dusk);
-    if (this.level === 'mahalle') this.post?.setBloom(0.22 + this.dusk * 0.55);
-  }
-
   // ------------------------------------------------------------ local player
   spawnLocal(x: number, y: number, z: number, look: Look, facing = 0): void {
     this.body = createBody(x, z, y);
@@ -234,7 +197,7 @@ export class Game {
     this.facing = facing;
     this.camYaw = facing;
     if (!this.localChar) {
-      this.localChar = new Character(look, { adult: this.level === 'kahve', real: this.level === 'kahve' ? realAvatarFor(look) : undefined });
+      this.localChar = new Character(look, { adult: true, real: realAvatarFor(look) });
       this.scene.add(this.localChar.root);
     } else this.localChar.setLook(look);
     this.localChar.root.visible = true;
@@ -288,54 +251,15 @@ export class Game {
     this.shakeT = 0.45;
   }
 
-  /** Server says where a pebble landed: little stone + "TIK!" + ripple. */
-  pebble(x: number, z: number): void {
-    const g = new THREE.Group();
-    const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.09), new THREE.MeshStandardMaterial({ color: 0x8d8a85 }));
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.3, 0.42, 24), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, depthWrite: false }));
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.y = 0.09;
-    const c = document.createElement('canvas');
-    c.width = 128;
-    c.height = 64;
-    const ctx = c.getContext('2d')!;
-    ctx.font = '900 46px "Trebuchet MS", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = '#2b2118';
-    ctx.strokeText('TIK!', 64, 48);
-    ctx.fillStyle = '#ffd27a';
-    ctx.fillText('TIK!', 64, 48);
-    const tex = new THREE.CanvasTexture(c);
-    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false }));
-    label.scale.set(1.4, 0.7, 1);
-    g.add(stone, ring, label);
-    g.position.set(x, 0, z);
-    this.scene.add(g);
-    this.effects.push({
-      obj: g,
-      t: 0,
-      life: 1.6,
-      update: (k) => {
-        stone.position.y = Math.max(0.08, 3 * (1 - k * 4)) ;
-        ring.scale.setScalar(1 + k * 5);
-        (ring.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.8 - k);
-        label.position.y = 1 + k * 1.2;
-        (label.material as THREE.SpriteMaterial).opacity = Math.max(0, 1 - k * 1.1);
-      },
-    });
-  }
-
-  /** Round poses for characters (null id = local player). */
+  /** Poses for characters (null id = local player). */
   setPose(id: string | null, pose: Pose): void {
     const ch = id === null ? this.localChar : this.remotes.get(id)?.char;
     if (ch) ch.pose = pose;
   }
 
   /** Server reconciliation: authoritative state after input `ack`. */
-  reconcile(ack: number, x: number, y: number, z: number, vy: number, onGround: boolean, stamina = 1, tired = false, inside = -1): void {
+  reconcile(ack: number, x: number, y: number, z: number, vy: number, onGround: boolean, stamina = 1, tired = false): void {
     if (!this.body) return;
-    this.inside = inside;
     const b: Body = { x, y, z, vy, onGround, stamina, tired };
     this.pending = this.pending.filter((p) => p.seq > ack);
     for (const p of this.pending) stepBody(b, p.input, SIM_DT, this.phys);
@@ -368,7 +292,7 @@ export class Game {
     const key = `${look.color}|${look.hat}|${look.hair}|${look.skin}|${label}|${labelColor ?? ''}`;
     if (r?.key === key) return;
     if (!r) {
-      r = { char: new Character(look, { adult: this.level === 'kahve', real: this.level === 'kahve' ? realAvatarFor(look) : undefined }), key, buf: [], lastSeen: 0, prevX: 0, prevZ: 0, fixed: null };
+      r = { char: new Character(look, { adult: true, real: realAvatarFor(look) }), key, buf: [], lastSeen: 0, prevX: 0, prevZ: 0, fixed: null };
       r.char.root.visible = false;
       this.scene.add(r.char.root);
       this.remotes.set(id, r);
@@ -563,7 +487,7 @@ export class Game {
   private simStep(): void {
     if (!this.body) return;
     let input: MoveInput = { mx: 0, mz: 0, jump: false, crouch: this.crouch };
-    if (!this.frozen && this.inside < 0) {
+    if (!this.frozen) {
       const mv = this.input.moveVector();
       const s = Math.sin(this.camYaw);
       const c = Math.cos(this.camYaw);
@@ -579,7 +503,7 @@ export class Game {
     this.prevBody = cloneBody(this.body);
     // seated in the kahve (table, bench, ledge): the server holds the body still, so must we —
     // stepping would push it out of the seat's collider (e.g. up onto the sahil ledge)
-    if (this.frozen && this.level === 'kahve') return;
+    if (this.frozen) return;
     const wasGround = this.body.onGround;
     stepBody(this.body, input, SIM_DT, this.phys);
     if (wasGround && !this.body.onGround && this.body.vy > 0) this.events.onJump?.();
@@ -598,10 +522,8 @@ export class Game {
     this.last = now;
 
     const look = this.input.consumeLook();
-    if (!this.frozen || !this.body || this.level === 'kahve') {
-      this.camYaw += look.yaw;
-      this.camPitch = Math.max(-0.25, Math.min(1.25, this.camPitch + look.pitch));
-    }
+    this.camYaw += look.yaw;
+    this.camPitch = Math.max(-0.25, Math.min(1.25, this.camPitch + look.pitch));
 
     this.acc += dt;
     while (this.acc >= SIM_DT) {
@@ -610,7 +532,7 @@ export class Game {
     }
 
     // local render
-    let focus = this.level === 'kahve' ? new THREE.Vector3(KAHVE_SPAWN.x, 1.4, KAHVE_SPAWN.z - 4) : new THREE.Vector3(BASE.x, 1.4, BASE.z + 6);
+    let focus = new THREE.Vector3(KAHVE_SPAWN.x, 1.4, KAHVE_SPAWN.z - 4);
     if (this.body && this.prevBody && this.localChar) {
       const a = this.acc / SIM_DT;
       const p = this.prevBody;
@@ -620,7 +542,7 @@ export class Game {
       const z = p.z + (b.z - p.z) * a;
       const ch = this.localChar;
       const speed = Math.hypot(b.x - p.x, b.z - p.z) / SIM_DT;
-      ch.root.visible = this.inside < 0 && !this.seat;
+      ch.root.visible = !this.seat;
       ch.root.position.set(x, y + this.localSeatY, z);
       if (b.onGround) this.events.onStep?.(speed, speed > 6);
       this.fovKick += ((speed > 6 ? 1 : 0) - this.fovKick) * Math.min(1, dt * 4);
@@ -628,10 +550,6 @@ export class Game {
       ch.root.rotation.y = ch.facing;
       ch.animate(dt, speed, this.crouch, !b.onGround);
       focus = new THREE.Vector3(x, y + (this.crouch ? 1.0 : 1.5), z);
-      if (this.inside >= 0) {
-        const c = CONTAINERS[this.inside];
-        if (c) focus = new THREE.Vector3(c.x, 1.6, c.z);
-      }
     } else if (!this.body) {
       this.camYaw += dt * 0.05;
     }
@@ -689,12 +607,7 @@ export class Game {
     }
 
     this.updateCamera(focus, dt);
-    this.lighting?.follow(focus.x, focus.z);
     this.world.follow?.(focus.x, focus.z);
-    if (Math.abs(this.dusk - this.duskTarget) > 0.002) {
-      this.dusk += (this.duskTarget - this.dusk) * Math.min(1, dt * 0.5);
-      this.applyDusk();
-    }
     const movers: Mover[] = [];
     if (this.body && this.prevBody) movers.push({ x: this.body.x, z: this.body.z, speed: Math.hypot(this.body.x - this.prevBody.x, this.body.z - this.prevBody.z) / SIM_DT });
     for (const r of this.remotes.values()) if (r.char.root.visible) movers.push({ x: r.prevX, z: r.prevZ, speed: 4 });
@@ -729,12 +642,6 @@ export class Game {
       return;
     }
     this.seatCam = false;
-    if (this.frozen && this.body && this.level === 'mahalle') {
-      // counting Ebe: face the wall, close
-      this.camera.position.set(EBE_COUNT_SPOT.x + 1.2, 2.3, EBE_COUNT_SPOT.z + 3.4);
-      this.camera.lookAt(EBE_COUNT_SPOT.x, 1.2, EBE_COUNT_SPOT.z - 1);
-      return;
-    }
     // only the height is smoothed (steps, curbs, landings); the horizontal follow is exact so the
     // character never wobbles on screen when frame times vary
     if (this.focusY === null || !this.body) this.focusY = focus.y;
