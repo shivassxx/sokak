@@ -12,8 +12,13 @@ import {
   SIM_DT,
   cloneBody,
   createBody,
+  deckToWorld,
   segmentEntryT,
   stepBody,
+  stepDeck,
+  vapurState,
+  worldDirToDeck,
+  type VapurState,
   type Body,
   type Look,
   type MoveInput,
@@ -50,6 +55,8 @@ interface Sample {
   z: number;
   yaw: number;
   crouch: boolean;
+  /** on the vapur: x, z, yaw are deck-local */
+  deck: boolean;
 }
 
 interface Remote {
@@ -64,6 +71,9 @@ interface Remote {
   fixed: { x: number; y: number; z: number; yaw: number } | null;
   prevX: number;
   prevZ: number;
+  /** last rendered deck-local position (riders walk relative to the boat) */
+  prevLX: number;
+  prevLZ: number;
 }
 
 // camera occluders: tall, and walls or blocks rather than posts (lamp posts / trunks would make the
@@ -131,6 +141,14 @@ export class Game {
 
   private remotes = new Map<string, Remote>();
   private serverOffset: number | null = null;
+  /** riding the vapur: predicted deck-local position (the body then just mirrors the world spot) */
+  private deck: { x: number; z: number } | null = null;
+  private prevDeck: { x: number; z: number } | null = null;
+  /** deck-local facing */
+  private deckFacing = 0;
+  private lastBoatYaw: number | null = null;
+  /** the vapur's pose this frame (shared timeline at server time) */
+  private boat: VapurState = vapurState(Date.now());
   sender: InputSender | null = null;
 
   private post: PostFX;
@@ -177,6 +195,7 @@ export class Game {
     this.camera.far = 1500;
     this.camera.updateProjectionMatrix();
     this.kahve = kahveBuilder(this.scene, this.renderer);
+    this.kahve.setClock(() => this.serverNow());
     this.world = this.kahve;
     this.camDist = 4.2;
     this.post = new PostFX(this.renderer, this.scene, this.camera, quality, { bloomStrength: 0.28, aoRadius: 0.45, vignette: 0.32 });
@@ -272,6 +291,7 @@ export class Game {
   /** Teleport (server-forced, e.g. Ebe placed at the wall). */
   teleportLocal(x: number, y: number, z: number, facing?: number): void {
     if (!this.body) return;
+    this.deck = this.prevDeck = null;
     this.body = createBody(x, z, y);
     this.prevBody = cloneBody(this.body);
     this.pending = [];
@@ -325,6 +345,55 @@ export class Game {
     }
   }
 
+  // ------------------------------------------------------------ the vapur
+  /** Server clock estimate (ms since epoch): drives the shared vapur timeline. */
+  serverNow(): number {
+    return this.serverOffset === null ? Date.now() : performance.now() + this.serverOffset;
+  }
+
+  isAboard(): boolean {
+    return this.deck !== null;
+  }
+
+  /** deck-local position while riding the vapur */
+  deckPosition(): { x: number; z: number } | null {
+    return this.deck ? { ...this.deck } : null;
+  }
+
+  /** Server says I am on the deck at (x, z) after input `ack`: start riding or reconcile. */
+  reconcileDeck(ack: number, x: number, z: number): void {
+    if (!this.body) return;
+    if (!this.deck) {
+      this.deck = { x, z };
+      this.prevDeck = { x, z };
+      this.pending = [];
+      // keep looking the way I was looking, now relative to the boat
+      this.deckFacing = this.facing - this.boat.yaw;
+      this.lastBoatYaw = null;
+      return;
+    }
+    this.pending = this.pending.filter((p) => p.seq > ack);
+    const b = { x, z };
+    for (const p of this.pending) stepDeck(b, p.input.mx, p.input.mz, SIM_DT);
+    const err = Math.hypot(b.x - this.deck.x, b.z - this.deck.z);
+    if (err > 0.001) {
+      this.stats.corrections++;
+      if (err < 1.5 && this.prevDeck) {
+        this.prevDeck.x += b.x - this.deck.x;
+        this.prevDeck.z += b.z - this.deck.z;
+      } else this.prevDeck = { ...b };
+      this.deck = b;
+    }
+  }
+
+  /** Off the vapur (the server's body / teleport puts me back on the pier). */
+  leaveDeck(): void {
+    if (!this.deck) return;
+    this.deck = this.prevDeck = null;
+    this.pending = [];
+    this.facing = this.deckFacing + this.boat.yaw;
+  }
+
   // ------------------------------------------------------------ remotes
   /** Local look changes (e.g. lobby customisation). */
   setLocalLook(look: Look): void {
@@ -336,7 +405,7 @@ export class Game {
     const key = `${look.avatar ?? -1}|${look.color}|${look.hat}|${look.hair}|${look.skin}|${label}|${labelColor ?? ''}`;
     if (r?.key === key) return;
     if (!r) {
-      r = { char: new Character(look, { adult: true, real: realAvatarFor(look) }), key, look, label, labelColor, buf: [], lastSeen: 0, prevX: 0, prevZ: 0, fixed: null };
+      r = { char: new Character(look, { adult: true, real: realAvatarFor(look) }), key, look, label, labelColor, buf: [], lastSeen: 0, prevX: 0, prevZ: 0, prevLX: 0, prevLZ: 0, fixed: null };
       r.char.root.visible = false;
       r.char.setLabelVisible(this.labelsOn);
       this.scene.add(r.char.root);
@@ -497,10 +566,12 @@ export class Game {
     if (off > this.serverOffset + 200) this.serverOffset = off;
   }
 
-  pushRemote(id: string, t: number, x: number, y: number, z: number, yaw: number, crouch: boolean): void {
+  pushRemote(id: string, t: number, x: number, y: number, z: number, yaw: number, crouch: boolean, deck = false): void {
     const r = this.remotes.get(id);
     if (!r) return;
-    r.buf.push({ t, x, y, z, yaw, crouch });
+    // getting on / off the vapur changes the frame: don't interpolate across it
+    if (r.buf.length && r.buf[r.buf.length - 1]!.deck !== deck) r.buf.length = 0;
+    r.buf.push({ t, x, y, z, yaw, crouch, deck });
     if (r.buf.length > 30) r.buf.splice(0, r.buf.length - 30);
     r.lastSeen = t;
   }
@@ -537,6 +608,7 @@ export class Game {
 
   private simStep(): void {
     if (!this.body) return;
+    if (this.deck) return this.deckStep();
     let input: MoveInput = { mx: 0, mz: 0, jump: false, crouch: this.crouch };
     if (!this.frozen) {
       const mv = this.input.moveVector();
@@ -566,6 +638,30 @@ export class Game {
     this.sender?.sendInput(this.seq, input, this.facing);
   }
 
+  /** One fixed step on the vapur's deck: the input is turned into the deck frame and sent like that. */
+  private deckStep(): void {
+    const deck = this.deck!;
+    let mx = 0;
+    let mz = 0;
+    if (!this.frozen) {
+      const mv = this.input.moveVector();
+      const s = Math.sin(this.camYaw);
+      const c = Math.cos(this.camYaw);
+      const d = worldDirToDeck(this.boat.yaw, -s * mv.y + c * mv.x, -c * mv.y - s * mv.x);
+      mx = d.x;
+      mz = d.z;
+      if (Math.hypot(mx, mz) > 0.1) this.deckFacing = Math.atan2(-mx, -mz);
+    }
+    this.jumpQueued = false;
+    this.prevDeck = { ...deck };
+    stepDeck(deck, mx, mz, SIM_DT);
+    const input: MoveInput = { mx, mz, jump: false, crouch: false };
+    this.seq++;
+    this.pending.push({ seq: this.seq, input });
+    if (this.pending.length > 120) this.pending.shift();
+    this.sender?.sendInput(this.seq, input, this.deckFacing);
+  }
+
   private loop(now: number): void {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
@@ -576,6 +672,7 @@ export class Game {
     this.camYaw += look.yaw;
     this.camPitch = Math.max(-0.25, Math.min(1.25, this.camPitch + look.pitch));
 
+    this.boat = vapurState(this.serverNow());
     this.acc += dt;
     while (this.acc >= SIM_DT) {
       this.acc -= SIM_DT;
@@ -584,7 +681,31 @@ export class Game {
 
     // local render
     let focus = new THREE.Vector3(KAHVE_SPAWN.x, 1.4, KAHVE_SPAWN.z - 4);
-    if (this.body && this.prevBody && this.localChar) {
+    if (this.body && this.deck && this.prevDeck && this.localChar) {
+      // riding the vapur: the deck position (predicted) placed on the boat as it is drawn this frame
+      const a = this.acc / SIM_DT;
+      const lx = this.prevDeck.x + (this.deck.x - this.prevDeck.x) * a;
+      const lz = this.prevDeck.z + (this.deck.z - this.prevDeck.z) * a;
+      const w = deckToWorld(this.boat, lx, lz);
+      this.body.x = w.x;
+      this.body.y = w.y;
+      this.body.z = w.z;
+      this.prevBody = cloneBody(this.body);
+      const ch = this.localChar;
+      ch.root.visible = !this.seat;
+      ch.root.position.set(w.x, w.y, w.z);
+      // the view turns with the boat
+      if (this.lastBoatYaw !== null) this.camYaw += wrapAngle(this.boat.yaw - this.lastBoatYaw);
+      this.lastBoatYaw = this.boat.yaw;
+      const speed = Math.hypot(this.deck.x - this.prevDeck.x, this.deck.z - this.prevDeck.z) / SIM_DT;
+      if (speed > 0.1) this.events.onStep?.(speed, false);
+      ch.facing = lerpAngle(ch.facing, this.deckFacing + this.boat.yaw, Math.min(1, dt * 14));
+      ch.root.rotation.y = ch.facing;
+      ch.animate(dt, speed, false, false);
+      this.fovKick += (0 - this.fovKick) * Math.min(1, dt * 4);
+      focus = new THREE.Vector3(w.x, w.y + 1.5, w.z);
+    } else if (this.body && this.prevBody && this.localChar) {
+      this.lastBoatYaw = null;
       const a = this.acc / SIM_DT;
       const p = this.prevBody;
       const b = this.body;
@@ -635,6 +756,21 @@ export class Game {
       const y = s0.y + (s1.y - s0.y) * a;
       const z = s0.z + (s1.z - s0.z) * a;
       const wasVisible = r.char.root.visible;
+      if (s1.deck) {
+        // a rider: interpolate on the deck, then stand on the boat as it is drawn now
+        const w = deckToWorld(this.boat, x, z);
+        const lspeed = wasVisible && dt > 0 ? Math.hypot(x - r.prevLX, z - r.prevLZ) / dt : 0;
+        r.prevLX = x;
+        r.prevLZ = z;
+        r.char.root.visible = true;
+        r.char.root.position.set(w.x, w.y, w.z);
+        r.char.facing = lerpAngle(r.char.facing, s1.yaw + this.boat.yaw, Math.min(1, dt * 12));
+        r.char.root.rotation.y = r.char.facing;
+        r.prevX = w.x;
+        r.prevZ = w.z;
+        r.char.animate(dt, Math.min(lspeed, 4), false, false);
+        continue;
+      }
       r.char.root.visible = true;
       r.char.root.position.set(x, y, z);
       r.char.facing = lerpAngle(r.char.facing, s1.yaw, Math.min(1, dt * 12));
@@ -744,6 +880,12 @@ export class Game {
     this.post.dispose();
     this.renderer.dispose();
   }
+}
+
+function wrapAngle(d: number): number {
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
 }
 
 function lerpAngle(a: number, b: number, t: number): number {

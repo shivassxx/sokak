@@ -60,3 +60,10 @@
 - 117 tests; build OK; 4.48 MB gzip total, 137 KB before the lobby.
 - Later: leaf-card foliage (`foliage.ts`: çınar trees, potted ficus), red İstanbul simit cart, Şehir Hatları ferry, procedural 90s sedans + taxi (2 more parked cars, colliders), historic pier hall, market fit-out (`marketProps.ts`; freezer + crates colliders), facade windows (`facadeWindow`), no-shadow 'detail' bucket, far house rows with plain windows. ~580k tris/frame incl. shadows (was ~500k). 117 tests; 4.48 MB gzip.
 - Later still: çay ocağı/çay bahçesi details, skyline repaint (aerial perspective), Saklambaç trees/cars from the shared modules (Kenney trucks removed), realistic seated hand pose + reach on draw/discard (`Character.reach`, triggered from hand-count changes in `KahveScreen`), herring gull model, soft billboard clouds in Saklambaç.
+
+## Vapur rides (2026-10-07)
+- Shared absolute-time vapur timeline (`packages/shared/src/vapur.ts`): docked 30 s, loop round Kız Kulesi 95 s; deck frame helpers, deck walking.
+- Server: `board` / `alight` messages, `aboard` in the player schema, riders follow the boat each tick, deck-frame snapshots, drop → back on the pier, vapur çaycısı shop, guards (no fishing/sitting/kahve orders aboard). `KahvehaneRoom.vapurNow` / `startServer({ kahve: { vapurNow } })` for tests.
+- Client: boat pose from the shared function at server time; local rider predicted on the deck and rendered on the boat every frame; remote riders placed in deck coordinates; HUD lines ("Vapurdasın · Kız Kulesi turu · İskeleye dönüş 1:12", "Vapura bin (E)"), following gulls, simit from the deck, horn, çaycı NPC on board.
+- Tests: `packages/shared/test/vapur.test.ts` (8), `apps/server/test/vapur.test.ts` (8); 78 tests total. Build OK, 3.23 MB gzip.
+- Screenshots: /tmp/claude-0/agent-shots/vapur/.

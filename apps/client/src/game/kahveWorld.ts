@@ -14,6 +14,8 @@ import {
   TAVLA_TABLES,
   TERRACE,
   seatPosition,
+  vapurState,
+  type VapurPhase,
 } from '@sokak/shared';
 import { Builder, canvasTex, decal, hash, type Mover } from './world';
 import { PAT, patternize } from './materials';
@@ -36,8 +38,13 @@ import { marketFitout } from './marketProps';
 export interface KahveWorld {
   update(dt: number, movers?: readonly Mover[]): void;
   follow(x: number, z: number): void;
-  /** a piece of simit thrown from (x, z) towards the sea; the nearest gull dives for it */
-  feedGulls(x: number, z: number): void;
+  /**
+   * a piece of simit thrown from (x, z) towards the sea; the nearest gull dives for it.
+   * `y` is the thrower's feet height (on the vapur's deck the piece goes over the side)
+   */
+  feedGulls(x: number, z: number, y?: number): void;
+  /** the server clock (epoch ms) that drives the shared vapur timeline */
+  setClock(clock: () => number): void;
   /** world positions used by the scene for NPCs */
   tavlaBoards: THREE.Vector3[];
 }
@@ -767,32 +774,23 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   const ferry = vapur();
   ferry.position.set(-500, -1.1, 300);
   scene.add(ferry);
-  // a second vapur calls at the Üsküdar pier every few minutes: comes in, waits, sounds the horn, leaves
-  const pierObj = KAHVE_OBJECTS.find((o) => o.kind === 'pier');
-  const DOCK = new THREE.Vector3(pierObj ? pierObj.x : 40, -1.1, (pierObj ? pierObj.z + pierObj.d / 2 : 38) + 4.6);
-  const IN_FROM = new THREE.Vector3(-420, -1.1, 210);
-  const IN_CTRL = new THREE.Vector3(DOCK.x - 140, -1.1, DOCK.z);
-  const OUT_CTRL = new THREE.Vector3(DOCK.x + 140, -1.1, DOCK.z);
-  const OUT_TO = new THREE.Vector3(540, -1.1, 230);
-  const CYCLE = 170;
+  // the vapur that calls at the Üsküdar pier and takes riders round Kız Kulesi: its pose comes
+  // from the shared timeline at server time, so it is where the server (and everybody) has it
   const caller = vapur();
   caller.name = 'vapur-caller';
   scene.add(caller);
-  let callerPhase = -1;
+  let clock = () => Date.now();
+  let callerPhase: VapurPhase | null = null;
   const listener = new THREE.Vector2();
-  const bez = (a: THREE.Vector3, c: THREE.Vector3, b: THREE.Vector3, s: number, out: THREE.Vector3) => {
-    const u = 1 - s;
-    return out.set(u * u * a.x + 2 * u * s * c.x + s * s * b.x, a.y, u * u * a.z + 2 * u * s * c.z + s * s * b.z);
+  const horn = () => vapurHorn(Math.max(0.12, 1 - Math.hypot(listener.x - caller.position.x, listener.y - caller.position.z) / 220));
+  const placeCaller = () => {
+    const v = vapurState(clock());
+    caller.position.set(v.x, v.y, v.z);
+    caller.rotation.y = v.yaw;
+    // the horn when it casts off and when it comes alongside again
+    if (callerPhase !== null && v.phase !== callerPhase && (v.phase === 'leaving' || v.phase === 'docked')) horn();
+    callerPhase = v.phase;
   };
-  const tmpA = new THREE.Vector3();
-  const tmpB = new THREE.Vector3();
-  const moveCaller = (a: THREE.Vector3, c: THREE.Vector3, b: THREE.Vector3, s: number) => {
-    bez(a, c, b, s, caller.position);
-    bez(a, c, b, Math.min(1, s + 0.01), tmpA);
-    bez(a, c, b, Math.max(0, s - 0.01), tmpB);
-    caller.rotation.y = Math.atan2(-(tmpA.z - tmpB.z), tmpA.x - tmpB.x);
-  };
-  const horn = () => vapurHorn(Math.max(0.12, 1 - Math.hypot(listener.x - DOCK.x, listener.y - DOCK.z) / 220));
   const skyline = new THREE.Mesh(
     new THREE.CylinderGeometry(820, 820, 112, 64, 1, true, -1.55, 2.2),
     new THREE.MeshBasicMaterial({ map: skylineTexture(), transparent: true, side: THREE.BackSide, fog: false, depthWrite: false }),
@@ -805,6 +803,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     scene.add(g);
     return {
       g,
+      /** every other gull follows the vapur (circling a point astern of where it was a moment ago) */
+      follow: i % 2 === 0 ? { back: 12 + (i % 3) * 7, side: (i % 4 === 0 ? 1 : -1) * (3 + i * 0.6), lag: 1500 + i * 300 } : null,
       cx: -30 + i * 9,
       cz: 40 + (i % 3) * 25,
       r: 8 + (i % 4) * 4,
@@ -847,8 +847,11 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       sun.target.position.set(sx, 0, sz);
       sun.position.set(sx + sunDir.x * 60, sunDir.y * 60, sz + sunDir.z * 60);
     },
-    feedGulls(x, z) {
-      const hand = new THREE.Vector3(x, 1.5, z);
+    setClock(c) {
+      clock = c;
+    },
+    feedGulls(x, z, y = 0) {
+      const hand = new THREE.Vector3(x, y + 1.5, z);
       let best: (typeof gulls)[number] | null = null;
       let bestD = Infinity;
       for (const q of gulls) {
@@ -856,7 +859,15 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
         if (dd < bestD) (best = q), (bestD = dd);
       }
       if (!best) return; // every gull is already busy with a piece
-      const land = new THREE.Vector3(x + (Math.random() - 0.5) * 3, -1.1, Math.max(z, SEA_Z) + 6 + Math.random() * 3);
+      let land = new THREE.Vector3(x + (Math.random() - 0.5) * 3, -1.1, Math.max(z, SEA_Z) + 6 + Math.random() * 3);
+      if (y > 1) {
+        // from the deck: over the side the thrower stands on (astern from the middle of the stern deck)
+        const yaw = caller.rotation.y;
+        const lz = (x - caller.position.x) * Math.sin(yaw) + (z - caller.position.z) * Math.cos(yaw);
+        const out = Math.abs(lz) > 1.5 ? { x: Math.sin(yaw) * Math.sign(lz), z: Math.cos(yaw) * Math.sign(lz) } : { x: -Math.cos(yaw), z: Math.sin(yaw) };
+        const d = 6 + Math.random() * 3;
+        land = new THREE.Vector3(x + out.x * d, -1.1, z + out.z * d);
+      }
       const piece = new THREE.Mesh(crumbGeo, crumbMat);
       piece.position.copy(hand);
       scene.add(piece);
@@ -871,26 +882,18 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       ferry.position.x += dt * 7;
       if (ferry.position.x > 700) ferry.position.x = -700;
       ferry.position.y = -1.1 + Math.sin(t * 0.8) * 0.08;
-      {
-        // start half-way through the approach so a fresh visitor sees it soon
-        const ct = (t + 25) % CYCLE;
-        const ease = (x: number) => 1 - (1 - x) * (1 - x);
-        const phase = ct < 60 ? 0 : ct < 88 ? 1 : ct < 148 ? 2 : 3;
-        caller.visible = phase !== 3;
-        if (phase === 0) moveCaller(IN_FROM, IN_CTRL, DOCK, ease(ct / 60));
-        else if (phase === 1) {
-          caller.position.copy(DOCK);
-          caller.rotation.y = 0;
-        } else if (phase === 2) {
-          const s = (ct - 88) / 60;
-          moveCaller(DOCK, OUT_CTRL, OUT_TO, s * s);
-        }
-        caller.position.y = -1.1 + Math.sin(t * 0.9) * 0.06;
-        if (callerPhase !== -1 && phase !== callerPhase && (phase === 1 || phase === 2)) horn();
-        callerPhase = phase;
-      }
+      placeCaller();
       if (flag) flag.rotation.y = Math.sin(t * 2.3) * 0.25;
+      const now = clock();
       for (const q of gulls) {
+        if (q.follow) {
+          // circle over the water a little astern of where the vapur was `lag` ms ago
+          const v = vapurState(now - q.follow.lag);
+          const c = Math.cos(v.yaw);
+          const s = Math.sin(v.yaw);
+          q.cx = v.x - q.follow.back * c + q.follow.side * s;
+          q.cz = v.z + q.follow.back * s + q.follow.side * c;
+        }
         const a = t * q.sp + q.ph;
         circlePos(q, t, q.g.position);
         q.g.rotation.y = -a;

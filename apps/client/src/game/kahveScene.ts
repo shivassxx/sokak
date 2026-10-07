@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, type TableView } from '@sokak/shared';
+import { CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, VAPUR_DECK_Y, type TableView } from '@sokak/shared';
 import type { OkeyCtx } from '@sokak/okey';
 import { canvasTex, type Mover, type World } from './world';
 import { Character, realAvatarOr, type RealAvatar } from './character';
@@ -31,8 +31,10 @@ export interface TableAnchors {
 export interface KahveScene extends World {
   /** keep the sun's shadow box on the player */
   follow(x: number, z: number): void;
-  /** throw a piece of simit to the gulls from (x, z) */
-  feedGulls(x: number, z: number): void;
+  /** throw a piece of simit to the gulls from (x, z); y = feet height (the vapur's deck) */
+  feedGulls(x: number, z: number, y?: number): void;
+  /** server clock for the shared vapur timeline */
+  setClock(clock: () => number): void;
   /** waiter brings `item` to a world position; drink stays on the table */
   serve(item: string, to: THREE.Vector3, onTable: { x: number; z: number } | null): void;
   /**
@@ -364,7 +366,19 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     f.hold(fishingRod());
   }
   // shop keepers
-  for (const sh of SHOPS) addRegular(sh.seller.x, 0, sh.seller.z, sh.seller.yaw, 'stand', { color: sh.id === 'market' ? '#2e8b57' : '#f4f1e8', skin: 2, hat: sh.id === 'simitci' ? 1 : 0 }, { shirtStyle: 3, apron: true, real: sh.id === 'market' ? 'm01' : 'm08' }).setLabel(sh.id === 'market' ? 'Bakkal Hasan' : 'Simitçi Cemal', '#ffe7a8');
+  for (const sh of SHOPS) {
+    if (sh.deck) continue;
+    addRegular(sh.seller.x, 0, sh.seller.z, sh.seller.yaw, 'stand', { color: sh.id === 'market' ? '#2e8b57' : '#f4f1e8', skin: 2, hat: sh.id === 'simitci' ? 1 : 0 }, { shirtStyle: 3, apron: true, real: sh.id === 'market' ? 'm01' : 'm08' }).setLabel(sh.id === 'market' ? 'Bakkal Hasan' : 'Simitçi Cemal', '#ffe7a8');
+  }
+  // the vapur's çaycı rides along on the stern deck (a child of the boat)
+  const boat = scene.getObjectByName('vapur-caller');
+  for (const sh of SHOPS) {
+    if (!sh.deck || !boat) continue;
+    const ch = addRegular(sh.seller.x, VAPUR_DECK_Y, sh.seller.z, sh.seller.yaw, 'stand', { color: '#f4f1e8', skin: 1, hat: 0 }, { shirtStyle: 3, vest: '#2b2b2b', real: 'm14' });
+    ch.setLabel('Vapur çaycısı', '#ffe7a8');
+    ch.hold(itemModel('cay'));
+    boat.add(ch.root);
+  }
   const paper = new THREE.Mesh(
     new THREE.PlaneGeometry(0.42, 0.3),
     new THREE.MeshStandardMaterial({
@@ -462,8 +476,11 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     follow(x, z) {
       world.follow(x, z);
     },
-    feedGulls(x, z) {
-      world.feedGulls(x, z);
+    feedGulls(x, z, y) {
+      world.feedGulls(x, z, y);
+    },
+    setClock(clock) {
+      world.setClock(clock);
     },
     serve(item, to, onTable) {
       queue.push({ item, to, onTable });

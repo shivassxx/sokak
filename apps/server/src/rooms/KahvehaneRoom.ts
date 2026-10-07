@@ -197,6 +197,16 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.onMessage(KMSG.fillBots, (c) => this.fillBotsAndStart(c.sessionId));
     this.onMessage(KMSG.board, (c) => this.board(c.sessionId));
     this.onMessage(KMSG.alight, (c) => this.alight(c.sessionId));
+    // local screenshot / browser testing only (opt-in env var, never set in production)
+    if (process.env.SOKAK_DEV_TELEPORT === '1')
+      this.onMessage('devTeleport', (c, m: { x?: unknown; z?: unknown }) => {
+        const a = this.avatars.get(c.sessionId);
+        const x = Number(m?.x);
+        const z = Number(m?.z);
+        if (!a || a.deck || !Number.isFinite(x) || !Number.isFinite(z)) return;
+        a.body = createBody(x, z);
+        a.client?.send(MSG.teleport, { x, y: 0, z, yaw: a.yaw } satisfies TeleportMsg);
+      });
     // voice chat: opt-in flag + relaying WebRTC signalling between two opted-in players
     this.onMessage(KMSG.voice, (c, on: unknown) => {
       const p = this.state.players.get(c.sessionId);

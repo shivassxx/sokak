@@ -4,7 +4,7 @@ Ideas that are out of scope for now. The game is 101 Okey only (Saklambaç was r
 
 ## Kahvehane / 101 Okey
 - Playable tavla at the tavla tables (today only the regulars play).
-- Take the vapur across to Karaköy (a second map), fishing with the amcas.
+- Take the vapur across to Karaköy (a second map), fishing with the amcas. (A Kız Kulesi round trip on the vapur exists since 2026-10-07.)
 - Persistent weekly leaderboard (needs storing nicknames; decide on privacy first).
 - Partner (eşli) 101 and a rising opening threshold as table options.
 - TURN relay for voice chat on the VDS (coturn) and a real-phone voice/fps test.

@@ -4,6 +4,10 @@ import * as THREE from 'three';
 import {
   AVATARS,
   BET_OPTIONS,
+  BOARD_REACH,
+  BOARD_SPOT,
+  vapurState,
+  type VapurPhase,
   HAND_OPTIONS,
   KMSG,
   MENU,
@@ -72,6 +76,12 @@ function useKahveView(room: Room): KahveView | null {
 }
 
 const money = (n: number) => `${n.toLocaleString('tr-TR')} ₺`;
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+const SHOP_TITLE: Record<string, [string, string, string]> = {
+  market: ['🛒 Market', '🛒 Bakkal Hasan', 'Hoş geldin! Ne lazım?'],
+  simitci: ['🥯 Simitçi', '🥯 Simitçi Cemal', 'Taze simit, sıcak çay!'],
+  vapur: ['⛴️ Vapur çaycısı', '⛴️ Vapur çaycısı Ahmet', 'Çaylar tazeee! Simidini martılara da atarsın.'],
+};
 
 export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -89,6 +99,10 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   /** the closest thing to interact with: a table, a shop or a seat (bench / stool) */
   const [nearThing, setNearThing] = useState<{ kind: 'table' | 'shop' | 'spot'; i: number } | null>(null);
   const [nearSea, setNearSea] = useState(false);
+  /** at the pier's boarding spot (not riding) */
+  const [nearPier, setNearPier] = useState(false);
+  /** the vapur's phase and whole seconds to its next departure / arrival (only near the pier or aboard) */
+  const [vapur, setVapur] = useState<{ phase: VapurPhase; eta: number } | null>(null);
   /** spectating a table: which one and from which side */
   const [watching, setWatching] = useState<{ table: number; side: number } | null>(null);
   const watchRef = useRef(watching);
@@ -151,10 +165,16 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         if (s.me) {
           const [x, y, z, vy, g, st = 1, tired = 0] = s.me;
           const p = viewRef.current?.players[me];
+          const dx = s.me[8];
+          const dz = s.me[9];
           if (!game.hasLocal()) game.spawnLocal(x, y, z, p ?? { color: '#e74c3c', hat: 0, hair: 0, skin: 0 }, 0);
-          else game.reconcile(s.a, x, y, z, vy, g === 1, st, tired === 1);
+          if (dx !== undefined && dz !== undefined) game.reconcileDeck(s.a, dx, dz);
+          else {
+            game.leaveDeck();
+            game.reconcile(s.a, x, y, z, vy, g === 1, st, tired === 1);
+          }
         }
-        for (const p of s.p) game.pushRemote(p[0], s.t, p[1], p[2], p[3], p[4], false);
+        for (const p of s.p) game.pushRemote(p[0], s.t, p[1], p[2], p[3], p[4], false, (p[5] & 8) !== 0);
       }),
       room.onMessage(MSG.teleport, (t: TeleportMsg) => game.teleportLocal(t.x, t.y, t.z, t.yaw)),
       room.onMessage(KMSG.hand, (h: { tiles: number[]; taken: number | null }) => setHand({ tiles: h.tiles, taken: h.taken })),
@@ -192,11 +212,11 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
           else play(fish.id === 'ayakkabi' ? 'pop' : 'safe');
           return;
         }
-        if (item.id === 'simit' && bySea(at)) {
-          // by the water a simit goes to the gulls
+        if (item.id === 'simit' && (bySea(at) || (at && viewRef.current?.players[u.id]?.aboard))) {
+          // by the water (or from the vapur's deck) a simit goes to the gulls
           if (who) game.remoteEmote(who, 'point');
           else game.playLocalEmote('point');
-          game.kahve?.feedGulls(at!.x, at!.z);
+          game.kahve?.feedGulls(at!.x, at!.z, at!.y);
           setTimeout(() => gullCry(0.8), 700);
         } else game.useItem(who, item.use);
       }),
@@ -209,6 +229,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         setChats((old) => ({ ...old, [c.id]: { text, t: Date.now() } }));
       }),
     ];
+    if (import.meta.env.DEV) (window as unknown as { __room: Room }).__room = room;
     // anything private sent before these handlers existed (rejoin after a reload) was dropped
     room.send(KMSG.resync);
     return () => {
@@ -443,7 +464,25 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       const v = viewRef.current;
       const pos = game.localPosition();
       const mine = v?.players[me];
-      setNearSea(bySea(pos));
+      const riding = game.isAboard();
+      setNearSea(bySea(pos) || riding);
+      const pier = !!pos && !riding && !!mine && mine.table < 0 && Math.hypot(pos.x - BOARD_SPOT.x, pos.z - BOARD_SPOT.z) < BOARD_REACH;
+      setNearPier(pier);
+      if (pier || riding) {
+        const vs = vapurState(game.serverNow());
+        setVapur((old) => (old && old.phase === vs.phase && old.eta === Math.ceil(vs.eta) ? old : { phase: vs.phase, eta: Math.ceil(vs.eta) }));
+      } else setVapur(null);
+      if (riding) {
+        // on the deck only the vapur's çaycı is around
+        const d = game.deckPosition();
+        const i = SHOPS.findIndex((sh) => sh.deck);
+        const sh = SHOPS[i];
+        const b = d && sh && Math.hypot(d.x - sh.x, d.z - sh.z) <= SHOP_REACH ? { kind: 'shop' as const, i } : null;
+        setNearTable(-1);
+        setNearThing(b);
+        if (!b) setShopOpen(-1);
+        return;
+      }
       if (!pos || !v || !mine || mine.table >= 0 || mine.spot >= 0) {
         setNearTable(-1);
         setNearThing(null);
@@ -456,7 +495,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         if (d <= reach && d / reach < bd) [best, bd] = [{ kind, i }, d / reach];
       };
       TABLES.forEach((t, i) => consider('table', i, Math.hypot(pos.x - t.x, pos.z - t.z), SIT_REACH));
-      SHOPS.forEach((sh, i) => consider('shop', i, Math.hypot(pos.x - sh.x, pos.z - sh.z), SHOP_REACH));
+      SHOPS.forEach((sh, i) => !sh.deck && consider('shop', i, Math.hypot(pos.x - sh.x, pos.z - sh.z), SHOP_REACH));
       const taken = new Set(Object.values(v.players).map((p) => p.spot));
       SIT_SPOTS.forEach((sp, i) => !taken.has(i) && consider('spot', i, Math.hypot(pos.x - sp.x, pos.z - sp.z), SPOT_REACH));
       const b = best as { kind: 'table' | 'shop' | 'spot'; i: number } | null;
@@ -506,6 +545,12 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       if (mine && mine.spot >= 0) return room.send(KMSG.stand);
       if (watchRef.current) return setWatching(null);
       const n = nearThingRef.current;
+      // the vapur: E gets you off at the pier (the çaycı's menu at sea), or on board at the pier
+      if (mine?.aboard) {
+        if (n?.kind === 'shop' && vapurRef.current?.phase !== 'docked') return setShopOpen((o) => (o === n.i ? -1 : n.i));
+        return room.send(KMSG.alight);
+      }
+      if (nearPierRef.current) return room.send(KMSG.board);
       if (!n) return;
       if (n.kind === 'table') {
         const t = viewRef.current?.tables[n.i];
@@ -528,6 +573,10 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   }, [game, room]); // eslint-disable-line react-hooks/exhaustive-deps
   const nearThingRef = useRef(nearThing);
   nearThingRef.current = nearThing;
+  const nearPierRef = useRef(nearPier);
+  nearPierRef.current = nearPier;
+  const vapurRef = useRef(vapur);
+  vapurRef.current = vapur;
   const startWatchRef = useRef(startWatching);
   startWatchRef.current = startWatching;
   const nearTableRef = useRef(nearTable);
@@ -630,6 +679,37 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       )}
 
       <div className="kahve-bottom">
+        {myP?.aboard && vapur && (
+          <div className="sit-prompt vapur-prompt">
+            <span>
+              ⛴️ <b>Vapurdasın</b> · Kız Kulesi turu · {vapur.phase === 'docked' ? `Kalkış ${mmss(vapur.eta)}` : `İskeleye dönüş ${mmss(vapur.eta)}`}
+              {vapur.phase !== 'docked' && <small>İnmek için iskelede {isTouch ? 'İn' : 'E'}</small>}
+            </span>
+            {vapur.phase === 'docked' && (
+              <button className="btn" onClick={() => room.send(KMSG.alight)}>
+                İn {!isTouch && <kbd>E</kbd>}
+              </button>
+            )}
+          </div>
+        )}
+        {nearPier && !myP?.aboard && vapur && !watching && (
+          <div className="sit-prompt vapur-prompt">
+            {vapur.phase === 'docked' ? (
+              <>
+                <span>
+                  ⛴️ <b>Kız Kulesi turu</b> · Kalkış {mmss(vapur.eta)}
+                </span>
+                <button className="btn primary" onClick={() => room.send(KMSG.board)}>
+                  Vapura bin {!isTouch && <kbd>E</kbd>}
+                </button>
+              </>
+            ) : (
+              <span>
+                ⛴️ Vapur seferde · İskeleye varış {mmss(vapur.eta)}
+              </span>
+            )}
+          </div>
+        )}
         {watching && view && !myTable && (
           <div className="sit-prompt watch-panel">
             <span>
@@ -673,7 +753,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         )}
         {nearThing?.kind === 'shop' && shopOpen < 0 && !watching && (
           <div className="sit-prompt">
-            <b>{SHOPS[nearThing.i]!.id === 'market' ? '🛒 Market' : '🥯 Simitçi'}</b>
+            <b>{SHOP_TITLE[SHOPS[nearThing.i]!.id]![0]}</b>
             <button className="btn primary" onClick={() => setShopOpen(nearThing.i)}>
               Alışveriş {!isTouch && <kbd>E</kbd>}
             </button>
@@ -710,12 +790,12 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       {shopOpen >= 0 && myP && (
         <div className="panel shop-panel">
           <div className="panel-head">
-            <h2>{SHOPS[shopOpen]!.id === 'market' ? '🛒 Bakkal Hasan' : '🥯 Simitçi Cemal'}</h2>
+            <h2>{SHOP_TITLE[SHOPS[shopOpen]!.id]![1]}</h2>
             <button className="btn small" onClick={() => setShopOpen(-1)}>
               Kapat
             </button>
           </div>
-          <p className="hint">{SHOPS[shopOpen]!.id === 'market' ? 'Hoş geldin! Ne lazım?' : 'Taze simit, sıcak çay!'} · Cebinde {money(myP.money)}</p>
+          <p className="hint">{SHOP_TITLE[SHOPS[shopOpen]!.id]![2]} · Cebinde {money(myP.money)}</p>
           <div className="menu-items">
             {SHOPS[shopOpen]!.items.map((id) => {
               const it = SHOP_ITEMS.find((x) => x.id === id)!;
