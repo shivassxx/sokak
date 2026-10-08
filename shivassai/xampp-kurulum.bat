@@ -55,16 +55,8 @@ if errorlevel 1 (
 
 rem --- 2. PHP eklentileri --------------------------------------------
 echo [2/6] PHP eklentileri kontrol ediliyor...
-if not exist "%PHPINI%.shivassai.bak" copy /y "%PHPINI%" "%PHPINI%.shivassai.bak" >nul
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-  "$p='%PHPINI%'; $c=Get-Content -Raw $p; foreach($e in 'pdo_sqlite','sqlite3','mbstring','fileinfo','gd'){ $c=[regex]::Replace($c,'(?m)^\s*;\s*extension\s*=\s*(php_)?'+$e+'(\.dll)?\s*$','extension='+$e) }; Set-Content -NoNewline -Encoding ascii $p $c"
-for %%e in (pdo_sqlite mbstring fileinfo) do (
-  "%PHP%" -m | findstr /I /X "%%e" >nul || (
-    echo [HATA] PHP eklentisi acilamadi: %%e  ^(%PHPINI% dosyasinda extension=%%e satirini ac^)
-    goto :fail
-  )
-)
-"%PHP%" -m | findstr /I /X "gd" >nul || echo        ^(gd yok: buyuk gorseller icin kucuk kopya uretilmez, site yine calisir^)
+"%PHP%" "%APP%\scripts\xampp-enable-ext.php"
+if errorlevel 1 goto :fail
 echo        tamam
 
 rem --- 3. Yerel ayar dosyasi -----------------------------------------
