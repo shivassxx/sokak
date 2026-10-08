@@ -1,5 +1,5 @@
 import { Client, type Room } from 'colyseus.js';
-import { KAHVE_ROOM, SERVER_PORT, type AchState, type JoinOptions, type LeaderInfo, type SalonInfo, type WeeklyBoard } from '@sokak/shared';
+import { KAHVE_ROOM, SERVER_PORT, type AchState, type FriendsView, type JoinOptions, type LeaderInfo, type SalonInfo, type WeeklyBoard } from '@sokak/shared';
 
 export function serverEndpoint(): string {
   const env = import.meta.env.VITE_SERVER_URL as string | undefined;
@@ -108,6 +108,25 @@ export async function getAchievements(): Promise<AchState> {
   const r = await fetch(`${httpEndpoint()}/api/achievements?device=${t}`, { cache: 'no-store' });
   if (!r.ok) throw new Error('achievements');
   return (await r.json()) as AchState;
+}
+
+/** Arkadaşlar: this device's friend code, mutual friends (with where they are) and requests. */
+export async function getFriends(): Promise<FriendsView | null> {
+  const t = deviceToken();
+  if (!t) return null;
+  const r = await fetch(`${httpEndpoint()}/api/friends?device=${t}`, { cache: 'no-store' });
+  if (!r.ok) throw new Error('friends');
+  return (await r.json()) as FriendsView | null;
+}
+
+/** End a friendship (both sides) or turn down a request. */
+export async function removeFriend(code: string): Promise<boolean> {
+  const r = await fetch(`${httpEndpoint()}/api/friends/remove`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ device: deviceToken(), code }),
+  });
+  return r.ok && ((await r.json()) as { ok: boolean }).ok;
 }
 
 /** Aksesuarlar: what this device owns and wears (bitmasks over ACCESSORIES) and its balance. */

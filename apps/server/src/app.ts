@@ -10,6 +10,7 @@ import { Analytics } from './analytics';
 import { WalletStore } from './wallets';
 import { TvChannel } from './tv';
 import { FestivalControl } from './festival';
+import { FriendPresence } from './presence';
 import { StaffStore } from './staff';
 import { adminRouter } from './admin';
 
@@ -44,6 +45,7 @@ export async function startServer(port: number, opts: {
   const wallets = new WalletStore(opts.walletFile ?? null, { now: opts.now });
   const tv = new TvChannel();
   const festival = new FestivalControl(opts.now);
+  const presence = new FriendPresence();
   const staff = new StaffStore(opts.staffFile ?? null, { ownerPassword: opts.ownerPassword });
   // behind Caddy (private docker network): real client IP and X-Forwarded-Proto
   app.set('trust proxy', 'loopback, linklocal, uniquelocal');
@@ -117,6 +119,25 @@ export async function startServer(port: number, opts: {
   });
   // staff admin panel API (same-origin, cookie or Bearer session)
   app.use('/api/admin', adminRouter({ staff, tv, analytics, festival }));
+  // arkadaşlar: only the device itself can read its friends (and see where they are)
+  app.get('/api/friends', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store');
+    const token = req.query.device;
+    res.json(WalletStore.validToken(token) ? wallets.friendsOf(token, (c) => presence.where(c)) : null);
+  });
+  // end a friendship or turn down a request: { device, code }
+  app.options('/api/friends/remove', (_req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Headers', 'content-type');
+    res.sendStatus(204);
+  });
+  app.post('/api/friends/remove', express.json({ limit: '1kb' }), (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    const { device, code } = (req.body ?? {}) as { device?: unknown; code?: unknown };
+    const ok = WalletStore.validToken(device) && typeof code === 'string' && /^[a-f0-9]{10}$/.test(code) && wallets.removeFriend(device, code);
+    res.json({ ok: !!ok });
+  });
   // aggregate counts only; protected by a token when STATS_TOKEN is set
   app.get('/stats', (req, res) => {
     if (opts.statsToken && req.query.token !== opts.statsToken) {
@@ -160,6 +181,7 @@ export async function startServer(port: number, opts: {
         static override wallets = wallets;
         static override tv = tv;
         static override festival = festival;
+        static override presence = presence;
         static override analyticsSink = {
           tableStarted: (players: number, bet: number) => analytics.tableStarted(players, bet),
           handPlayed: () => analytics.okeyHandPlayed(),

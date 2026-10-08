@@ -89,7 +89,7 @@ import {
   type UsedMsg,
 } from '@sokak/shared';
 import { ACC_ALL, accMask, accIndex, accessoryById, accessoryForAch, sanitizeWear, wearToggle, type AccBuyMsg, type AccWearMsg } from '@sokak/shared';
-import { festivalById, festivalKey, type FestivalId } from '@sokak/shared';
+import { festivalById, festivalKey, type FestivalId, type FriendReqMsg } from '@sokak/shared';
 import { ACH_MSG, inHall, isTvStream, tvMatchAt, type AchCounter, type AchUnlockMsg } from '@sokak/shared';
 import { OkeyGame, botAction, partnerOf, teamOf, teamTotals, type OkeyEvent, type Result } from '@sokak/okey';
 import { MATCH_LENGTHS, TavlaMatch, autoTurn, botStep, type Result as TavlaResult, type Side, type TavlaEvent } from '@sokak/tavla';
@@ -97,6 +97,7 @@ import { KPlayer, KTable, KahveState, TTable } from './kahveSchema';
 import { generateRoomId } from '../roomId';
 import type { TvChannel } from '../tv';
 import type { FestivalControl } from '../festival';
+import type { FriendPresence } from '../presence';
 import { WalletStore } from '../wallets';
 
 /** accessory sets bots wear, in turn */
@@ -138,6 +139,7 @@ interface Avatar {
   /** accessories bought this session by a player without a device wallet */
   owned: number;
   lastAccAt: number;
+  lastFriendAt: number;
 }
 
 interface TableRuntime {
@@ -200,6 +202,8 @@ export class KahvehaneRoom extends Room<KahveState> {
   static tv: TvChannel | null = null;
   /** the festival (mevsimlik olay) on: calendar or the owner's choice; null in tests without one */
   static festival: FestivalControl | null = null;
+  /** where friend codes are online (all salons) */
+  static presence: FriendPresence | null = null;
   static analyticsSink: { tableStarted?(players: number, bet: number): void; handPlayed?(): void; tavlaStarted?(players: number, bet: number): void; tavlaGamePlayed?(): void } | null = null;
 
   private get cls(): typeof KahvehaneRoom {
@@ -252,6 +256,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.onMessage(KMSG.tableBot, (c, m: { seat?: unknown; remove?: boolean }) => this.tableBot(c.sessionId, m));
     this.onMessage(KMSG.okey, (c, a: OkeyAction) => this.okeyAction(c.sessionId, a));
     this.onMessage(KMSG.order, (c, m: OrderMsg) => this.order(c.sessionId, m));
+    this.onMessage(KMSG.friendAdd, (c, m: { id?: unknown }) => this.friendAdd(c.sessionId, m?.id));
     this.onMessage(KMSG.credit, (c) => this.credit(c.sessionId));
     this.onMessage(KMSG.buy, (c, m: { shop?: unknown; item?: unknown }) => this.buy(c.sessionId, m));
     this.onMessage(KMSG.use, (c) => this.useItem(c.sessionId));
@@ -411,6 +416,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       invited: options.invited === true,
       owned: 0,
       lastAccAt: 0,
+      lastFriendAt: 0,
     });
     // aksesuarlar: what the device owns; wear what the join look asks for (or what it wore last)
     if (device && store) {
@@ -421,6 +427,11 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.trophy = this.trophyOf(device);
     if (bonus) this.clock.setTimeout(() => this.avatars.get(p.id)?.client?.send(KMSG.notice, `🎁 Günlük bonus: +${bonus} ₺. Hoş geldin!`), 1500);
     this.festivalWelcome(p.id);
+    // arkadaşlar: friends can see this salon while the player is here
+    if (device && store) {
+      store.setFriendName(device, p.name);
+      this.cls.presence?.set(store.friendCode(device), this.roomId, this.state.name);
+    }
     if (options.quick) this.quickSeat(p.id, undefined);
   }
 
@@ -509,6 +520,33 @@ export class KahvehaneRoom extends Room<KahveState> {
       lastCredit: credit && credit > 0 ? credit : undefined,
     });
     a.saved = { money: p.money, played: p.played, won: p.won };
+  }
+
+  /** Arkadaşlar: ask a player in this salon to be friends, or accept their request. */
+  private friendAdd(id: string, targetRaw: unknown): void {
+    const a = this.avatars.get(id);
+    const p = this.state.players.get(id);
+    const target = typeof targetRaw === 'string' ? targetRaw : '';
+    const b = this.avatars.get(target);
+    const q = this.state.players.get(target);
+    const store = this.cls.wallets;
+    if (!a || !p || !b || !q || q.isBot || target === id || !store) return;
+    const now = Date.now();
+    if (now - a.lastFriendAt < 1000) return;
+    a.lastFriendAt = now;
+    if (!a.device || !b.device) return this.error(id, 'Arkadaşlık için ikinizin de bu cihazda kayıtlı cüzdanı olmalı.');
+    if (a.device === b.device) return;
+    const r = store.requestFriend(a.device, b.device);
+    if (r === 'friends') {
+      for (const [x, other] of [[a, q.name], [b, p.name]] as const) {
+        x.client?.send(KMSG.notice, `👥 ${other} ile artık arkadaşsınız! Birbirinizin hangi salonda olduğunu görebilirsiniz.`);
+        x.client?.send(KMSG.friendUpdate, {});
+      }
+    } else if (r === 'requested') {
+      b.client?.send(KMSG.friendReq, { from: id, name: p.name } satisfies FriendReqMsg);
+      a.client?.send(KMSG.notice, `👥 ${q.name} kişisine arkadaşlık isteği gönderildi.`);
+    } else if (r === 'already') this.error(id, `${q.name} zaten arkadaşın.`);
+    else if (r === 'full') this.error(id, 'Arkadaş listesi dolu (en fazla 50).');
   }
 
   /** Mevsimlik olay: the greeting, and on a bayram the harçlık (once per device and bayram). */
@@ -659,6 +697,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     const p = this.state.players.get(id);
     if (!p) return;
     this.saveWallet(id);
+    const dev = this.avatars.get(id)?.device;
+    if (dev && this.cls.wallets) this.cls.presence?.clear(this.cls.wallets.friendCode(dev), this.roomId);
     if (p.table >= 0 || p.tavla >= 0) this.stand(id, true);
     this.state.players.delete(id);
     this.avatars.delete(id);

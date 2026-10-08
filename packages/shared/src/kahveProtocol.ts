@@ -43,6 +43,12 @@ export const KMSG = {
   unwatch: 'unwatch',
   /** server → the table's players and spectators at hand end: HandReplayMsg */
   replay: 'replay',
+  /** arkadaşlar: ask a player in the salon to be friends / accept their request { id } */
+  friendAdd: 'friendAdd',
+  /** server → the asked player: FriendReqMsg */
+  friendReq: 'friendReq',
+  /** server → both: the friend list changed (refetch /api/friends) */
+  friendUpdate: 'friendUpdate',
   /** aksesuarlar: buy one (AccBuyMsg) / put one on or take it off (AccWearMsg) */
   accBuy: 'accBuy',
   accWear: 'accWear',

@@ -66,6 +66,7 @@ import { useToasts } from '../toasts';
 import { AnnounceBanner } from './AnnounceBanner';
 import { TvWatch } from './TvWatch';
 import { AchievementsHud } from '../Achievements';
+import { FriendsHud } from '../Friends';
 import { Social } from '../Social';
 import { SettingsButton } from '../Settings';
 import { TouchControls, isTouch } from '../TouchControls';
@@ -818,6 +819,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
           </button>
         )}
         {myP && <AchievementsHud room={room} />}
+        {myP && view && <FriendsHud room={room} players={view.players} me={me} />}
         {myP && (
           <button className="btn small" title="Dolap: aksesuarlar" onClick={() => setWardrobeOpen((o) => !o)}>
             👒<span className="lbl"> Dolap</span>

@@ -5,6 +5,7 @@ import type { Prefs } from '../prefs';
 
 // the başarımlar panel (and its CSS) is only downloaded when opened
 const AchievementsPanel = lazy(() => import('../Achievements'));
+const FriendsPanel = lazy(() => import('../Friends'));
 
 interface Props {
   prefs: Prefs;
@@ -84,6 +85,7 @@ export function KahveLobby({ prefs, busy, error, onJoin, onBack }: Props) {
   const [wallet, setWallet] = useState<{ money: number; played: number; won: number } | null | undefined>(undefined);
   const [achCount, setAchCount] = useState<string | null>(null);
   const [achOpen, setAchOpen] = useState(false);
+  const [friendsOpen, setFriendsOpen] = useState(false);
   useEffect(() => {
     getWallet()
       .then(setWallet)
@@ -175,8 +177,16 @@ export function KahveLobby({ prefs, busy, error, onJoin, onBack }: Props) {
             <button className="btn small" style={{ margin: '6px 0 0 6px', verticalAlign: 'top' }} onClick={() => setAchOpen(true)}>
               🏅 Başarımlar{achCount && <b className="count"> {achCount}</b>}
             </button>
+            <button className="btn small" style={{ margin: '6px 0 0 6px', verticalAlign: 'top' }} onClick={() => setFriendsOpen(true)}>
+              👥 Arkadaşlar
+            </button>
           </div>
         </div>
+        {friendsOpen && (
+          <Suspense fallback={null}>
+            <FriendsPanel onClose={() => setFriendsOpen(false)} />
+          </Suspense>
+        )}
         {achOpen && (
           <Suspense fallback={null}>
             <AchievementsPanel onClose={() => setAchOpen(false)} />

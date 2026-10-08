@@ -229,3 +229,10 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 
 ## 2026-10-08 — Çay zinciri
 - In Çaycı Rıza's menu, "Kime?" now has a third choice, "Herkese (bütün salon)". The item goes to everyone in the salon except riders out on the vapur, at the item's price per person. If someone else also buys a round for the whole salon within 10 minutes, the chain grows by one link, and everyone sees "Çay zinciri n. halkada!". When the same player buys again, the chain does not grow. Only my own glass and my table's are carried over, so a full salon does not animate 60 trays.
+
+## 2026-10-08 — Arkadaşlar (without accounts)
+- Friendship is mutual, which matters for child safety. A asks B in the same salon; only when B asks back (or taps "Kabul et") do they become friends. Friends see which salon the other is in and can "Yanına git". A one-sided request reveals nothing about where the other person is: B only sees the asker's name.
+- Each device wallet gets a public random friend code (10 hex characters). The secret device token never leaves the server. The friend list holds up to 50 friends, and up to 20 requests wait at a time.
+- Presence (which salon a code is in) is kept in memory and shared by all salons.
+- In-game: a 👥 HUD button with the number of requests, a request toast, and a panel listing friends (online first), requests and "Bu salondakiler" with ➕ Ekle. The lobby has the same panel without the salon list.
+- With 👥, 🏅, 👒 and the clock the HUD bar got wide, so its text labels now hide below 1440 px width (icons stay).

@@ -1,5 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { randomBytes } from 'node:crypto';
+import { FRIEND_LIMIT, FRIEND_REQ_LIMIT, type FriendsView } from '@sokak/shared';
 import { accessoryById, bumpAchievement, ownedMask, sanitizeWear, type AchCounter, type AchievementDef, type AchState, type WeeklyBoard, type WeeklyLeader } from '@sokak/shared';
 import { istanbulWeek, previousWeek } from './week';
 
@@ -44,6 +46,11 @@ export interface Wallet {
   wear?: number;
   /** one-off gifts already given (bayram harçlığı), e.g. 'kurbanBayrami:2027' */
   gifts?: string[];
+  /** arkadaşlar: this device's public friend code, the nickname last used, mutual friends' codes, requests waiting for an answer */
+  fcode?: string;
+  fname?: string;
+  friends?: string[];
+  reqIn?: string[];
 }
 
 const KEEP_MS = 60 * 24 * 3600 * 1000;
@@ -61,6 +68,8 @@ export class WalletStore {
   private version = 0;
   private cache = new Map<string, { version: number; list: Ranked[]; rank: Map<string, number> }>();
   private readonly now: () => number;
+  /** friend code → device token (built on demand) */
+  private codes: Map<string, string> | null = null;
 
   /** `now` is injectable so tests can move through weeks. */
   constructor(private file: string | null, opts: { now?: () => number } = {}) {
@@ -143,6 +152,85 @@ export class WalletStore {
     // keep the last few keys only: one per festival and year is plenty
     this.set(token, { ...w, money: Math.max(0, w.money) + amount, gifts: [...(w.gifts ?? []), key].slice(-12) });
     return true;
+  }
+
+  // ------------------------------------------------------------ arkadaşlar
+  private codeIndex(): Map<string, string> {
+    if (!this.codes) {
+      this.codes = new Map();
+      for (const [t, w] of this.data) if (w.fcode) this.codes.set(w.fcode, t);
+    }
+    return this.codes;
+  }
+
+  /** The device's public friend code (made on first use); '' without a wallet. */
+  friendCode(token: string): string {
+    const w = WalletStore.validToken(token) ? this.data.get(token) : undefined;
+    if (!w) return '';
+    if (w.fcode) return w.fcode;
+    const idx = this.codeIndex();
+    let code = '';
+    do code = randomBytes(5).toString('hex');
+    while (idx.has(code));
+    idx.set(code, token);
+    this.set(token, { ...w, fcode: code });
+    return code;
+  }
+
+  /** Remember the nickname friends see (already filtered by the room). */
+  setFriendName(token: string, name: string): void {
+    const w = WalletStore.validToken(token) ? this.data.get(token) : undefined;
+    if (w && w.fname !== name) this.set(token, { ...w, fname: name.slice(0, 24) });
+  }
+
+  /**
+   * `from` asks `to` to be friends. If `to` had already asked `from`, they become friends
+   * (both lists); otherwise the request waits in `to`'s list.
+   */
+  requestFriend(from: string, to: string): 'friends' | 'requested' | 'already' | 'full' | 'invalid' {
+    const a = WalletStore.validToken(from) ? this.data.get(from) : undefined;
+    const b = WalletStore.validToken(to) ? this.data.get(to) : undefined;
+    if (!a || !b || from === to) return 'invalid';
+    const ca = this.friendCode(from);
+    const cb = this.friendCode(to);
+    const wa = this.data.get(from)!;
+    const wb = this.data.get(to)!;
+    if (wa.friends?.includes(cb)) return 'already';
+    if (wa.reqIn?.includes(cb)) {
+      if ((wa.friends?.length ?? 0) >= FRIEND_LIMIT || (wb.friends?.length ?? 0) >= FRIEND_LIMIT) return 'full';
+      this.set(from, { ...wa, friends: [...(wa.friends ?? []), cb], reqIn: wa.reqIn.filter((c) => c !== cb) });
+      this.set(to, { ...wb, friends: [...(wb.friends ?? []), ca], reqIn: (wb.reqIn ?? []).filter((c) => c !== ca) });
+      return 'friends';
+    }
+    if (!wb.reqIn?.includes(ca)) this.set(to, { ...wb, reqIn: [...(wb.reqIn ?? []), ca].slice(-FRIEND_REQ_LIMIT) });
+    return 'requested';
+  }
+
+  /** End a friendship (both sides) or turn down a request. */
+  removeFriend(token: string, code: string): boolean {
+    const w = WalletStore.validToken(token) ? this.data.get(token) : undefined;
+    if (!w) return false;
+    const other = this.codeIndex().get(code);
+    const had = !!w.friends?.includes(code) || !!w.reqIn?.includes(code);
+    this.set(token, { ...w, friends: (w.friends ?? []).filter((c) => c !== code), reqIn: (w.reqIn ?? []).filter((c) => c !== code) });
+    const o = other ? this.data.get(other) : undefined;
+    if (o && w.fcode) this.set(other!, { ...o, friends: (o.friends ?? []).filter((c) => c !== w.fcode) });
+    return had;
+  }
+
+  /** A device's friends and incoming requests, with names; `where` says where a code is online. */
+  friendsOf(token: string, where: (code: string) => { roomId: string; salon: string } | null): FriendsView | null {
+    const w = WalletStore.validToken(token) ? this.data.get(token) : undefined;
+    if (!w) return null;
+    const code = this.friendCode(token);
+    const idx = this.codeIndex();
+    const nameOf = (c: string) => this.data.get(idx.get(c) ?? '')?.fname || 'Bir dost';
+    const w2 = this.data.get(token)!;
+    return {
+      code,
+      friends: (w2.friends ?? []).map((c) => ({ code: c, name: nameOf(c), online: where(c) })),
+      incoming: (w2.reqIn ?? []).map((c) => ({ code: c, name: nameOf(c) })),
+    };
   }
 
   /** Accessories a device owns (bought + earned), as a bitmask over ACCESSORIES. */

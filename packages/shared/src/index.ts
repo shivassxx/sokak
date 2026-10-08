@@ -14,3 +14,4 @@ export * from './tvStream';
 export * from './achievements';
 export * from './dayclock';
 export * from './accessories';
+export * from './friends';
