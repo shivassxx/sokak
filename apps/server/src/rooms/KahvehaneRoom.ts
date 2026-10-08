@@ -325,6 +325,32 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.tvUnsub = null;
   }
 
+  /**
+   * Server restart (a deploy): running matches cannot survive it, so they are called off and
+   * every player still at the table gets their bet back before the wallets are saved.
+   */
+  override onBeforeShutdown(): void {
+    this.refundRunningMatches('🔧 Sunucu yeniden başlıyor: süren maç iptal edildi, bahsin iade edildi. Birazdan tekrar gel!');
+    for (const id of this.avatars.keys()) this.saveWallet(id);
+    this.disconnect();
+  }
+
+  /** Give every human at a table with money in the pot their bet back (bots' bets just vanish). */
+  private refundRunningMatches(notice: string): void {
+    const refund = (t: { pot: number; bet: number; seats: Iterable<string> }) => {
+      if (t.pot <= 0) return;
+      for (const sid of t.seats) {
+        const p = sid ? this.state.players.get(sid) : undefined;
+        if (!p || p.isBot) continue;
+        p.money += t.bet;
+        this.avatars.get(sid)?.client?.send(KMSG.notice, notice);
+      }
+      t.pot = 0;
+    };
+    for (const t of this.state.tables) refund(t);
+    for (const t of this.state.tavla) refund(t);
+  }
+
   // ------------------------------------------------------------ players
   override onJoin(client: Client, options: JoinOptions = {}): void {
     if (typeof options.device === 'string' && this.staffBanned.has(options.device)) throw new Error('kicked');

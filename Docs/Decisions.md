@@ -222,3 +222,7 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 - Festivals follow the Istanbul calendar automatically: national days, yılbaşı, Ramazan and the two bayrams. The lunar dates for 2026–2030 come from Diyanet's published calendar, and the later years are approximate. From the admin panel the owner can put a festival on by hand, switch festivals off, or go back to the calendar. The owner's choice is kept in memory, so a restart goes back to the calendar.
 - Only the two religious bayrams give a gift: a bayram harçlığı of 500 ₺ in play money, paid once per device per bayram. National days only decorate the place.
 - The decorations are self-made procedural geometry. The Turkish flag is drawn to its official proportions. No external assets are used.
+
+## 2026-10-08 — Running matches and server restarts
+- A running okey or tavla match cannot survive a server restart: the room is gone, and serialising engine and room state for a restart is out of proportion for now. Instead, `KahvehaneRoom.onBeforeShutdown` calls the match off before the graceful shutdown that a deploy triggers. Every human still at the table gets their bet back and a notice, and the wallets are saved. Bots' bets simply vanish. A player who walked out mid-match had already forfeited, and a bot took the seat.
+- Persisting matches across restarts stays in the Backlog.
