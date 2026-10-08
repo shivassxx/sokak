@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { bumpAchievement, type AchCounter, type AchievementDef, type AchState, type WeeklyBoard, type WeeklyLeader } from '@sokak/shared';
+import { accessoryById, bumpAchievement, ownedMask, sanitizeWear, type AchCounter, type AchievementDef, type AchState, type WeeklyBoard, type WeeklyLeader } from '@sokak/shared';
 import { istanbulWeek, previousWeek } from './week';
 
 /** One device's results in one ISO week (Istanbul time). */
@@ -39,6 +39,9 @@ export interface Wallet {
   prevWeek?: WeekStats;
   /** başarımlar: counters and unlocked ids (see packages/shared/src/achievements.ts) */
   ach?: AchState;
+  /** aksesuarlar: ids bought with play money, and the worn set (bitmask over ACCESSORIES) */
+  acc?: string[];
+  wear?: number;
 }
 
 const KEEP_MS = 60 * 24 * 3600 * 1000;
@@ -126,6 +129,37 @@ export class WalletStore {
     const reward = unlocked.reduce((s, a) => s + a.reward, 0);
     this.set(token, { ...w, ach: state, money: Math.max(0, w.money) + reward });
     return unlocked;
+  }
+
+  /** Accessories a device owns (bought + earned), as a bitmask over ACCESSORIES. */
+  accOwned(token: string): number {
+    const w = WalletStore.validToken(token) ? this.data.get(token) : undefined;
+    return w ? ownedMask(w.acc, w.ach?.got) : 0;
+  }
+
+  /**
+   * Buy an accessory against the stored wallet, so two tabs of one device can
+   * never pay twice: an item already owned (bought or earned) is refused, as is
+   * one the stored balance cannot cover. Callers save their session's money
+   * first and mirror the price on 'ok'.
+   */
+  buyAccessory(token: string, id: string): 'ok' | 'owned' | 'poor' | 'unknown' {
+    const w = WalletStore.validToken(token) ? this.data.get(token) : undefined;
+    const def = accessoryById(id);
+    if (!w || !def || def.price <= 0) return 'unknown';
+    if (ownedMask(w.acc, w.ach?.got) & ownedMask([id], [])) return 'owned';
+    if (w.money < def.price) return 'poor';
+    this.set(token, { ...w, money: w.money - def.price, acc: [...(w.acc ?? []), id] });
+    return 'ok';
+  }
+
+  /** Remember what a device wears (only owned items, one per slot); returns the stored set. */
+  setWear(token: string, mask: number): number {
+    const w = WalletStore.validToken(token) ? this.data.get(token) : undefined;
+    if (!w) return 0;
+    const wear = sanitizeWear(mask, ownedMask(w.acc, w.ach?.got));
+    if (wear !== (w.wear ?? 0)) this.set(token, { ...w, wear });
+    return wear;
   }
 
   /** A device's achievement record (empty for an unknown device). */

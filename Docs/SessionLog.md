@@ -126,3 +126,9 @@
 - Client: read-only `OkeyBoard` (`spectator` prop: plates for all four seats, no rack/actions, "💬 Laf at" + Kalk) and `TavlaBoard` (`spectator`); `Spectators.tsx` ("👀 Seyirciler (n)" chip with names and latest lines); `HandReplay.tsx` ("▶ Eli izle" on the hand result); spectator camera for tavla in `Game.ts`. The old client-only "İzle" panel is replaced by the server-backed mode.
 - Tests: `apps/server/test/seyirci.test.ts` (5: watching a bot match without ever getting a hand, chat and leaving; distance/open-table checks; the 6-spectator limit; tavla watching; the replay reaches players and spectators with public info only). 175 tests in all; lobby 134 KB gzip.
 - Screenshots: /tmp/claude-0/agent-shots/kibitzer/.
+## Aksesuarlar (2026-10-08)
+- The agent worktree was interrupted by the usage limit; the main session finished, merged and checked it. From now on work runs in the main session only (no subagents), at the user's request.
+- Shared: `accessories.ts` (8 items in 5 slots, append-only bitmask, `sanitizeWear`, `wearToggle`, `ownedMask`, achievement rewards: tespih ← win10, köstekli saat ← longMatch), `KMSG.accBuy/accWear`, `look.acc`.
+- Server: `Wallet.acc` (bought ids) + worn mask, `WalletStore.buyAcc` (atomic, never on credit, never twice), `setWear` (only owned, one per slot); `KPlayer.acc/accOwned` synced so others see the worn set.
+- Client: `game/accessories.ts` (procedural pieces measured from each avatar's bones: crown, eyes, upper lip, neck, chest, right hand), `ui/Wardrobe.tsx` (👒 Dolap from the HUD and the home page: try on, buy, wear), Hasan Market's accessory shelf.
+- Tests: `packages/shared/test/accessories.test.ts`, `apps/server/test/accessories.test.ts` (buy once and never on credit, two tabs pay once, others see what is worn, unowned rejected also via the join look, earned items). 192 tests in all.

@@ -87,6 +87,7 @@ import {
   type TvBroadcast,
   type UsedMsg,
 } from '@sokak/shared';
+import { ACC_ALL, accMask, accIndex, accessoryById, accessoryForAch, sanitizeWear, wearToggle, type AccBuyMsg, type AccWearMsg } from '@sokak/shared';
 import { ACH_MSG, inHall, isTvStream, tvMatchAt, type AchCounter, type AchUnlockMsg } from '@sokak/shared';
 import { OkeyGame, botAction, partnerOf, teamOf, teamTotals, type OkeyEvent, type Result } from '@sokak/okey';
 import { MATCH_LENGTHS, TavlaMatch, autoTurn, botStep, type Result as TavlaResult, type Side, type TavlaEvent } from '@sokak/tavla';
@@ -94,6 +95,9 @@ import { KPlayer, KTable, KahveState, TTable } from './kahveSchema';
 import { generateRoomId } from '../roomId';
 import type { TvChannel } from '../tv';
 import { WalletStore } from '../wallets';
+
+/** accessory sets bots wear, in turn */
+const BOT_ACC = [accMask(['kasket', 'biyik']), accMask(['gozluk', 'tespih']), 0, accMask(['fotr', 'kostek']), accMask(['atki']), accMask(['gunes', 'tespih'])];
 
 /** daily play-money bonus for returning devices */
 export const DAILY_BONUS = 250;
@@ -128,6 +132,9 @@ interface Avatar {
   deck: { x: number; z: number } | null;
   /** joined through a friend's invite link */
   invited: boolean;
+  /** accessories bought this session by a player without a device wallet */
+  owned: number;
+  lastAccAt: number;
 }
 
 interface TableRuntime {
@@ -240,6 +247,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.onMessage(KMSG.credit, (c) => this.credit(c.sessionId));
     this.onMessage(KMSG.buy, (c, m: { shop?: unknown; item?: unknown }) => this.buy(c.sessionId, m));
     this.onMessage(KMSG.use, (c) => this.useItem(c.sessionId));
+    this.onMessage(KMSG.accBuy, (c, m: AccBuyMsg) => this.accBuy(c.sessionId, m?.id));
+    this.onMessage(KMSG.accWear, (c, m: AccWearMsg) => this.accWear(c.sessionId, m?.id, m?.on === true));
     this.onMessage(KMSG.resync, (c) => {
       const p = this.state.players.get(c.sessionId);
       if (p) this.sendHand(p.table, p.seat);
@@ -366,7 +375,14 @@ export class KahvehaneRoom extends Room<KahveState> {
       missions: { day: missionDay(), progress: {} },
       deck: null,
       invited: options.invited === true,
+      owned: 0,
+      lastAccAt: 0,
     });
+    // aksesuarlar: what the device owns; wear what the join look asks for (or what it wore last)
+    if (device && store) {
+      p.accOwned = store.accOwned(device);
+      p.acc = store.setWear(device, typeof options.acc === 'number' ? options.acc : (store.get(device)?.wear ?? 0));
+    }
     p.missions = JSON.stringify(this.missionState(p.id));
     p.trophy = this.trophyOf(device);
     if (bonus) this.clock.setTimeout(() => this.avatars.get(p.id)?.client?.send(KMSG.notice, `🎁 Günlük bonus: +${bonus} ₺. Hoş geldin!`), 1500);
@@ -482,7 +498,81 @@ export class KahvehaneRoom extends Room<KahveState> {
       p.money += d.reward;
       a.saved.money += d.reward;
       a.client?.send(ACH_MSG, { id: d.id, reward: d.reward } satisfies AchUnlockMsg);
+      const gift = accessoryForAch(d.id);
+      if (gift) {
+        this.syncAccOwned(id);
+        a.client?.send(KMSG.notice, `🎁 Ödül: ${gift.emoji} ${gift.name} artık senin! Dolaptan takabilirsin.`);
+      }
     }
+  }
+
+  // ------------------------------------------------------------ aksesuarlar
+  /** Refresh the owned set of a player (and of every other tab of its device). */
+  private syncAccOwned(id: string): void {
+    const a = this.avatars.get(id);
+    const p = this.state.players.get(id);
+    const store = this.cls.wallets;
+    if (!a || !p) return;
+    if (!a.device || !store) {
+      p.accOwned = a.owned;
+      return;
+    }
+    const owned = store.accOwned(a.device);
+    for (const [oid, oa] of this.avatars) if (oa.device === a.device) {
+      const op = this.state.players.get(oid);
+      if (op) op.accOwned = owned;
+    }
+  }
+
+  /** Buy an accessory with play money; it is put on right away. */
+  private accBuy(id: string, item: unknown): void {
+    const p = this.state.players.get(id);
+    const a = this.avatars.get(id);
+    const def = typeof item === 'string' ? accessoryById(item) : undefined;
+    if (!p || !a || p.isBot || !def) return;
+    const now = Date.now();
+    if (now - a.lastAccAt < 400) return;
+    a.lastAccAt = now;
+    if (def.price <= 0) return this.error(id, `${def.name} satılmaz, başarımla kazanılır.`);
+    if (p.accOwned & (1 << accIndex(def.id))) return this.error(id, 'Bu sende zaten var.');
+    if (p.money < def.price) return this.error(id, 'Paran yetmiyor.');
+    const store = this.cls.wallets;
+    if (a.device && store) {
+      // the purchase happens against the stored wallet (two tabs never pay twice)
+      this.saveWallet(id);
+      const r = store.buyAccessory(a.device, def.id);
+      if (r === 'owned') {
+        this.syncAccOwned(id);
+        return this.error(id, 'Bu sende zaten var.');
+      }
+      if (r === 'poor') return this.error(id, 'Paran yetmiyor.');
+      if (r !== 'ok') return;
+      p.money -= def.price;
+      a.saved.money -= def.price;
+    } else {
+      p.money -= def.price;
+      a.owned |= 1 << accIndex(def.id);
+    }
+    this.syncAccOwned(id);
+    a.client?.send(KMSG.notice, `🛍️ ${def.emoji} ${def.name} senin! Güle güle kullan.`);
+    a.lastAccAt = 0;
+    this.accWear(id, def.id, true);
+  }
+
+  /** Put an owned accessory on (replacing the one in its slot) or take it off. */
+  private accWear(id: string, item: unknown, on: boolean): void {
+    const p = this.state.players.get(id);
+    const a = this.avatars.get(id);
+    const def = typeof item === 'string' ? accessoryById(item) : undefined;
+    if (!p || !a || p.isBot || !def) return;
+    const now = Date.now();
+    if (now - a.lastAccAt < 150) return;
+    a.lastAccAt = now;
+    if (on && !(p.accOwned & (1 << accIndex(def.id)))) return this.error(id, `${def.name} sende yok.`);
+    const next = sanitizeWear(wearToggle(p.acc, def.id, on), p.accOwned);
+    p.acc = next;
+    const store = this.cls.wallets;
+    if (a.device && store) store.setWear(a.device, next);
   }
 
   /** Humans at a finished table; "friend" counts when one of them came by invite link. */
@@ -629,6 +719,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.hair = (this.botCounter * 2) % HAIRS.length;
     p.skin = this.botCounter % SKINS.length;
     p.avatar = (this.botCounter * 4 + ti) % AVATARS.length;
+    // the regulars like their kasket, bıyık and tespih
+    p.acc = sanitizeWear(BOT_ACC[this.botCounter % BOT_ACC.length], ACC_ALL);
     p.money = START_MONEY;
     if (tavla) p.tavla = ti;
     else p.table = ti;

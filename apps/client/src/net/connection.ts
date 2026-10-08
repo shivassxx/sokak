@@ -110,6 +110,15 @@ export async function getAchievements(): Promise<AchState> {
   return (await r.json()) as AchState;
 }
 
+/** Aksesuarlar: what this device owns and wears (bitmasks over ACCESSORIES) and its balance. */
+export async function getAccessories(): Promise<{ owned: number; wear: number; money: number }> {
+  const t = deviceToken();
+  if (!t) return { owned: 0, wear: 0, money: 0 };
+  const r = await fetch(`${httpEndpoint()}/api/accessories?device=${t}`, { cache: 'no-store' });
+  if (!r.ok) throw new Error('accessories');
+  return (await r.json()) as { owned: number; wear: number; money: number };
+}
+
 export interface KahveJoin {
   /** a specific salon (lobby list / invite link) */
   roomId?: string;

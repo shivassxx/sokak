@@ -10,6 +10,9 @@ export class KPlayer extends Schema {
   @type('uint8') skin = 0;
   /** index into AVATARS: which realistic character this player is */
   @type('uint8') avatar = 0;
+  /** aksesuarlar: worn and owned sets (bitmasks over ACCESSORIES) */
+  @type('uint16') acc = 0;
+  @type('uint16') accOwned = 0;
   @type('boolean') isBot = false;
   @type('boolean') connected = true;
   @type('int32') money = 0;

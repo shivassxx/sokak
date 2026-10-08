@@ -73,3 +73,6 @@ packages/tavla  tavla (Turkish backgammon) rules (pure, injectable rng) + match 
 ## Seyirci (spectators) and the end-of-hand replay
 - Spectators are ordinary room clients with `KPlayer.watch` (okey table) or `KPlayer.watchTavla` set. They read the same public schema view as everyone else and never receive `KMSG.hand`. The server enforces the limit (6), the distance and the clean-up. The client renders the existing boards with `spectator` set (read-only) and frames the table from the spectator's corner (`kahve.watchView`, or `tavlaWatchView` in `Game.ts` for tavla).
 - `TableRuntime.log` collects `ReplayMove`s from `applyEvents` (public moves only). At `handEnd`, `sendReplay` sends a `HandReplayMsg` (the last 12 moves and the finisher's melds) to the seated humans and the spectators of that table. The client keeps the latest replay and plays it on demand.
+
+## Aksesuarlar
+`packages/shared/src/accessories.ts` defines the items and the bitmask helpers. `WalletStore` keeps the bought items and the worn set per device. `KahvehaneRoom` handles `accBuy`/`accWear` and validates the join look, then syncs `KPlayer.acc` (worn) and `accOwned`. On the client, `game/accessories.ts` builds the pieces and attaches them to the avatar's bones, and `ui/Wardrobe.tsx` is the 👒 Dolap panel.

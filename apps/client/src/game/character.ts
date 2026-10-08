@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { AVATARS, SKINS, type AvatarId, type Look } from '@sokak/shared';
+import { AVATARS, SKINS, accIds, type AvatarId, type Look } from '@sokak/shared';
 import { paintSkin, type Outfit } from './skinPainter';
+import { ANCHOR_OF, buildAccessory, measureAvatar, type AccAnchor, type AccMetrics } from './accessories';
 
 /**
  * Rigged low-poly person (Kenney "Animated Characters" mesh, CC0) with a
@@ -304,6 +305,11 @@ export class Character {
   private hairGroup = new THREE.Group();
   private propGroup = new THREE.Group();
   private fingersR: THREE.Bone[] = [];
+  /** aksesuarlar: one frame per anchor, axis-aligned with the character in the rest pose */
+  private accFrames: Record<Exclude<AccAnchor, 'hand'>, THREE.Group>;
+  private accHand = new THREE.Group();
+  private accMetrics: AccMetrics;
+  private accObjs: THREE.Object3D[] = [];
   private material: THREE.MeshStandardMaterial;
   private adult: boolean;
   private extra: Partial<Outfit> | undefined;
@@ -444,6 +450,24 @@ export class Character {
       for (const b of bones) if (/^Bip01_R_Finger[0-4]/.test(b.name)) this.fingersR.push(b);
     }
 
+    // aksesuarlar: measure the avatar once (rest pose) and hang a world-aligned frame on each bone
+    const mkey = this.avatar ?? (this.adult ? 'painted-adult' : 'painted');
+    let mt = metricsCache.get(mkey);
+    if (!mt) metricsCache.set(mkey, (mt = measureAvatar(this.model, byName, this.real)));
+    this.accMetrics = mt;
+    const neckBone = byName.get(this.real ? 'Bip01_Neck' : 'Neck') ?? this.headBone;
+    const chestBone = byName.get(this.real ? 'Bip01_Spine1' : 'Spine') ?? neckBone;
+    this.accFrames = {
+      crown: frameAt(this.headBone, mt.crown),
+      eyes: frameAt(this.headBone, mt.eyes),
+      lip: frameAt(this.headBone, mt.lip),
+      neck: frameAt(neckBone, mt.neck),
+      belly: frameAt(chestBone, mt.belly),
+    };
+    // the hand frame lives in propGroup (kept upright on real avatars); undo its scale
+    const ps = this.propGroup.getWorldScale(new THREE.Vector3());
+    this.accHand.scale.set(1 / ps.x, 1 / ps.y, 1 / ps.z);
+
     // "!" marker shown when spotted
     this.marker = mesh(G.marker, new THREE.MeshBasicMaterial({ color: 0xffc533 }), 0, 2.45, 0, false);
     this.marker.rotation.x = Math.PI;
@@ -474,6 +498,7 @@ export class Character {
     if (this.real) {
       // the avatar brings its own clothes and hair; only hand props (tespih) apply
       this.buildExtras({ ...outfit, glasses: false });
+      this.setAccessories(look.acc ?? 0);
       return;
     }
     this.material.map = paintSkin(outfit);
@@ -481,6 +506,24 @@ export class Character {
     this.buildHair(outfit, look.hat);
     this.buildHat(look.hat);
     this.buildExtras(outfit);
+    this.setAccessories(look.acc ?? 0);
+  }
+
+  /** Wear exactly the accessories of `mask` (bitmask over ACCESSORIES). */
+  setAccessories(mask: number): void {
+    for (const o of this.accObjs) o.removeFromParent();
+    this.accObjs = [];
+    for (const id of accIds(mask)) {
+      const o = buildAccessory(id, this.accMetrics);
+      const anchor = ANCHOR_OF[id];
+      if (!o || !anchor) continue;
+      (anchor === 'hand' ? this.accHand : this.accFrames[anchor]).add(o);
+      this.accObjs.push(o);
+    }
+    // only hang the hand frame when it holds something (an empty propGroup skips the finger curl)
+    if (this.accHand.children.length) this.propGroup.add(this.accHand);
+    else this.accHand.removeFromParent();
+    this.accHand.visible = !this.holding;
   }
 
   private buildHair(o: Outfit, hat: number): void {
@@ -601,6 +644,8 @@ export class Character {
         disposeTree(c);
       }
     this.holding = !!obj;
+    // a glass or a simit takes the hand: the tespih waits in the pocket
+    this.accHand.visible = !obj;
     if (!obj) return;
     obj.userData.held = true;
     // hand bone units: the model is scaled ≈0.5, so props are scaled up to stay life-size
@@ -1025,6 +1070,21 @@ export class Character {
     this.hold(null);
     this.material.dispose();
   }
+}
+
+/** Rest-pose accessory measurements per avatar (all clones share them). */
+const metricsCache = new Map<string, AccMetrics>();
+
+/** A group on `bone` at world point `p` whose axes and scale match the character frame (rest pose). */
+function frameAt(bone: THREE.Object3D, p: THREE.Vector3): THREE.Group {
+  const f = new THREE.Group();
+  bone.updateWorldMatrix(true, false);
+  f.position.copy(bone.worldToLocal(p.clone()));
+  f.quaternion.copy(bone.getWorldQuaternion(new THREE.Quaternion()).invert());
+  const s = bone.getWorldScale(new THREE.Vector3());
+  f.scale.set(1 / s.x, 1 / s.y, 1 / s.z);
+  bone.add(f);
+  return f;
 }
 
 /** Free the GPU side of a prop built just for one character (held items). */

@@ -76,7 +76,8 @@ import type { TavlaView } from '@sokak/tavla';
 import { shareRoom } from '../share';
 import { VoiceChat } from '../../net/voice';
 import { initialQuality } from '../../game/postfx';
-import { loadPrefs } from '../prefs';
+import { loadPrefs, savePrefs } from '../prefs';
+import { Wardrobe } from '../Wardrobe';
 
 /** standing (or sitting) at the sea railing / ledge, not on the pier */
 const bySea = (p: { x: number; z: number } | null | undefined): boolean => !!p && p.z > SEA_Z - 3.2 && p.x < 32;
@@ -137,6 +138,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const myFish = useRef(0);
   const myLevel = useRef(0);
   const [missionsOpen, setMissionsOpen] = useState(false);
+  const [wardrobeOpen, setWardrobeOpen] = useState(false);
   const [chats, setChats] = useState<Record<string, { text: string; t: number }>>({});
   const [shopOpen, setShopOpen] = useState<number>(-1);
   const [tablesOpen, setTablesOpen] = useState(false);
@@ -412,6 +414,14 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       }
     }
   };
+
+  // aksesuarlar: my own worn set changed (server-confirmed): dress the local character, remember it
+  const myAcc = myP?.acc;
+  useEffect(() => {
+    if (!game || myAcc === undefined || !myP) return;
+    game.setLocalLook(myP);
+    savePrefs({ ...loadPrefs(), acc: myAcc });
+  }, [game, myAcc]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ------------------------------------------------------------ keep characters in sync with the room
   const handCounts = useRef(new Map<number, number[]>());
@@ -792,6 +802,11 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
           </button>
         )}
         {myP && <AchievementsHud room={room} />}
+        {myP && (
+          <button className="btn small" title="Dolap: aksesuarlar" onClick={() => setWardrobeOpen((o) => !o)}>
+            👒<span className="lbl"> Dolap</span>
+          </button>
+        )}
         <button className="btn small" title="Çaycı" onClick={() => setMenuOpen((o) => !o)}>
           ☕<span className="lbl"> Çaycı!</span>
         </button>
@@ -982,7 +997,23 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             })}
           </div>
           <p className="hint">Aldığın şey elinde durur; Q ile kullanırsın. Yeni bir şey alırsan eskisi bırakılır.</p>
+          {SHOPS[shopOpen]!.id === 'market' && (
+            <button className="btn small" onClick={() => (setShopOpen(-1), setWardrobeOpen(true))}>
+              👒 Hasan’ın aksesuar rafı
+            </button>
+          )}
         </div>
+      )}
+      {wardrobeOpen && myP && (
+        <Wardrobe
+          look={myP}
+          owned={myP.accOwned}
+          worn={myP.acc}
+          money={myP.money}
+          onWear={(id, on) => room.send(KMSG.accWear, { id, on })}
+          onBuy={(id) => room.send(KMSG.accBuy, { id })}
+          onClose={() => setWardrobeOpen(false)}
+        />
       )}
 
       {tablesOpen && !myTable && view && (

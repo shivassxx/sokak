@@ -18,7 +18,8 @@ export class CharacterPreview {
   private obs: ResizeObserver;
   private t = 0;
 
-  constructor(private canvas: HTMLCanvasElement, look: Look) {
+  /** `bust`: frame head to hips (the wardrobe), otherwise the whole body */
+  constructor(private canvas: HTMLCanvasElement, look: Look, bust = false) {
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -42,8 +43,13 @@ export class CharacterPreview {
     // until the chosen avatar has loaded (setLook), show nothing rather than a stand-in
     this.char.root.visible = !wantedAvatar(look);
     this.scene.add(this.char.root);
-    this.camera.position.set(0, 1.2, -4.4);
-    this.camera.lookAt(0, 0.93, 0);
+    if (bust) {
+      this.camera.position.set(0, 1.4, -2.5);
+      this.camera.lookAt(0, 1.2, 0);
+    } else {
+      this.camera.position.set(0, 1.2, -4.4);
+      this.camera.lookAt(0, 0.93, 0);
+    }
     this.obs = new ResizeObserver(() => this.resize());
     this.obs.observe(canvas);
     this.resize();
@@ -52,7 +58,7 @@ export class CharacterPreview {
   }
 
   /** Show the avatar of `look` (loads it first when needed); resolves once it is on screen. */
-  async setLook(look: Look): Promise<void> {
+  async setLook(look: Look, wave = true): Promise<void> {
     this.look = look;
     const want = wantedAvatar(look);
     if (want) await ensureRealAvatar(want);
@@ -64,7 +70,7 @@ export class CharacterPreview {
       this.scene.add(this.char.root);
     } else this.char.setLook(look);
     this.char.root.visible = true;
-    this.char.playEmote('wave');
+    if (wave) this.char.playEmote('wave');
   }
 
   private look: Look | null = null;

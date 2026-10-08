@@ -79,6 +79,14 @@ export async function startServer(port: number, opts: {
     const token = req.query.device;
     res.json({ ...(WalletStore.validToken(token) ? wallets.achievements(token) : { c: {}, got: [] }), total: ACHIEVEMENTS.length });
   });
+  // aksesuarlar: what this device owns and wears (bitmasks over ACCESSORIES) and its balance
+  app.get('/api/accessories', (req, res) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-store');
+    const token = req.query.device;
+    const w = WalletStore.validToken(token) ? wallets.get(token) : null;
+    res.json(w ? { owned: wallets.accOwned(token as string), wear: w.wear ?? 0, money: w.money } : { owned: 0, wear: 0, money: 0 });
+  });
   // lobby leaderboard: the richest players online right now, public salons only
   app.get('/api/leaders', async (_req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
