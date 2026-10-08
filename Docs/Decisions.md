@@ -217,3 +217,8 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 - They are stored in the device wallet and travel as a bitmask over an append-only list. The server only lets a player wear items they own.
 - The geometry is procedural and self-made. It is fitted to each avatar by measuring its bones, so no third-party assets are needed.
 - At the user's request (2026-10-08), subagents are no longer used, because they use up the usage limit too fast. Work continues sequentially in the main session.
+
+## 2026-10-08 — Mevsimlik olaylar
+- Festivals follow the Istanbul calendar automatically: national days, yılbaşı, Ramazan and the two bayrams. The lunar dates for 2026–2030 come from Diyanet's published calendar, and the later years are approximate. From the admin panel the owner can put a festival on by hand, switch festivals off, or go back to the calendar. The owner's choice is kept in memory, so a restart goes back to the calendar.
+- Only the two religious bayrams give a gift: a bayram harçlığı of 500 ₺ in play money, paid once per device per bayram. National days only decorate the place.
+- The decorations are self-made procedural geometry. The Turkish flag is drawn to its official proportions. No external assets are used.

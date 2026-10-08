@@ -132,3 +132,8 @@
 - Server: `Wallet.acc` (bought ids) + worn mask, `WalletStore.buyAcc` (atomic, never on credit, never twice), `setWear` (only owned, one per slot); `KPlayer.acc/accOwned` synced so others see the worn set.
 - Client: `game/accessories.ts` (procedural pieces measured from each avatar's bones: crown, eyes, upper lip, neck, chest, right hand), `ui/Wardrobe.tsx` (👒 Dolap from the HUD and the home page: try on, buy, wear), Hasan Market's accessory shelf.
 - Tests: `packages/shared/test/accessories.test.ts`, `apps/server/test/accessories.test.ts` (buy once and never on credit, two tabs pay once, others see what is worn, unowned rejected also via the join look, earned items). 192 tests in all.
+## Mevsimlik olaylar (2026-10-08)
+- Shared: `festival.ts` (8 festivals: 29 Ekim, 23 Nisan, 19 Mayıs, 30 Ağustos, yılbaşı, Ramazan, Ramazan and Kurban Bayramı; Istanbul calendar, lunar dates 2026–2030, `festivalAt`, `festivalKey`).
+- Server: `FestivalControl` (calendar or the owner's override), `KahveState.festival` (refreshed every 5 s), greeting on join, bayram harçlığı of 500 ₺ once per device and bayram (`WalletStore.giveGift`), owner routes `GET/POST /api/admin/festival`, dev-only `SOKAK_DEV_FESTIVAL`.
+- Client: `game/festive.ts`: instanced bunting, the Turkish flag on the facade, balloons, string lights, the yılbaşı tree, a mahya on the skyline between Sultanahmet's minarets (night only), and fireworks over the sea (night only). Plus an admin "Duyuru · Etkinlik" tab.
+- Tests: `packages/shared/test/festival.test.ts` (6), `apps/server/test/festival.test.ts` (owner override, admin 403, harçlık once per device, switching off). Checked in the browser: 29 Ekim at night (flags, bunting, the big flag, the floodlit Kız Kulesi).
