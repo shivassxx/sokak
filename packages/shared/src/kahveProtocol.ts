@@ -275,14 +275,19 @@ export interface MatchResultView {
 
 export interface OrderMsg {
   item: string;
-  /** player id, or 'table' for everybody at my table */
+  /** player id, 'table' for everybody at my table, or 'all' for the whole salon ("herkese çay benden") */
   to: string;
 }
+
+/** Çay zinciri: a round for the whole salon within this long of the last one (by someone else) adds a link. */
+export const TEA_CHAIN_MS = 10 * 60_000;
 
 export interface ServedMsg {
   from: string;
   to: string[];
   item: string;
+  /** a round for the whole salon: which link of the çay zinciri it is (1 = a new chain) */
+  chain?: number;
 }
 
 /** okey event relayed to everybody at the table (+ names resolved client-side) */

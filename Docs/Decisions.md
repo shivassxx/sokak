@@ -226,3 +226,6 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 ## 2026-10-08 — Running matches and server restarts
 - A running okey or tavla match cannot survive a server restart: the room is gone, and serialising engine and room state for a restart is out of proportion for now. Instead, `KahvehaneRoom.onBeforeShutdown` calls the match off before the graceful shutdown that a deploy triggers. Every human still at the table gets their bet back and a notice, and the wallets are saved. Bots' bets simply vanish. A player who walked out mid-match had already forfeited, and a bot took the seat.
 - Persisting matches across restarts stays in the Backlog.
+
+## 2026-10-08 — Çay zinciri
+- In Çaycı Rıza's menu, "Kime?" now has a third choice, "Herkese (bütün salon)". The item goes to everyone in the salon except riders out on the vapur, at the item's price per person. If someone else also buys a round for the whole salon within 10 minutes, the chain grows by one link, and everyone sees "Çay zinciri n. halkada!". When the same player buys again, the chain does not grow. Only my own glass and my table's are carried over, so a full salon does not animate 60 trays.

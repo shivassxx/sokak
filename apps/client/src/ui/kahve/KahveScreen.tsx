@@ -392,8 +392,14 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     const v = viewRef.current;
     const item = MENU.find((m) => m.id === s.item);
     if (!v || !item || !game?.kahve) return;
-    const to = s.to.length > 1 ? 'masaya' : s.to[0] === s.from ? 'kendine' : `${name(s.to[0]!)}'e`;
-    toastRef.current({ text: `${item.emoji} ${name(s.from)} ${to} ${item.name.toLowerCase()} ısmarladı!`, kind: 'good' });
+    if (s.chain) {
+      // çay zinciri: a round for the whole salon
+      const link = s.chain > 1 ? ` Çay zinciri ${s.chain}. halkada! 🔗` : ' Zinciri sen devam ettir!';
+      toastRef.current({ text: `${item.emoji} ${name(s.from)} herkese ${item.name.toLowerCase()} ısmarladı!${link}`, kind: 'good' });
+    } else {
+      const to = s.to.length > 1 ? 'masaya' : s.to[0] === s.from ? 'kendine' : `${name(s.to[0]!)}'e`;
+      toastRef.current({ text: `${item.emoji} ${name(s.from)} ${to} ${item.name.toLowerCase()} ısmarladı!`, kind: 'good' });
+    }
     const now = Date.now();
     setDrinks((d) => {
       const next = { ...d };
@@ -401,9 +407,12 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       return next;
     });
     play('pop');
+    // a round for the whole salon: only my own glass and my table's are carried over (cheap)
+    const myTable = v.players[me]?.table ?? -1;
     for (const id of s.to) {
       const p = v.players[id];
       if (!p) continue;
+      if (s.chain && id !== me && (myTable < 0 || p.table !== myTable)) continue;
       if (p.table >= 0) {
         const sp = seatPosition(p.table, p.seat);
         const c = TABLES[p.table]!;
@@ -1340,6 +1349,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             <select value={orderTo} onChange={(e) => setOrderTo(e.target.value)}>
               <option value="me">Kendime</option>
               {atTable && <option value="table">Bütün masaya</option>}
+              <option value="all">Herkese (bütün salon) · çay zinciri</option>
               {Object.values(view.players)
                 .filter((p) => p.id !== me)
                 .map((p) => (
@@ -1349,6 +1359,11 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
                 ))}
             </select>
           </div>
+          {orderTo === 'all' && (
+            <p className="hint">
+              Salonda {Object.values(view.players).filter((p) => !p.aboard).length} kişi var; her ürün bu kadar kişiye gider. 10 dakika içinde başkası da herkese ısmarlarsa çay zinciri uzar.
+            </p>
+          )}
           <div className="menu-items">
             {MENU.map((m) => (
               <button

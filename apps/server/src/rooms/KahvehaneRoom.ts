@@ -21,6 +21,7 @@ import {
   type StaffSalonInfo,
   MAX_KAHVE_PLAYERS,
   MENU,
+  TEA_CHAIN_MS,
   MSG,
   OUTFIT_COLORS,
   QUICK_CHAT_OKEY,
@@ -215,6 +216,8 @@ export class KahvehaneRoom extends Room<KahveState> {
   /** başarımlar: last TV goal handed out ("broadcast:time") and the next check */
   private tvGoalSeen = '';
   private tvCheckAt = 0;
+  /** çay zinciri: the last round for the whole salon */
+  private teaChain: { n: number; by: string; at: number } | null = null;
   private festivalCheckAt = 0;
 
   override onCreate(options: JoinOptions = {}): void {
@@ -1090,7 +1093,11 @@ export class KahvehaneRoom extends Room<KahveState> {
     const now = Date.now();
     if (now - a.lastOrderAt < 1500) return;
     let to: string[];
-    if (m.to === 'table') {
+    let chain = 0;
+    if (m.to === 'all') {
+      // herkese çay benden: everybody in the salon who is not out on the vapur
+      to = [...this.state.players.values()].filter((x) => !x.aboard).map((x) => x.id);
+    } else if (m.to === 'table') {
       if (p.tavla >= 0) to = [...this.state.tavla[p.tavla]!.seats].filter(Boolean);
       else if (p.table < 0) return this.error(id, 'Masaya ısmarlamak için bir masaya otur.');
       else to = [...this.state.tables[p.table]!.seats].filter(Boolean);
@@ -1104,7 +1111,13 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (p.money < cost) return this.error(id, 'Paran yetmiyor. Veresiye isteyebilirsin.');
     a.lastOrderAt = now;
     p.money -= cost;
-    const msg: ServedMsg = { from: id, to, item: item.id };
+    if (m.to === 'all') {
+      // çay zinciri: somebody else answering a round within TEA_CHAIN_MS adds a link
+      const c = this.teaChain;
+      chain = c && now - c.at < TEA_CHAIN_MS ? (c.by === id ? c.n : c.n + 1) : 1;
+      this.teaChain = { n: chain, by: id, at: now };
+    }
+    const msg: ServedMsg = chain ? { from: id, to, item: item.id, chain } : { from: id, to, item: item.id };
     this.broadcast(KMSG.served, msg);
     if (item.id === 'cay') for (const x of to) this.ach(x, 'tea');
     // bots say thanks for a round on the house

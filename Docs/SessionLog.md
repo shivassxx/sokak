@@ -139,3 +139,4 @@
 - Tests: `packages/shared/test/festival.test.ts` (6), `apps/server/test/festival.test.ts` (owner override, admin 403, harçlık once per device, switching off). Checked in the browser: 29 Ekim at night (flags, bunting, the big flag, the floodlit Kız Kulesi).
 - Accessory fixes after a browser check: the kasket's crown now has a flat-topped (superellipse) profile and is sized from the measured top of the head (`AccMetrics.topPts`), so neither a skull nor a bun shows through it. The pala bıyık is fuller and droops less; before, it read as a frown.
 - Server restart: `onBeforeShutdown` refunds the bets of running matches to the humans still seated and saves the wallets (`apps/server/test/shutdown.test.ts`).
+- Çay zinciri: `OrderMsg.to = 'all'`, `ServedMsg.chain`, `TEA_CHAIN_MS`; the room keeps the last round; the menu gets a "Herkese" option with a cost hint, and the chain toast. Test: `apps/server/test/teachain.test.ts`.
