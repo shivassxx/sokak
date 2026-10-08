@@ -14,6 +14,10 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 export interface AccMetrics {
   /** top of the cranium (hair included) and its centre in x/z */
   crown: THREE.Vector3;
+  /** the highest point of anything on the head (a bun or ponytail skinned to other bones), ≥ crown.y */
+  hairTop: number;
+  /** a sample of the head's surface near the top, relative to `crown` (x, y, z triples), so headwear can grow to cover a bun */
+  topPts: number[];
   /** cranium width / depth just above the eyes */
   headW: number;
   headD: number;
@@ -51,6 +55,9 @@ export function measureAvatar(model: THREE.Object3D, bones: Map<string, THREE.Bo
   const neckBone = bones.get(real ? 'Bip01_Neck' : 'Neck')!;
   const head: number[] = [];
   const torso: number[] = [];
+  /** everything above the neck that is not skinned to the head (buns, ponytails) */
+  const upper: number[] = [];
+  const neckY = neckBone.getWorldPosition(new THREE.Vector3()).y;
   model.traverse((o) => {
     const m = o as THREE.SkinnedMesh;
     if (!m.isSkinnedMesh) return;
@@ -67,8 +74,11 @@ export function measureAvatar(model: THREE.Object3D, bones: Map<string, THREE.Bo
       const b = m.skeleton.bones[best];
       const isHead = b ? headSet.has(b) : false;
       const isTorso = b ? torsoSet.has(b) : false;
-      if (!isHead && !isTorso) continue;
       m.getVertexPosition(i, _v).applyMatrix4(m.matrixWorld);
+      if (!isHead && !isTorso) {
+        if (_v.y > neckY + 0.08) upper.push(_v.x, _v.y, _v.z);
+        continue;
+      }
       (isHead ? head : torso).push(_v.x, _v.y, _v.z);
     }
   });
@@ -91,6 +101,17 @@ export function measureAvatar(model: THREE.Object3D, bones: Map<string, THREE.Bo
   const faceW = faceBand.isEmpty() ? 0.15 : faceBand.max.x - faceBand.min.x;
   const cranium = box(head, (_x, y) => y > eyes.y + 0.02);
   const crown = new THREE.Vector3((cranium.min.x + cranium.max.x) / 2, all.max.y, (cranium.min.z + cranium.max.z) / 2);
+  const near = (x: number, _y: number, z: number) => Math.abs(x - crown.x) < 0.12 && Math.abs(z - crown.z) < 0.14;
+  const hairBox = box(upper, near);
+  const hairTop = hairBox.isEmpty() ? crown.y : Math.max(crown.y, hairBox.max.y);
+  const topPts: number[] = [];
+  for (const pts of [head, upper])
+    for (let i = 0; i < pts.length; i += 3) {
+      const x = pts[i]! - crown.x;
+      const y = pts[i + 1]! - crown.y;
+      const z = pts[i + 2]! - crown.z;
+      if (y > -0.07 && Math.abs(x) < 0.12 && Math.abs(z) < 0.14 && topPts.length < 1200 && (i / 3) % 3 === 0) topPts.push(x, y, z);
+    }
   const lipBone = bones.get('Bip01_MUpperLip') ?? bones.get('Bip01_MNose');
   const lip = lipBone ? lipBone.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(eyes.x, eyes.y - 0.06, eyes.z);
   if (!lipBone) lip.y = eyes.y - 0.06;
@@ -111,7 +132,7 @@ export function measureAvatar(model: THREE.Object3D, bones: Map<string, THREE.Bo
   const belly = new THREE.Vector3(pelvis.x, pelvis.y + 0.2, 0);
   const front = box(torso, (x, y) => Math.abs(y - belly.y) < 0.02 && Math.abs(x - belly.x) < 0.03);
   belly.z = front.isEmpty() ? pelvis.z - 0.12 : front.min.z;
-  return { crown, headW: cranium.max.x - cranium.min.x, headD: cranium.max.z - cranium.min.z, eyes, faceW, lip, neck, neckRx, neckRz, chestFront, belly };
+  return { crown, hairTop, topPts, headW: cranium.max.x - cranium.min.x, headD: cranium.max.z - cranium.min.z, eyes, faceW, lip, neck, neckRx, neckRz, chestFront, belly };
 }
 
 // ------------------------------------------------------------------ shared materials
@@ -220,6 +241,10 @@ function lensShape(cx: number, cy: number, w: number, h: number, r: number, tape
   return s;
 }
 
+/** height of the flat cap's crown at a radius 0…1 (1 at the centre, 0 at the rim) */
+const CAP_P = 3;
+const capProfile = (rho: number) => Math.pow(Math.max(0, 1 - Math.pow(rho, CAP_P)), 1 / CAP_P);
+
 const G = {
   // flat cap: a squashed dome whose front reaches over the peak
   capCrown: () =>
@@ -227,6 +252,9 @@ const G = {
       const g = new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, Math.PI / 2);
       const p = g.attributes.position as THREE.BufferAttribute;
       for (let i = 0; i < p.count; i++) {
+        // a flat-topped crown with steep sides (superellipse profile) rather than a dome
+        const rho = Math.min(1, Math.hypot(p.getX(i), p.getZ(i)));
+        p.setY(i, capProfile(rho));
         const z = p.getZ(i);
         // pull the front out and down (the cap's typical slope)
         if (z < 0) p.setXYZ(i, p.getX(i), p.getY(i) * (1 + z * 0.35), z * 1.18);
@@ -334,18 +362,18 @@ const G = {
   wireBridge: () => geo('wireBridge', () => new THREE.TorusGeometry(0.008, 0.001, 4, 10, Math.PI)),
   wireLens: () => geo('wireLens', () => new THREE.CircleGeometry(0.021, 24)),
   wireTemple: () => geo('wireTemple', () => new THREE.CylinderGeometry(0.0009, 0.0009, 1, 4).rotateX(Math.PI / 2).translate(0, 0, 0.5)),
-  // pala bıyık: tapered ellipsoid blobs along a drooping curve
+  // a full kahvehane moustache: overlapping tapered blobs along a gentle curve over the lip,
+  // thick in the middle and only a little lower at the corners (a strong droop reads as a frown)
   moustache: () =>
     geo('moustache', () => {
       const parts: THREE.BufferGeometry[] = [];
       for (const side of [-1, 1])
-        for (let i = 0; i < 9; i++) {
-          const t = i / 8;
+        for (let i = 0; i < 10; i++) {
+          const t = i / 9;
           const s = new THREE.SphereGeometry(1, 10, 7);
-          const w = 0.0048 * (1 - t * 0.55);
-          s.scale(0.0075, w, 0.0045 * (1 - t * 0.4));
-          s.rotateZ(side * (0.2 + t * 0.7));
-          s.translate(side * (0.004 + t * 0.026), -t * t * 0.012, t * 0.011);
+          s.scale(0.0072, 0.0068 * (1 - t * 0.45), 0.0062 * (1 - t * 0.35));
+          s.rotateZ(side * (0.12 + t * 0.32));
+          s.translate(side * (0.003 + t * 0.022), 0.002 - t * t * 0.0055, t * 0.009);
           parts.push(plain(s));
         }
       return mergeGeometries(parts)!;
@@ -448,19 +476,42 @@ export function buildAccessory(id: string, mt: AccMetrics): THREE.Object3D | nul
   const fz = clamp(mt.headD / 0.2, 0.85, 1.3);
   switch (id) {
     case 'kasket': {
+      // a little taller than the skull so no hair pokes through the top
       const crown = m(G.capCrown(), mat.tweed, 0, -0.07, 0.006);
       g.add(crown);
-      crown.scale.set(0.096 * fx, 0.068, 0.108 * fz);
+      // a bun or ponytail on top: the dome grows tall enough to cover every point of the head
+      // above its rim (an ellipsoid test against the measured surface) instead of being pierced
+      const ax = 0.098 * fx;
+      const az = 0.11 * fz;
+      let ay = 0.068;
+      const P = mt.topPts;
+      for (let i = 0; i < P.length; i += 3) {
+        // the dome's own shape (see capCrown): the front half is stretched forward and pulled
+        // down, and the whole crown is tilted 0.1 rad; a point must sit under that surface
+        const z = P[i + 2]! - 0.006;
+        const u = P[i]! / ax;
+        const w = z < 0 ? z / az / 1.18 : z / az;
+        const rr = Math.hypot(u, w);
+        if (rr >= 1) continue;
+        const h = capProfile(rr) * (w < 0 ? 1 + 0.35 * w : 1);
+        // only what sticks up above the skull's own top (a bun) makes the flat cap grow
+        if (P[i + 1]! < -0.025) continue;
+        const y = P[i + 1]! + 0.07 + 0.006 + Math.max(0, -z) * 0.1;
+        // cover the whole top of the head (a bun included); the rim region (h small) is the
+        // brim's job, so it is left out
+        if (h > 0.3) ay = Math.max(ay, y / h);
+      }
+      crown.scale.set(ax, Math.min(0.16, ay), az);
       crown.rotation.x = -0.1;
       const peak = m(G.capPeak(), mat.tweed, 0, -0.072, -0.098 * fz);
       peak.scale.set(0.085 * fx, 0.07, 0.055);
       peak.rotation.x = 0.16;
-      g.add(peak, m(G.button(), mat.tweed, 0, -0.003, -0.014));
+      g.add(peak, m(G.button(), mat.tweed, 0, 0.012, -0.014));
       break;
     }
     case 'fotr': {
       const s = new THREE.Group();
-      s.scale.set(fx * 1.02, 1, fz * 0.95);
+      s.scale.set(fx * 1.02, Math.max(1, (mt.hairTop - mt.crown.y + 0.082 + 0.01) / 0.09), fz * 0.95);
       s.position.y = -0.082;
       s.rotation.x = 0.06;
       s.add(m(G.fedoraCrown(), mat.felt), m(G.fedoraBand(), mat.ribbon, 0, 0.012, 0), m(G.fedoraBrim(), mat.felt));
