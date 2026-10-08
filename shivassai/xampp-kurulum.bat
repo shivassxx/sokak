@@ -8,10 +8,6 @@ rem  shivassai.com -> XAMPP kurulum betigi
 rem  Kullanim: bu dosyaya cift tikla (veya: xampp-kurulum.bat D:\xampp)
 rem ============================================================
 
-set "PHP=%XAMPP%\php\php.exe"
-set "PHPINI=%XAMPP%\php\php.ini"
-set "HTTPD=%XAMPP%\apache\conf\httpd.conf"
-set "VHOST=%XAMPP%\apache\conf\extra\shivassai.conf"
 set "APP=%~dp0"
 if "%APP:~-1%"=="\" set "APP=%APP:~0,-1%"
 set "APPFWD=%APP:\=/%"
@@ -20,6 +16,10 @@ rem XAMPP klasoru: arguman > proje htdocs icindeyse ust klasor > C:\xampp
 set "XAMPP=%~1"
 if "%XAMPP%"=="" for /f "delims=" %%x in ('powershell -NoProfile -Command "$a='%APP%'; $i=$a.ToLower().IndexOf('\htdocs\'); if($i -gt 0){$a.Substring(0,$i)}"') do set "XAMPP=%%x"
 if "%XAMPP%"=="" set "XAMPP=C:\xampp"
+set "PHP=%XAMPP%\php\php.exe"
+set "PHPINI=%XAMPP%\php\php.ini"
+set "HTTPD=%XAMPP%\apache\conf\httpd.conf"
+set "VHOST=%XAMPP%\apache\conf\extra\shivassai.conf"
 
 echo.
 echo  shivassai - XAMPP kurulumu
