@@ -52,7 +52,7 @@ describe('arkadaşlar', () => {
     expect((await friends(da)).friends[0]!.online).toBeNull();
 
     const r = await fetch(`${http}/api/friends/remove`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ device: da, code: fa.friends[0]!.code }) });
-    expect((await r.json()).ok).toBe(true);
+    expect(((await r.json()) as { ok: boolean }).ok).toBe(true);
     expect((await friends(da)).friends).toEqual([]);
     expect((await friends(db)).friends).toEqual([]);
     expect(await (await fetch(`${http}/api/friends?device=nope`)).json()).toBeNull();
