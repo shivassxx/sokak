@@ -386,19 +386,19 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
         const now = bestArrangement(hand, ctx, 6000);
         const withIt = bestArrangement([...hand, left], ctx, 6000);
         if (withIt.melds.some((m) => m.includes(left)) && withIt.points > now.points + 5)
-          return toast(`💡 Soldakinin attığı taşı al: perlerine uyuyor (${withIt.points} puan).`, 'info');
+          return toast('💡 Soldakini al', 'info');
       }
-      return toast('💡 Ortadaki desteden bir taş çek.', 'info');
+      return toast('💡 Desteden çek', 'info');
     }
-    if (!playPhase) return toast('💡 Sıranı beklerken taşlarını diz: "Seri diz" en iyi perleri yan yana getirir.', 'info');
-    if (!opened && plan && (plan.mode === 'series' ? plan.points >= 101 : plan.pairs >= 5)) return toast('💡 Elini açabilirsin! Yeşil "Elini aç" düğmesine bas, sonra bir taş at.', 'good');
-    if (layable.length && hand.length > 1) return toast(`💡 ${layable.length} taşın yerdeki perlere uyuyor: "Uyanları işle" ile hepsini koy.`, 'good');
+    if (!playPhase) return toast('💡 Seri diz', 'info');
+    if (!opened && plan && (plan.mode === 'series' ? plan.points >= 101 : plan.pairs >= 5)) return toast('💡 Elini aç', 'good');
+    if (layable.length && hand.length > 1) return toast('💡 Uyanları işle', 'good');
     const t = suggestDiscard(hand, ctx, (x) => !!opened && view.melds.some((m) => canAdd(m, x, ctx)));
     if (t === null) return;
     setHintTile(t);
     setSel(t);
     const f = playFace(t, ctx);
-    toast(`💡 Bunu atabilirsin: ${f ? `${COLOR_NAMES[f.color]} ${f.num}` : 'seçili taş'}. Çift dokun ya da "Seçili taşı at".`, 'info');
+    toast(`💡 At: ${f ? `${COLOR_NAMES[f.color]} ${f.num}` : 'seçili taş'}`, 'info');
   };
 
   if (!view || !ctx) return null;
