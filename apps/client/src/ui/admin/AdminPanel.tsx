@@ -63,6 +63,7 @@ const ACTION_TR: Record<string, string> = {
   'wallet/grant': 'Para verdi/aldı',
   'channels/add': 'Kanal ekledi',
   'channels/remove': 'Kanal sildi',
+  festival: 'Etkinlik değiştirdi',
 };
 const TYPE_TR: Record<TvStreamType, string> = { video: 'Video / HLS (TV ekranında oynar)', embed: 'Gömülü oynatıcı (“Maçı izle” penceresinde)' };
 type ChannelRow = Pick<TvStreamChannel, 'id' | 'title' | 'type'>;
@@ -149,7 +150,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'channels', label: 'Kanallar' },
   { id: 'users', label: 'Yetkililer' },
   { id: 'salons', label: 'Salonlar · Para' },
-  { id: 'announce', label: 'Duyuru' },
+  { id: 'announce', label: 'Duyuru · Etkinlik' },
   { id: 'stats', label: 'İstatistik' },
   { id: 'log', label: 'Kayıtlar' },
 ];
@@ -177,7 +178,12 @@ function Dashboard({ me, onError }: { me: Me; onError: (e: unknown) => void }) {
           {tab === 'channels' && <Channels onError={onError} onChange={() => setChannelsRev((r) => r + 1)} />}
           {tab === 'users' && <Users me={me} onError={onError} />}
           {tab === 'salons' && <Salons onError={onError} />}
-          {tab === 'announce' && <Announce onError={onError} />}
+          {tab === 'announce' && (
+            <>
+              <Announce onError={onError} />
+              <Festival onError={onError} />
+            </>
+          )}
           {tab === 'stats' && <Stats onError={onError} />}
           {tab === 'log' && <Log onError={onError} />}
         </section>
@@ -676,6 +682,53 @@ function Announce({ onError }: { onError: (e: unknown) => void }) {
       </div>
       {flashEl}
     </form>
+  );
+}
+
+interface FestivalInfo {
+  current: string | null;
+  manual: string | null;
+  list: { id: string; name: string; emoji: string }[];
+}
+
+/** Mevsimlik olaylar: the calendar puts them on by itself; the owner can pick one or switch them off. */
+function Festival({ onError }: { onError: (e: unknown) => void }) {
+  const [info, setInfo] = useState<FestivalInfo | null>(null);
+  const [flashEl, flash] = useFlash();
+  const run = useAction(onError, flash);
+  useEffect(() => {
+    api<FestivalInfo>('GET', 'festival').then(setInfo, onError);
+  }, [onError]);
+  const choose = async (id: string) => {
+    const r = await run(() => api<{ current: string | null; manual: string | null }>('POST', 'festival', { id }));
+    if (r && info) {
+      setInfo({ ...info, ...r });
+      flash('Etkinlik bütün salonlarda birkaç saniye içinde değişir.');
+    }
+  };
+  if (!info) return null;
+  const name = (id: string | null) => (id ? (info.list.find((f) => f.id === id)?.name ?? id) : 'Yok');
+  return (
+    <div className="admin-pane">
+      <h3>🎉 Mevsimlik etkinlik</h3>
+      <p className="admin-hint">
+        Şu an: <b>{name(info.current)}</b> · {info.manual ? 'elle seçildi' : 'takvime göre (otomatik)'}. Bayramlarda oyunculara bir kez bayram harçlığı verilir.
+      </p>
+      <div className="admin-row wrap">
+        <button className={`chip ${!info.manual ? 'on' : ''}`} onClick={() => void choose('auto')}>
+          📅 Takvime göre
+        </button>
+        <button className={`chip ${info.manual === 'none' ? 'on' : ''}`} onClick={() => void choose('none')}>
+          Kapalı
+        </button>
+        {info.list.map((f) => (
+          <button key={f.id} className={`chip ${info.manual === f.id ? 'on' : ''}`} onClick={() => void choose(f.id)}>
+            {f.emoji} {f.name}
+          </button>
+        ))}
+      </div>
+      {flashEl}
+    </div>
   );
 }
 

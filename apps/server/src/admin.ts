@@ -1,8 +1,9 @@
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { matchMaker } from '@colyseus/core';
-import { KAHVE_ROOM, TV_TEAMS, isOffensive, isTvStream, tvTeam, type StaffSalonInfo, type TvBroadcast } from '@sokak/shared';
+import { FESTIVALS, KAHVE_ROOM, TV_TEAMS, isOffensive, isTvStream, tvTeam, type StaffSalonInfo, type TvBroadcast } from '@sokak/shared';
 import { OWNER_USERNAME, SESSION_MS, type StaffStore, type StaffUserView } from './staff';
 import type { TvChannel } from './tv';
+import type { FestivalControl } from './festival';
 import type { Analytics } from './analytics';
 
 const match = (home: string, away: string): string => `${tvTeam(home)?.name ?? home} – ${tvTeam(away)?.name ?? away}`;
@@ -34,8 +35,8 @@ const str = (v: unknown, max = 200): string => (typeof v === 'string' ? v.slice(
  * The admin panel API (/api/admin/*). Same-origin only: no CORS headers here, a session
  * cookie (HttpOnly, SameSite=Strict) or a Bearer token. Every role check is done here.
  */
-export function adminRouter(deps: { staff: StaffStore; tv: TvChannel; analytics: Analytics }): express.Router {
-  const { staff, tv, analytics } = deps;
+export function adminRouter(deps: { staff: StaffStore; tv: TvChannel; analytics: Analytics; festival?: FestivalControl }): express.Router {
+  const { staff, tv, analytics, festival } = deps;
   const r = express.Router();
   r.use(express.json({ limit: '4kb' }));
   r.use((_req, res, next) => {
@@ -173,6 +174,23 @@ export function adminRouter(deps: { staff: StaffStore; tv: TvChannel; analytics:
     }
     staff.log(user.username, 'channels/remove', c.title);
     res.json({ ok: true });
+  });
+
+  // ------------------------------------------------------------ mevsimlik olaylar (owner)
+  r.get('/festival', owner, (_req, res) => {
+    res.json({ current: festival?.current() ?? null, manual: festival?.manual ?? null, list: FESTIVALS.map((f) => ({ id: f.id, name: f.name, emoji: f.emoji })) });
+  });
+
+  // { id: FestivalId | 'none' | 'auto' }: 'auto' follows the calendar again
+  r.post('/festival', owner, (req, res) => {
+    const { user } = authed(res);
+    const id = str(req.body?.id, 40);
+    if (!festival || !festival.set(id)) {
+      res.status(400).json({ error: 'Bilinmeyen etkinlik.' });
+      return;
+    }
+    staff.log(user.username, 'festival', id || 'auto');
+    res.json({ current: festival.current(), manual: festival.manual ?? null });
   });
 
   // ------------------------------------------------------------ staff accounts (owner)

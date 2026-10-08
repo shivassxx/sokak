@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { simitOpen, CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, REGULAR_SEATS, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, tavlaSeatPosition, VAPUR_DECK_Y, type TableView, type TvBroadcast } from '@sokak/shared';
+import { simitOpen, CAYCI_SPOT, KAHVE_COLLIDERS, KAHVE_HALF, REGULAR_SEATS, SEA_Z, SHOPS, TABLES, TAVLA_TABLES, tavlaSeatPosition, VAPUR_DECK_Y, type FestivalDef, type TableView, type TvBroadcast } from '@sokak/shared';
 import type { TavlaView } from '@sokak/tavla';
 import { BOARD_Y, TavlaPieces } from './tavlaBoard';
 import type { OkeyCtx } from '@sokak/okey';
@@ -42,6 +42,7 @@ export interface KahveScene extends World {
   readonly daylight: Readonly<LightState>;
   /** the derby on the kıraathane TVs (null = normal programme) */
   setTv(b: TvBroadcast | null): void;
+  setFestival(def: FestivalDef | null): void;
   /** false while the real stream is watched in the 2D overlay */
   setTvAudio(on: boolean): void;
   /** a goal on the TV: the regulars jump up and the çaycı waves */
@@ -497,6 +498,9 @@ export function buildKahve(scene: THREE.Scene, renderer: THREE.WebGLRenderer): K
     },
     setTv(b) {
       world.setTv(b);
+    },
+    setFestival(def) {
+      world.setFestival(def);
     },
     setTvAudio(on) {
       world.setTvAudio(on);

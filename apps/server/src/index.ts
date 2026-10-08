@@ -27,6 +27,8 @@ if (process.env.SOKAK_DEV_TV === '1' && !prod) {
   if (b && process.env.SOKAK_DEV_TV_SEED) b.seed = Number(process.env.SOKAK_DEV_TV_SEED) >>> 0;
   if (b) b.startedAt -= Number(process.env.SOKAK_DEV_TV_AT ?? 0) || 0;
 }
+// local testing only: dress the kahvehane for a festival (the owner does this from /admin in production)
+if (process.env.SOKAK_DEV_FESTIVAL && !prod) s.festival.set(process.env.SOKAK_DEV_FESTIVAL);
 // local testing only: put a stream on the TV without the https check (e.g. a test clip served by Vite)
 if (process.env.SOKAK_DEV_STREAM_URL && !prod) {
   const type = process.env.SOKAK_DEV_STREAM_TYPE === 'embed' ? 'embed' : 'video';

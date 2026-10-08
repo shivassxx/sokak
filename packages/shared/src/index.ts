@@ -9,6 +9,7 @@ export * from './kahveProtocol';
 export * from './kahveTypes';
 export * from './vapur';
 export * from './tv';
+export * from './festival';
 export * from './tvStream';
 export * from './achievements';
 export * from './dayclock';

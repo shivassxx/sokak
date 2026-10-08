@@ -58,6 +58,7 @@ import {
   tvMatchAt,
   tvTeam,
 } from '@sokak/shared';
+import { festivalById } from '@sokak/shared';
 import type { Game } from '../../game/Game';
 import { footsteps, goalRoar, gullCry, nightAmbience, play, seaside } from '../../game/audio';
 import { DayClock } from './DayClock';
@@ -568,6 +569,12 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     setVoicePanel(true);
     pushToast({ text: vc.hasMic ? '🎙️ Sesli sohbet açık. Masandakiler ve yanındakiler seni duyar.' : '🎧 Mikrofon izni yok: sadece dinliyorsun.', kind: 'info' });
   };
+
+  // mevsimlik olaylar: the server says which festival is on; the scene puts up its decorations
+  const festivalId = view?.festival ?? '';
+  useEffect(() => {
+    game?.kahve?.setFestival(festivalById(festivalId) ?? null);
+  }, [game, festivalId]);
 
   // the kıraathane TV: staff-started derbies, simulated from the broadcast at server time
   const tvJson = view?.tv ?? '';

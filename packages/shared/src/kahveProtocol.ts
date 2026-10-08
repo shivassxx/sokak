@@ -358,4 +358,6 @@ export interface KahveView {
   tavla: KTavlaView[];
   /** JSON TvBroadcast, '' when the TV shows its normal programme */
   tv?: string;
+  /** mevsimlik olay (FestivalId), '' = none */
+  festival?: string;
 }

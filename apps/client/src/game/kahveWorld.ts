@@ -18,6 +18,7 @@ import {
   isTvStream,
   seatPosition,
   vapurState,
+  type FestivalDef,
   type TvBroadcast,
   type VapurPhase,
 } from '@sokak/shared';
@@ -25,6 +26,7 @@ import { Builder, canvasTex, decal, hash, type Mover } from './world';
 import { PAT, patternize } from './materials';
 import { STEEL, LIGHT_OAK, TABLE_TOP, feltTexture, modernChair, modernOkeyTable, parasol, patioHeater, samovar, caydanlik, bentwoodChair } from './kahveProps';
 import { getVolume, isMuted, vapurHorn } from './audio';
+import { buildFestive, type Festive } from './festive';
 import { classicLamp, facadeWindow, gull, hillMosque, houseRow, iskele, kizKulesi, limb, parkBench, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
 import type { Quality } from './postfx';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -58,6 +60,8 @@ export interface KahveWorld {
   setTv(b: TvBroadcast | null): void;
   /** false while the stream is watched in the 2D overlay (no double sound) */
   setTvAudio(on: boolean): void;
+  /** mevsimlik süsler for a festival (null: none) */
+  setFestival(def: FestivalDef | null): void;
   /** the day–night cycle's current lighting (hour, night factor, bloom); refreshed ~2× a second */
   readonly daylight: Readonly<LightState>;
 }
@@ -952,6 +956,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     pigeons.resting = roost;
   };
 
+  let festive: Festive | null = null;
+  let festiveId = '';
   let t = 0;
   return {
     daylight,
@@ -992,6 +998,12 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
         tvVideo.play(tvBroadcast.url);
       }
     },
+    setFestival(def) {
+      if ((def?.id ?? '') === festiveId) return;
+      festive?.dispose();
+      festive = def ? buildFestive(scene, def) : null;
+      festiveId = def?.id ?? '';
+    },
     feedGulls(x, z, y = 0) {
       const hand = new THREE.Vector3(x, y + 1.5, z);
       let best: (typeof gulls)[number] | null = null;
@@ -1027,6 +1039,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
         applyDaylight(hour);
       }
       pigeons.update(dt, movers);
+      festive?.update(dt, daylight.night);
       t += dt;
       water.uniforms.uTime!.value = t;
       ferry.position.x += dt * 7;

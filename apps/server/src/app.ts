@@ -9,6 +9,7 @@ import { KahvehaneRoom } from './rooms/KahvehaneRoom';
 import { Analytics } from './analytics';
 import { WalletStore } from './wallets';
 import { TvChannel } from './tv';
+import { FestivalControl } from './festival';
 import { StaffStore } from './staff';
 import { adminRouter } from './admin';
 
@@ -17,6 +18,7 @@ export interface StartedServer {
   analytics: Analytics;
   wallets: WalletStore;
   tv: TvChannel;
+  festival: FestivalControl;
   staff: StaffStore;
   gameServer: Server;
   close(): Promise<void>;
@@ -41,6 +43,7 @@ export async function startServer(port: number, opts: {
   const analytics = new Analytics(opts.analyticsFile ?? null);
   const wallets = new WalletStore(opts.walletFile ?? null, { now: opts.now });
   const tv = new TvChannel();
+  const festival = new FestivalControl(opts.now);
   const staff = new StaffStore(opts.staffFile ?? null, { ownerPassword: opts.ownerPassword });
   // behind Caddy (private docker network): real client IP and X-Forwarded-Proto
   app.set('trust proxy', 'loopback, linklocal, uniquelocal');
@@ -113,7 +116,7 @@ export async function startServer(port: number, opts: {
     res.json(wallets.weekly(req.query.week === 'last' ? 'last' : 'current', device));
   });
   // staff admin panel API (same-origin, cookie or Bearer session)
-  app.use('/api/admin', adminRouter({ staff, tv, analytics }));
+  app.use('/api/admin', adminRouter({ staff, tv, analytics, festival }));
   // aggregate counts only; protected by a token when STATS_TOKEN is set
   app.get('/stats', (req, res) => {
     if (opts.statsToken && req.query.token !== opts.statsToken) {
@@ -156,6 +159,7 @@ export async function startServer(port: number, opts: {
         static override vapurNow = vapurNow;
         static override wallets = wallets;
         static override tv = tv;
+        static override festival = festival;
         static override analyticsSink = {
           tableStarted: (players: number, bet: number) => analytics.tableStarted(players, bet),
           handPlayed: () => analytics.okeyHandPlayed(),
@@ -174,6 +178,7 @@ export async function startServer(port: number, opts: {
     analytics,
     wallets,
     tv,
+    festival,
     staff,
     gameServer,
     close: () => gameServer.gracefullyShutdown(false),

@@ -88,12 +88,14 @@ import {
   type UsedMsg,
 } from '@sokak/shared';
 import { ACC_ALL, accMask, accIndex, accessoryById, accessoryForAch, sanitizeWear, wearToggle, type AccBuyMsg, type AccWearMsg } from '@sokak/shared';
+import { festivalById, festivalKey, type FestivalId } from '@sokak/shared';
 import { ACH_MSG, inHall, isTvStream, tvMatchAt, type AchCounter, type AchUnlockMsg } from '@sokak/shared';
 import { OkeyGame, botAction, partnerOf, teamOf, teamTotals, type OkeyEvent, type Result } from '@sokak/okey';
 import { MATCH_LENGTHS, TavlaMatch, autoTurn, botStep, type Result as TavlaResult, type Side, type TavlaEvent } from '@sokak/tavla';
 import { KPlayer, KTable, KahveState, TTable } from './kahveSchema';
 import { generateRoomId } from '../roomId';
 import type { TvChannel } from '../tv';
+import type { FestivalControl } from '../festival';
 import { WalletStore } from '../wallets';
 
 /** accessory sets bots wear, in turn */
@@ -195,6 +197,8 @@ export class KahvehaneRoom extends Room<KahveState> {
   static vapurNow: () => number = () => Date.now();
   /** the shared TV channel (staff put derbies on); null in rooms without one */
   static tv: TvChannel | null = null;
+  /** the festival (mevsimlik olay) on: calendar or the owner's choice; null in tests without one */
+  static festival: FestivalControl | null = null;
   static analyticsSink: { tableStarted?(players: number, bet: number): void; handPlayed?(): void; tavlaStarted?(players: number, bet: number): void; tavlaGamePlayed?(): void } | null = null;
 
   private get cls(): typeof KahvehaneRoom {
@@ -211,6 +215,7 @@ export class KahvehaneRoom extends Room<KahveState> {
   /** başarımlar: last TV goal handed out ("broadcast:time") and the next check */
   private tvGoalSeen = '';
   private tvCheckAt = 0;
+  private festivalCheckAt = 0;
 
   override onCreate(options: JoinOptions = {}): void {
     this.roomId = generateRoomId();
@@ -386,6 +391,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     p.missions = JSON.stringify(this.missionState(p.id));
     p.trophy = this.trophyOf(device);
     if (bonus) this.clock.setTimeout(() => this.avatars.get(p.id)?.client?.send(KMSG.notice, `🎁 Günlük bonus: +${bonus} ₺. Hoş geldin!`), 1500);
+    this.festivalWelcome(p.id);
     if (options.quick) this.quickSeat(p.id, undefined);
   }
 
@@ -474,6 +480,27 @@ export class KahvehaneRoom extends Room<KahveState> {
       lastCredit: credit && credit > 0 ? credit : undefined,
     });
     a.saved = { money: p.money, played: p.played, won: p.won };
+  }
+
+  /** Mevsimlik olay: the greeting, and on a bayram the harçlık (once per device and bayram). */
+  private festivalWelcome(id: string): void {
+    const fid = this.cls.festival?.current() ?? null;
+    this.state.festival = fid ?? '';
+    const f = fid ? festivalById(fid) : undefined;
+    const p = this.state.players.get(id);
+    const a = this.avatars.get(id);
+    if (!f || !p || !a) return;
+    let gift = 0;
+    const store = this.cls.wallets;
+    if (f.gift > 0 && a.device && store) {
+      this.saveWallet(id);
+      if (store.giveGift(a.device, festivalKey(f.id as FestivalId, Date.now()), f.gift)) {
+        gift = f.gift;
+        p.money += gift;
+        a.saved = { ...a.saved, money: p.money };
+      }
+    }
+    this.clock.setTimeout(() => this.avatars.get(id)?.client?.send(KMSG.notice, gift ? `${f.greeting} +${gift} ₺` : f.greeting), 3000);
   }
 
   /** Weekly leaderboard: count a finished (or walked-out) match of a device player. */
@@ -1358,6 +1385,10 @@ export class KahvehaneRoom extends Room<KahveState> {
     for (let ti = 0; ti < TAVLA_COUNT; ti++) this.tickTavla(ti, now);
     if (now >= this.tvCheckAt) {
       this.tvCheckAt = now + 1000;
+      if (now >= this.festivalCheckAt) {
+        this.festivalCheckAt = now + 5_000;
+        this.state.festival = this.cls.festival?.current() ?? '';
+      }
       this.checkTvGoal(now);
     }
     this.sendSnapshots(now);

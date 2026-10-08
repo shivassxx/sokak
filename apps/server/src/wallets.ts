@@ -42,6 +42,8 @@ export interface Wallet {
   /** aksesuarlar: ids bought with play money, and the worn set (bitmask over ACCESSORIES) */
   acc?: string[];
   wear?: number;
+  /** one-off gifts already given (bayram harçlığı), e.g. 'kurbanBayrami:2027' */
+  gifts?: string[];
 }
 
 const KEEP_MS = 60 * 24 * 3600 * 1000;
@@ -129,6 +131,18 @@ export class WalletStore {
     const reward = unlocked.reduce((s, a) => s + a.reward, 0);
     this.set(token, { ...w, ach: state, money: Math.max(0, w.money) + reward });
     return unlocked;
+  }
+
+  /**
+   * A one-off gift (bayram harçlığı), paid into the stored wallet at most once per key, so
+   * several tabs or salons of one device get it once. Returns true when it was paid now.
+   */
+  giveGift(token: string, key: string, amount: number): boolean {
+    const w = WalletStore.validToken(token) ? this.data.get(token) : undefined;
+    if (!w || w.gifts?.includes(key) || !(amount > 0)) return false;
+    // keep the last few keys only: one per festival and year is plenty
+    this.set(token, { ...w, money: Math.max(0, w.money) + amount, gifts: [...(w.gifts ?? []), key].slice(-12) });
+    return true;
   }
 
   /** Accessories a device owns (bought + earned), as a bitmask over ACCESSORIES. */
