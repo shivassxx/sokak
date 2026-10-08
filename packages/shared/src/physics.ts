@@ -7,8 +7,8 @@ import type { Aabb } from './geometry';
 export const PLAYER_RADIUS = 0.35;
 export const PLAYER_HEIGHT = 1.8;
 export const STEP_HEIGHT = 0.5;
-export const WALK_SPEED = 5.0;
-export const SPRINT_SPEED = 7.4;
+export const WALK_SPEED = 3.4;
+export const SPRINT_SPEED = 5.6;
 export const CROUCH_SPEED = 2.4;
 /** stamina drained per second while sprinting (full bar ≈ 3.6 s) */
 export const STAMINA_DRAIN = 0.28;

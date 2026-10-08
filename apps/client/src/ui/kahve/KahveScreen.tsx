@@ -453,7 +453,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         game.setFixed(p.id, { x: sp.x, y: 0, z: sp.z, yaw: sp.yaw });
       } else if (spot) game.setFixed(p.id, { x: spot.x, y: spot.h - 0.48, z: spot.z, yaw: spot.yaw });
       else game.setFixed(p.id, null);
-      game.setPose(p.id, p.table >= 0 || p.tavla >= 0 || spot ? 'sit' : p.fish || p.holding === 'olta' ? 'fish' : 'none');
+      game.setPose(p.id, p.table >= 0 || p.tavla >= 0 ? 'sit' : spot ? 'sitBench' : p.fish || p.holding === 'olta' ? 'fish' : 'none');
       game.setHeld(p.id, p.holding);
       game.setFishing(p.id, p.fish);
     }
@@ -466,7 +466,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     game.tavla = atTavla ? { table: mine.tavla, seat: mine.seat } : null;
     game.localSeatY = mySpot ? mySpot.h - 0.48 : 0;
     game.setLabelsVisible(!seated && !atTavla && !watching);
-    game.setPose(null, seated || atTavla || mySpot ? 'sit' : mine?.fish || mine?.holding === 'olta' ? 'fish' : 'none');
+    game.setPose(null, seated || atTavla ? 'sit' : mySpot ? 'sitBench' : mine?.fish || mine?.holding === 'olta' ? 'fish' : 'none');
     game.setHeld(null, mine?.holding ?? '');
     game.setFishing(null, mine?.fish ?? 0);
     if (mine?.fish === 2 && myFish.current !== 2) {

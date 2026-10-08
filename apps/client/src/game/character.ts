@@ -17,7 +17,7 @@ import { ANCHOR_OF, buildAccessory, measureAvatar, type AccAnchor, type AccMetri
  * (facing -Z); every frame the joint rotations are mapped onto the skeleton.
  */
 export type Emote = 'wave' | 'laugh' | 'dance' | 'point';
-export type Pose = 'none' | 'counting' | 'caught' | 'celebrate' | 'spotted' | 'sit' | 'sitThink' | 'drink' | 'read' | 'doze' | 'fish';
+export type Pose = 'none' | 'counting' | 'caught' | 'celebrate' | 'spotted' | 'sit' | 'sitBench' | 'sitThink' | 'drink' | 'read' | 'doze' | 'fish';
 
 export interface CharacterOpts {
   /** grown-up proportions (kahvehane) instead of a neighborhood kid */
@@ -37,11 +37,30 @@ const realKit = new Map<RealAvatar, THREE.Object3D>();
 const realLoads = new Map<RealAvatar, Promise<boolean>>();
 let realLoader: GLTFLoader | null = null;
 
+/**
+ * Motion-captured clips for the realistic avatars (Microsoft Rocketbox animation library, MIT;
+ * same Bip01 skeleton): idle, walk, run, sitting at a table or on a bench, cheering, waving,
+ * laughing, dancing. One skeleton-only GLB (~110 KB gzip), loaded with the first avatar.
+ */
+let animClips: Map<string, THREE.AnimationClip> | null = null;
+let animLoad: Promise<void> | null = null;
+export function loadAvatarAnims(): Promise<void> {
+  realLoader ??= new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  animLoad ??= realLoader
+    .loadAsync(`${import.meta.env.BASE_URL}models/rb_anims.glb`)
+    .then((g) => {
+      animClips = new Map(g.animations.map((a) => [a.name, a]));
+    })
+    .catch(() => {});
+  return animLoad;
+}
+
 /** Load one realistic avatar (once); resolves false when it cannot be loaded. */
 export function ensureRealAvatar(id: RealAvatar): Promise<boolean> {
   let p = realLoads.get(id);
   if (p) return p;
   realLoader ??= new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+  void loadAvatarAnims();
   p = realLoader
     .loadAsync(`${import.meta.env.BASE_URL}models/rb_${id}.glb`)
     .then((g) => {
@@ -269,6 +288,8 @@ interface BoneInfo {
   base: THREE.Quaternion;
   /** scratch: current orientation in the body frame */
   world: THREE.Quaternion;
+  /** scratch: the bone's local rotation from the mocap clips this frame */
+  mix: THREE.Quaternion;
   children: BoneInfo[];
 }
 
@@ -334,6 +355,16 @@ export class Character {
   private crouchAmt = 0;
   private airAmt = 0;
   private lean = 0;
+  /** mocap playback (realistic avatars once the clips are loaded) */
+  private mixer: THREE.AnimationMixer | null = null;
+  private actions = new Map<string, THREE.AnimationAction>();
+  private current: THREE.AnimationAction | null = null;
+  /** 0 = the clips drive the body, 1 = the procedural puppet does (fishing, crouching …) */
+  private procW = 1;
+  /** per-joint procedural overlays on top of the clips (reaching for a tile, a glass to the lips …) */
+  private overlay: Partial<Record<JointName, number>> = {};
+  private topBone!: THREE.Bone;
+  private topRestPos = new THREE.Vector3();
   pose: Pose = 'none';
   facing = 0;
   /** id of the item currently held (managed by Game.setHeld) */
@@ -427,12 +458,15 @@ export class Character {
         joint,
         base: joint === 'armL' || joint === 'foreL' ? baseArmL : joint === 'armR' || joint === 'foreR' ? baseArmR : new THREE.Quaternion(),
         world: new THREE.Quaternion(),
+        mix: b.quaternion.clone(),
         children: [],
       };
       for (const c of b.children) if ((c as THREE.Bone).isBone) info.children.push(build(c as THREE.Bone));
       return info;
     };
     this.boneRoot = build(topBone);
+    this.topBone = topBone;
+    this.topRestPos.copy(topBone.position);
     const hipsBone = byName.get(this.real ? 'Bip01_Pelvis' : 'Hips')!;
     this.hipHeight = hipsBone.getWorldPosition(new THREE.Vector3()).y;
 
@@ -856,8 +890,83 @@ export class Character {
     }
     this.applyEmote(dt, moving);
     this.applyUse(dt);
+    this.driveMixer(dt, moving, speed);
     this.applyRig();
     if (this.real && this.propGroup.children.length) this.keepPropsUpright();
+  }
+
+  /**
+   * Mocap layer: pick the clip for what the character is doing (cross-faded), advance it, and
+   * decide how much the procedural puppet still drives — fully for poses without a clip
+   * (fishing, crouching, reading …), per joint for overlays (reaching for a tile, drinking).
+   */
+  private driveMixer(dt: number, moving: boolean, speed: number): void {
+    if (!this.real) return;
+    if (!this.mixer && animClips) {
+      this.mixer = new THREE.AnimationMixer(this.model);
+      for (const [name, clip] of animClips) this.actions.set(name, this.mixer.clipAction(clip));
+    }
+    const ov = this.overlay;
+    for (const k in ov) delete ov[k as JointName];
+    if (!this.mixer) return;
+    const p = this.pose;
+    const procPose = p === 'fish' || p === 'counting' || p === 'caught' || p === 'spotted' || p === 'read' || p === 'doze';
+    const want = procPose ? 1 : Math.max(this.crouchAmt, this.airAmt);
+    this.procW += (want - this.procW) * Math.min(1, dt * 8);
+    if (this.procW > 0.999) this.procW = 1;
+    if (this.procW < 0.001) this.procW = 0;
+
+    // which clip
+    let name = 'idle';
+    let scale = 1;
+    if (moving && p !== 'sit' && p !== 'sitBench') {
+      if (speed < 2) {
+        name = 'walk';
+        scale = Math.min(1.8, Math.max(0.6, speed / 1.02));
+      } else {
+        name = 'run';
+        scale = Math.min(1.6, Math.max(0.8, speed / 2.87));
+      }
+    } else if (p === 'celebrate') name = 'cheer';
+    else if (p === 'sitThink') name = 'think';
+    else if (p === 'sitBench') name = 'sitChair';
+    else if (p === 'sit' || p === 'drink') name = 'sitTable';
+    if (this.emote && !moving && p !== 'sit' && p !== 'sitBench') {
+      const e = { wave: 'wave', laugh: 'laugh', dance: 'dance', point: '' }[this.emote];
+      if (e) name = e;
+    }
+    const next = this.actions.get(name) ?? this.actions.get('idle')!;
+    if (next !== this.current) {
+      next.reset().setEffectiveWeight(1).fadeIn(0.3).play();
+      // start a loop at a random point so a room full of people does not breathe in step
+      if (name === 'idle' || name === 'sitTable' || name === 'sitChair') next.time = Math.random() * next.getClip().duration;
+      this.current?.fadeOut(0.3);
+      this.current = next;
+    }
+    next.setEffectiveTimeScale(scale);
+    if (this.procW < 1) this.mixer.update(dt);
+
+    // overlays from the procedural layer
+    const set = (j: JointName, w: number) => {
+      if (w > (ov[j] ?? 0)) ov[j] = Math.min(1, w);
+    };
+    if (this.reachT > 0) {
+      const k = Math.sin(Math.PI * (1 - this.reachT / REACH_TIME));
+      set('armR', k);
+      set('foreR', k);
+      set('chest', k * 0.6);
+    }
+    if (this.useKind) {
+      const dur = this.useKind === 'read' ? 3.2 : this.useKind === 'fish' ? 1.1 : 2.4;
+      const k = Math.min(1, Math.sin(Math.min(1, this.useT / dur) * Math.PI) * 1.6);
+      set('armR', k);
+      set('foreR', k);
+      if (this.useKind === 'read') (set('armL', k), set('foreL', k));
+      if (this.useKind === 'drink') set('neck', k);
+      if (this.useKind === 'fish') set('chest', k);
+    } else if (this.holding && p !== 'fish') (set('armR', 0.5), set('foreR', 1));
+    if (p === 'drink') (set('armR', 1), set('foreR', 1), set('neck', 1));
+    if (this.emote === 'point') (set('armR', 1), set('foreR', 1));
   }
 
   /** Map the virtual joints onto the skeleton (no allocations: runs for every character every frame). */
@@ -880,11 +989,18 @@ export class Character {
     get('shinL', this.legL.lower, 'legL');
     get('legR', this.legR.upper, 'hips');
     get('shinR', this.legR.lower, 'legR');
+    if (this.mixer && this.procW < 1) {
+      // the clip carries the hips' height (and sitting down); the puppet's body offsets fade out
+      this.body.position.y *= this.procW;
+      this.topBone.position.lerp(this.topRestPos, this.procW);
+    } else this.topBone.position.copy(this.topRestPos);
     this.applyBone(this.boneRoot, this.parentRest);
   }
 
   private applyBone(info: BoneInfo, parentWorld: THREE.Quaternion): void {
     const world = info.world;
+    const mixing = !!this.mixer && this.procW < 1;
+    if (mixing) info.mix.copy(info.bone.quaternion);
     if (info.joint) {
       // desired orientation in the body frame: joint rotation ∘ neutral pose ∘ rest
       world.copy(this.jointQ.get(info.joint)!).multiply(info.base).multiply(info.restWorld);
@@ -893,6 +1009,11 @@ export class Character {
     } else {
       info.bone.quaternion.copy(info.rest);
       world.copy(parentWorld).multiply(info.rest);
+    }
+    if (mixing) {
+      // blend: the clip's rotation, pulled towards the puppet's by the procedural weight
+      const w = info.joint ? Math.max(this.procW, this.overlay[info.joint] ?? 0) : this.procW;
+      if (w < 1) info.bone.quaternion.slerpQuaternions(info.mix, info.bone.quaternion, w);
     }
     for (const c of info.children) this.applyBone(c, world);
   }
@@ -905,7 +1026,7 @@ export class Character {
       this.marker.rotation.y = t * 3;
     }
     if (moving && this.pose !== 'spotted') return;
-    if (this.pose === 'sit' || this.pose === 'sitThink' || this.pose === 'drink' || this.pose === 'read' || this.pose === 'doze') {
+    if (this.pose === 'sit' || this.pose === 'sitBench' || this.pose === 'sitThink' || this.pose === 'drink' || this.pose === 'read' || this.pose === 'doze') {
       // on a chair (seat height ≈ 0.48): thighs forward, shins down
       this.body.position.y = 0.52 - this.hipHeight;
       this.legL.upper.rotation.set(1.5, 0, 0.08);
