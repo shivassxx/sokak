@@ -22,7 +22,7 @@ export const SURF_AVG: readonly (readonly [number, number, number])[] = [
   [0.1204, 0.0983, 0.0594],
 ];
 /** metres covered by one tile of each slice */
-export const SURF_SCALE = [2.4, 1.3, 2.4, 5, 2.4, 2.2, 1.4, 1.8, 3.2];
+export const SURF_SCALE = [2.4, 1.8, 2.4, 5, 2.4, 2.2, 1.4, 1.8, 3.2];
 
 const placeholder = () => {
   const t = new THREE.DataArrayTexture(new Uint8Array([128, 128, 128, 255]), 1, 1, 1);

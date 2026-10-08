@@ -77,7 +77,7 @@ const LANTERN_Y = 2.25;
 
 export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRenderer, quality: Quality): KahveWorld {
   const low = quality === 'low';
-  if (!low) loadSurfaces(renderer);
+  if (!low) loadSurfaces(renderer, quality === 'high' ? 1024 : 512);
   // -------------------------------------------------------------- sky, light
   // the day–night cycle (dayNight.ts) drives all of this; the values here are the evening key
   const daylight = sampleLight(18.5, createLightState());
@@ -330,14 +330,24 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
 
   // -------------------------------------------------------------- hall interior
   // çay ocağı: oak counter, marble top, LED strip, back bar
-  b.pat = PAT.wood;
+  b.bucket = 'varnish';
+  b.pat = PAT.grainX;
   b.box(-3, 0, -21, 12, 1.0, 1.2, 0x7a5232);
+  // fielded panels on the counter front
+  for (let x = -8.4; x <= 2.5; x += 1.2) {
+    b.box(x, 0.18, -20.39, 1.0, 0.04, 0.02, 0x4f3220);
+    b.box(x, 0.84, -20.39, 1.0, 0.04, 0.02, 0x4f3220);
+    for (const e of [-0.5, 0.5]) b.box(x + e, 0.18, -20.39, 0.04, 0.7, 0.02, 0x4f3220);
+  }
+  b.bucket = 'main';
   b.pat = PAT.marble;
   b.box(-3, 1.0, -21, 12.2, 0.06, 1.35, 0xf0ede6);
   b.pat = PAT.none;
   b.box(-3, 0.06, -20.38, 11.8, 0.03, 0.02, 0xffc27a, 'glow');
-  b.pat = PAT.wood;
+  b.bucket = 'varnish';
+  b.pat = PAT.grainX;
   for (const y of [1.6, 2.2, 2.8]) b.box(-3, y, HALL.z0 + 0.2, 12, 0.05, 0.36, LIGHT_OAK);
+  b.bucket = 'main';
   b.pat = PAT.none;
   for (const y of [1.6, 2.2, 2.8]) b.box(-3, y - 0.03, HALL.z0 + 0.36, 11.8, 0.02, 0.02, 0xffd9a0, 'glow');
   for (let i = 0; i < 48; i++) {
@@ -401,34 +411,13 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   // playable tavla tables in the lounge; the regulars' chairs along the side walls
   for (let i = 0; i < TAVLA_TABLES.length; i++) tavlaTable(b, i);
   for (const r of REGULAR_SEATS) bentwoodChair(b, r.x + Math.sin(r.yaw) * 0.06, r.z + Math.cos(r.yaw) * 0.06, r.yaw);
-  // big plants
+  // big plants: potted Poly Haven plants (placed with the props below)
   const plants = new Foliage(low ? 0.6 : 1);
+  const pottedPlants: { x: number; y: number; z: number; s: number; yaw: number }[][] = [[], []];
   for (const o of KAHVE_OBJECTS) {
-    if (o.kind !== 'planter') continue;
-    const outdoor = o.z > 18;
-    if (outdoor) continue;
-    // fibre-clay pot with a rim and soil; a ficus with two stems and leafy clumps
-    b.pat = PAT.plaster;
-    b.add(new THREE.CylinderGeometry(o.w / 2, o.w / 2.5, o.h, 20), 0x3a3c40, o.x, o.h / 2, o.z);
-    b.add(new THREE.TorusGeometry(o.w / 2 - 0.02, 0.03, 6, 20), 0x34363a, o.x, o.h, o.z, Math.PI / 2, 0, 0);
-    b.pat = PAT.grass;
-    b.cyl(o.x, o.h - 0.06, o.z, o.w / 2 - 0.04, 0.03, 0x3b2c20, 16);
-    b.pat = PAT.none;
-    const top = o.h + 1.6;
-    for (const [dx, dz, h] of [
-      [0.08, 0.02, 1],
-      [-0.07, -0.05, 0.82],
-    ] as const) {
-      const a = new THREE.Vector3(o.x + dx * 0.5, o.h - 0.05, o.z + dz * 0.5);
-      const e = new THREE.Vector3(o.x + dx * 3, o.h + (top - o.h) * h, o.z + dz * 3);
-      limb(b, a, e, 0.035, 0.018, 0x6b5a45);
-    }
-    for (let k = 0; k < 4; k++) {
-      const a = k * 2.2 + o.x;
-      const y = o.h + 0.75 + k * 0.32;
-      const r = 0.32 + (k === 3 ? 0.08 : 0.12);
-      plants.crown(o.x + Math.sin(a) * 0.14, y, o.z + Math.cos(a) * 0.14, r, r * 0.8, r, 42, 0.5);
-    }
+    if (o.kind !== 'planter' || o.z > 18) continue;
+    const k = pottedPlants[0]!.length + pottedPlants[1]!.length;
+    pottedPlants[k % 2]!.push({ x: o.x, y: 0, z: o.z, s: k % 2 ? 1.45 : 1.6, yaw: k * 1.7 });
   }
 
   // -------------------------------------------------------------- the market
@@ -599,6 +588,9 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       }
     },
   });
+  void placeProps(decor, 'plant_tall', pottedPlants[0]!, { castShadow: true });
+  void placeProps(decor, 'plant_big', pottedPlants[1]!, { castShadow: true });
+  void placeProps(decor, 'grandfather_clock', [{ x: 8.6, y: 0, z: HALL.z0 + 0.25 }], { castShadow: true });
   void placeProps(decor, 'books', [{ x: -7.6, y: 2.825, z: SHELF - 0.03 }]);
   const glassMat = new THREE.MeshStandardMaterial({ color: 0xcfe3ea, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false });
   const glass = new THREE.Mesh(mergeGeometries(glassPanes, false)!, glassMat);
