@@ -93,7 +93,7 @@ assets/
 - **Bots** fill empty seats (clearly labeled as bots).
 
 ### Performance Budget
-- **Instant load:** initial download under 5 MB; show the lobby before heavy assets finish.
+- **Fast lobby, realistic game:** the lobby shows from under 300 KB; the realistic textures and models (up to ~60 MB in all) stream in after it. The user dropped the old 5 MB instant-load rule on 2026-10-08 in favour of realism (see `Docs/Decisions.md`).
 - 60 fps on a mid-range phone and on a GTX 1050 Ti laptop/desktop.
 - Instanced props, shared materials, one directional light with limited shadow distance, baked/fake ambient light.
 - Network: 20 Hz server tick, interpolation on clients, small delta-compressed state.

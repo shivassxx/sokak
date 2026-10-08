@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import {
   HALL,
   HALL_DOOR,
@@ -24,10 +25,12 @@ import {
 } from '@sokak/shared';
 import { Builder, canvasTex, decal, hash, type Mover } from './world';
 import { PAT, patternize } from './materials';
-import { STEEL, LIGHT_OAK, TABLE_TOP, feltTexture, modernChair, modernOkeyTable, parasol, patioHeater, samovar, caydanlik, bentwoodChair } from './kahveProps';
+import { loadSurfaces } from './surfaces';
+import { placeProps } from './propModels';
+import { STEEL, LIGHT_OAK, TABLE_TOP, WALNUT, feltTexture, modernChair, modernOkeyTable, okeyTable, parasol, patioHeater, samovar, caydanlik, bentwoodChair } from './kahveProps';
 import { getVolume, isMuted, vapurHorn } from './audio';
 import { buildFestive, type Festive } from './festive';
-import { classicLamp, facadeWindow, gull, hillMosque, houseRow, iskele, kizKulesi, limb, parkBench, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
+import { facadeWindow, gull, hillMosque, houseRow, iskele, kizKulesi, limb, parkBench, planeTree, simitCart, skylineTexture, vapur, waterMaterial } from './uskudarProps';
 import type { Quality } from './postfx';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Foliage } from './foliage';
@@ -69,9 +72,12 @@ export interface KahveWorld {
 const BRICK = 0x9c4a32;
 const GREIGE = 0xe3dacd;
 const CHARCOAL = 0x2c2d31;
+/** bottom of the brass lanterns over the hall's okey tables */
+const LANTERN_Y = 2.25;
 
 export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRenderer, quality: Quality): KahveWorld {
   const low = quality === 'low';
+  if (!low) loadSurfaces(renderer);
   // -------------------------------------------------------------- sky, light
   // the day–night cycle (dayNight.ts) drives all of this; the values here are the evening key
   const daylight = sampleLight(18.5, createLightState());
@@ -127,9 +133,22 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   const fog = new THREE.Fog(0xe7a888, 90, 520);
   scene.fog = fog;
   const pm = new THREE.PMREMGenerator(renderer);
-  scene.environment = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+  const outdoorEnv = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+  scene.environment = outdoorEnv;
   scene.environmentIntensity = 0.32;
   pm.dispose();
+  // inside the hall the reflections come from a real café (Poly Haven "comfy_cafe" HDRI, 512 px)
+  let cafeEnv: THREE.Texture | null = null;
+  let inside = false;
+  const CAFE_ENV = 0.42;
+  if (!low)
+    new HDRLoader().loadAsync(`${import.meta.env.BASE_URL}textures/cafe_env.hdr`).then((t) => {
+      const g = new THREE.PMREMGenerator(renderer);
+      t.mapping = THREE.EquirectangularReflectionMapping;
+      cafeEnv = g.fromEquirectangular(t).texture;
+      g.dispose();
+      t.dispose();
+    });
   // phones (low) get a brighter fill and a softer sun: keep those ratios over the whole day
   const HEMI_K = low ? 1.1 / 0.72 : 1;
   const SUN_K = low ? 1.8 / 2.3 : 1;
@@ -144,11 +163,13 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   sun.shadow.normalBias = 0.03;
   scene.add(sun, sun.target);
   if (!low) {
+    // inside the lanterns over the middle row (their highlights on the varnished floor match a
+    // visible lamp), one over the çay ocağı, one in the market
     for (const [x, y, z, i] of [
-      [-13, 3.9, -12, 9],
-      [-3, 3.9, -12, 9],
-      [7, 3.9, -12, 9],
-      [-3, 3.9, -21, 5],
+      [-15.5, 2.67, -11.5, 6],
+      [-5.5, 2.67, -11.5, 6],
+      [4.5, 2.67, -11.5, 6],
+      [-3, 3.3, -20.2, 4],
       [23, 3.5, -7, 7],
     ] as const) {
       const l = new THREE.PointLight(0xffc98f, i, 15, 1.5);
@@ -167,8 +188,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   b.box(0, -0.02, (TERRACE.z1 + STREET.z0) / 2, KAHVE_HALF * 2, 0.02, STREET.z0 - TERRACE.z1, 0xc9bca6); // pavement
   b.box((MARKET.x0 + KAHVE_HALF) / 2, -0.02, TERRACE.z1 / 2, KAHVE_HALF - MARKET.x0, 0.02, TERRACE.z1, 0xc9bca6);
   b.box(0, -0.02, (STREET.z1 + PROMENADE.z0) / 2, KAHVE_HALF * 2, 0.02, PROMENADE.z0 - STREET.z1, 0xc9bca6);
-  b.pat = PAT.stone;
-  b.box(0, -0.03, (STREET.z0 + STREET.z1) / 2, KAHVE_HALF * 2, 0.02, STREET.z1 - STREET.z0, 0x6e6a66); // cobbles
+  b.pat = PAT.setts;
+  b.box(0, -0.03, (STREET.z0 + STREET.z1) / 2, KAHVE_HALF * 2, 0.02, STREET.z1 - STREET.z0, 0x8c847a); // granite setts
   b.pat = PAT.tiles;
   b.box(0, -0.02, (PROMENADE.z0 + SEA_Z) / 2, KAHVE_HALF * 2, 0.02, SEA_Z - PROMENADE.z0, 0xd8cdb8);
   b.pat = PAT.stone;
@@ -181,29 +202,11 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   b.pat = PAT.tiles;
   b.box((MARKET.x0 + MARKET.x1) / 2, -0.015, (MARKET.z0 + MARKET.z1) / 2, MARKET.x1 - MARKET.x0, 0.02, MARKET.z1 - MARKET.z0, 0xe8e6e0);
   b.pat = PAT.none;
-  // hall floor: polished concrete (texture)
-  const concrete = canvasTex(512, 512, (ctx) => {
-    ctx.fillStyle = '#b9b2a8';
-    ctx.fillRect(0, 0, 512, 512);
-    const img = ctx.getImageData(0, 0, 512, 512);
-    for (let i = 0; i < img.data.length; i += 4) {
-      const n = (Math.random() - 0.5) * 10 + Math.sin(i * 0.00003) * 6;
-      img.data[i] = img.data[i]! + n;
-      img.data[i + 1] = img.data[i + 1]! + n;
-      img.data[i + 2] = img.data[i + 2]! + n;
-    }
-    ctx.putImageData(img, 0, 0);
-    ctx.strokeStyle = 'rgba(90,85,80,0.35)';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(0, 0, 512, 512);
-  });
-  concrete.wrapS = concrete.wrapT = THREE.RepeatWrapping;
-  concrete.repeat.set((HALL.x1 - HALL.x0) / 3, (HALL.z1 - HALL.z0) / 3);
-  const hallFloor = new THREE.Mesh(new THREE.PlaneGeometry(HALL.x1 - HALL.x0, HALL.z1 - HALL.z0), new THREE.MeshStandardMaterial({ map: concrete, roughness: 0.46, metalness: 0.02 }));
-  hallFloor.rotation.x = -Math.PI / 2;
-  hallFloor.position.set((HALL.x0 + HALL.x1) / 2, 0.005, (HALL.z0 + HALL.z1) / 2);
-  hallFloor.receiveShadow = true;
-  scene.add(hallFloor);
+  // hall floor: varnished oak planks (photo texture + clear coat, see the 'floor' bucket below)
+  b.bucket = 'floor';
+  b.pat = PAT.wood;
+  b.box((HALL.x0 + HALL.x1) / 2, -0.035, (HALL.z0 + HALL.z1) / 2, HALL.x1 - HALL.x0, 0.04, HALL.z1 - HALL.z0, 0x9a6a48);
+  b.pat = PAT.none;
 
   // -------------------------------------------------------------- the hall shell
   b.bucket = 'main';
@@ -214,24 +217,40 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   // north wall: exposed brick inside
   b.pat = PAT.brick;
   b.box(cx, 0, HALL.z0 - T / 2, HALL.x1 - HALL.x0 + 2 * T, H, T, BRICK);
-  // side walls: warm plaster with oak slats
+  // side walls: warm plaster above a walnut wainscot with raised panels and a chair rail
   b.pat = PAT.plaster;
   b.box(HALL.x0 - T / 2, 0, cz, T, H, HALL.z1 - HALL.z0, GREIGE);
   b.box(HALL.x1 + T / 2, 0, cz, T, H, HALL.z1 - HALL.z0, GREIGE);
-  b.pat = PAT.wood;
+  const WAIN = 1.15;
   for (const [x, nx] of [
     [HALL.x0, 1],
     [HALL.x1, -1],
   ] as const) {
-    for (let z = HALL.z0 + 0.5; z < HALL.z1 - 0.3; z += 0.16) b.box(x + nx * 0.03, 0, z, 0.04, 2.6, 0.08, LIGHT_OAK);
-    b.box(x + nx * 0.05, 2.6, cz, 0.08, 0.06, HALL.z1 - HALL.z0, CHARCOAL);
+    b.bucket = 'varnish';
+    b.pat = PAT.grainZ;
+    b.box(x + nx * 0.02, 0, cz, 0.04, WAIN, HALL.z1 - HALL.z0, WALNUT);
+    b.box(x + nx * 0.045, WAIN - 0.02, cz, 0.07, 0.06, HALL.z1 - HALL.z0, WALNUT); // chair rail
+    b.box(x + nx * 0.04, 0, cz, 0.06, 0.14, HALL.z1 - HALL.z0, 0x2e1a0e); // skirting
+    for (let z = HALL.z0 + 0.8; z < HALL.z1 - 0.6; z += 1.1) {
+      // raised panel: a frame of four mouldings around a flat field
+      b.box(x + nx * 0.05, 0.3, z, 0.02, 0.04, 0.9, 0x5a3520);
+      b.box(x + nx * 0.05, 0.98, z, 0.02, 0.04, 0.9, 0x5a3520);
+      for (const e of [-0.45, 0.45]) b.box(x + nx * 0.05, 0.3, z + e, 0.02, 0.72, 0.04, 0x5a3520);
+    }
+    b.bucket = 'main';
   }
   b.pat = PAT.none;
-  // ceiling (casts: keeps the hall in the shade), ducts and a slatted band
-  b.box(cx, H, cz, HALL.x1 - HALL.x0 + 2 * T, 0.3, HALL.z1 - HALL.z0 + 2 * T, CHARCOAL);
-  for (const z of [-19, -9]) b.add(new THREE.CylinderGeometry(0.28, 0.28, HALL.x1 - HALL.x0, 12), 0x3a3c40, cx, H - 0.45, z, 0, 0, Math.PI / 2);
-  b.pat = PAT.wood;
-  for (let x = HALL.x0 + 0.5; x < HALL.x1; x += 0.5) b.box(x, H - 0.12, -4, 0.08, 0.1, 6, LIGHT_OAK);
+  // ceiling: cream plaster between dark walnut beams, a cornice along the walls
+  b.pat = PAT.plaster;
+  b.box(cx, H, cz, HALL.x1 - HALL.x0 + 2 * T, 0.3, HALL.z1 - HALL.z0 + 2 * T, 0xeee3cf);
+  b.bucket = 'varnish';
+  b.pat = PAT.grainZ;
+  for (let x = HALL.x0 + 1.7; x < HALL.x1 - 0.5; x += 2.5) b.box(x, H - 0.26, cz, 0.22, 0.26, HALL.z1 - HALL.z0, WALNUT);
+  b.pat = PAT.grainX;
+  for (const z of [HALL.z0 + 0.1, HALL.z1 - 0.1]) b.box(cx, H - 0.3, z, HALL.x1 - HALL.x0, 0.3, 0.2, WALNUT);
+  b.pat = PAT.grainZ;
+  for (const x of [HALL.x0 + 0.1, HALL.x1 - 0.1]) b.box(x, H - 0.3, cz, 0.2, 0.3, HALL.z1 - HALL.z0, WALNUT);
+  b.bucket = 'main';
   b.pat = PAT.none;
   // building above (two apartment floors)
   b.pat = PAT.plaster;
@@ -313,7 +332,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   // çay ocağı: oak counter, marble top, LED strip, back bar
   b.pat = PAT.wood;
   b.box(-3, 0, -21, 12, 1.0, 1.2, 0x7a5232);
-  b.pat = PAT.stone;
+  b.pat = PAT.marble;
   b.box(-3, 1.0, -21, 12.2, 0.06, 1.35, 0xf0ede6);
   b.pat = PAT.none;
   b.box(-3, 0.06, -20.38, 11.8, 0.03, 0.02, 0xffc27a, 'glow');
@@ -326,7 +345,6 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     const y = i < 24 ? 1.65 : 2.25;
     b.add(new THREE.LatheGeometry([new THREE.Vector2(0.018, 0), new THREE.Vector2(0.026, 0.02), new THREE.Vector2(0.02, 0.05), new THREE.Vector2(0.028, 0.085)], 8), 0xe8f0f0, x, y, HALL.z0 + 0.25);
   }
-  for (let i = 0; i < 8; i++) b.cyl(-8 + i * 1.6, 2.85, HALL.z0 + 0.25, 0.1, 0.3, [0xd8473b, 0xf2c94c, 0x3f8f5a, 0xe9e2d0][i % 4]!, 10);
   // tea urns + çaydanlıklar on the counter
   // polished stainless çay kazanları with brass taps (glossy 'cars' bucket = clearcoat)
   for (const x of [-7.6, -6.6]) {
@@ -362,16 +380,16 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   // tables + chairs
   for (let t = 0; t < TABLES.length; t++) {
     const c = TABLES[t]!;
-    modernOkeyTable(b, c.x, c.z);
+    const indoor = t < 18;
+    (indoor ? okeyTable : modernOkeyTable)(b, c.x, c.z);
     for (let s = 0; s < 4; s++) {
       const p = seatPosition(t, s);
-      modernChair(b, p.x + Math.sin(p.yaw) * 0.06, p.z + Math.cos(p.yaw) * 0.06, p.yaw);
+      (indoor ? bentwoodChair : modernChair)(b, p.x + Math.sin(p.yaw) * 0.06, p.z + Math.cos(p.yaw) * 0.06, p.yaw);
     }
-    if (t < 18) {
-      // pendant lamp
-      b.cyl(c.x, 2.75, c.z, 0.006, H - 2.75, 0x111111, 4);
-      b.add(new THREE.LatheGeometry([new THREE.Vector2(0.02, 0.32), new THREE.Vector2(0.06, 0.3), new THREE.Vector2(0.26, 0.02), new THREE.Vector2(0.27, 0)], 18), 0x1d1e20, c.x, 2.45, c.z);
-      b.add(new THREE.SphereGeometry(0.07, 10, 8), 0xffe0a0, c.x, 2.48, c.z, 0, 0, 0, 'glow');
+    if (indoor) {
+      // brass lantern (a Poly Haven model, placed below) on a chain; the bulb glows
+      b.cyl(c.x, LANTERN_Y + 0.86, c.z, 0.008, H - LANTERN_Y - 0.86, 0x3a2a18, 4);
+      b.add(new THREE.SphereGeometry(0.06, 10, 8), 0xffd9a0, c.x, LANTERN_Y + 0.42, c.z, 0, 0, 0, 'glow');
     }
   }
   const feltGeo = new THREE.PlaneGeometry(0.98, 0.98);
@@ -447,10 +465,18 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   hillMosque(b, -20, 18, -75, 1.0);
   houseRow(b, -110, 90, -55, 1, 9, 2, true);
 
+  // Victorian cast-iron lamp posts (Poly Haven model, placed with the props below); the glowing
+  // lantern core stays in the merged glow mesh so it brightens with the day–night cycle
+  const lampPosts: { x: number; y: number; z: number; s: number }[] = [];
+  const lampPost = (x: number, z: number, h: number) => {
+    const k = h / 3.87;
+    lampPosts.push({ x, y: 0, z, s: k });
+    b.add(new THREE.SphereGeometry(0.09, 8, 6), 0xffe2a8, x, 3.42 * k, z, 0, 0, 0, 'glow');
+  };
   // -------------------------------------------------------------- street & sahil furniture
   const trees = new Foliage(low ? 0.6 : 1);
   for (const o of KAHVE_OBJECTS) {
-    if (o.kind === 'lamp') classicLamp(b, o.x, o.z);
+    if (o.kind === 'lamp') lampPost(o.x, o.z, 4.4);
     else if (o.kind === 'planter' && o.z > 18) planeTree(b, o.x, o.z, 1, trees);
     else if (o.kind === 'bench') parkBench(b, o.x, o.z, 1);
     else if (o.kind === 'cart') simitCart(b, o.x, o.z, glassPanes);
@@ -483,7 +509,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       b.pat = PAT.none;
     }
   }
-  for (let x = -40; x <= 28; x += 10) classicLamp(b, x, SEA_Z - 0.9, 3.8);
+  for (let x = -40; x <= 28; x += 10) lampPost(x, SEA_Z - 0.9, 3.8);
   // sea railing: posts and two iron rails
   for (const [x0, x1] of [
     [-KAHVE_HALF, LEDGE.x0],
@@ -533,6 +559,47 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   // varnished furniture wood: same patterns, plus a clear lacquer coat
   const varnishMat = patternize(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.48, clearcoat: 0.6, clearcoatRoughness: 0.22 }), 0.18);
   addMesh(b.build('varnish'), varnishMat, true, true);
+  addMesh(b.build('floor'), patternize(new THREE.MeshPhysicalMaterial({ vertexColors: true, roughness: 0.55, clearcoat: 0.6, clearcoatRoughness: 0.2 }), 0), false, true);
+
+  // -------------------------------------------------------------- realistic props (Poly Haven models)
+  const decor = new THREE.Group();
+  decor.name = 'decor';
+  scene.add(decor);
+  const bulbGlow = (m: THREE.MeshStandardMaterial, n: string) => {
+    const name = `${m.name} ${n}`.toLowerCase();
+    if (/bulb|_lamp/.test(name)) {
+      m.emissive.setHex(0xffc985);
+      m.emissiveIntensity = 2.4;
+    } else if (/glass/.test(name)) {
+      m.emissive.setHex(0xffb45e);
+      m.emissiveIntensity = 0.5;
+    }
+  };
+  const SHELF = HALL.z0 + 0.22;
+  void placeProps(decor, 'lantern', TABLES.slice(0, 18).map((c) => ({ x: c.x, y: LANTERN_Y + 0.87, z: c.z })), { material: bulbGlow });
+  void placeProps(decor, 'chandelier', [-14.5, 8.5].map((x) => ({ x, y: H - 0.91 * 1.3, z: -2.6, s: 1.3 })), { material: bulbGlow });
+  void placeProps(decor, 'ceiling_fan', [-7.05, 2.95].flatMap((x) => [-9, -14].map((z) => ({ x, y: H, z }))));
+  const sideWall = (zs: number[], y: number, inset = 0) =>
+    zs.flatMap((z) => [
+      { x: HALL.x0 + inset, y, z, yaw: Math.PI / 2 },
+      { x: HALL.x1 - inset, y, z, yaw: -Math.PI / 2 },
+    ]);
+  void placeProps(decor, 'sconce', [...sideWall([-21, -17.5, -6.5], 1.85), ...[6, 11].map((x) => ({ x, y: 1.85, z: HALL.z0 }))], { material: bulbGlow });
+  void placeProps(decor, 'mirror', sideWall([-19.3, -4.6], 2.25, 0.01).map((p) => ({ ...p, s: 1.8 })));
+  void placeProps(decor, 'mantel_clock', [{ x: 2.3, y: 2.825, z: SHELF }]);
+  void placeProps(decor, 'brass_pot', [-8.3, -1.6].map((x) => ({ x, y: 2.825, z: SHELF, yaw: x })));
+  void placeProps(decor, 'brass_vase', [-6.2, 0.5].map((x) => ({ x, y: 2.825, z: SHELF, s: 0.75 })));
+  void placeProps(decor, 'brass_vase_small', [-4.9, -4.6, -2.8, 1.3].map((x) => ({ x, y: 2.825, z: SHELF, yaw: x * 3 })));
+  void placeProps(decor, 'street_lamp', lampPosts, {
+    castShadow: true,
+    material: (m) => {
+      if (/glass/i.test(m.name)) {
+        m.emissive.setHex(0xffd08a);
+        m.emissiveIntensity = 1.2;
+      }
+    },
+  });
+  void placeProps(decor, 'books', [{ x: -7.6, y: 2.825, z: SHELF - 0.03 }]);
   const glassMat = new THREE.MeshStandardMaterial({ color: 0xcfe3ea, transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false });
   const glass = new THREE.Mesh(mergeGeometries(glassPanes, false)!, glassMat);
   glass.userData.noAO = true;
@@ -918,6 +985,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   let roost = false;
   let lightT = 0;
   const ramp = (x: number, a: number, b: number) => Math.min(1, Math.max(0, (x - a) / (b - a)));
+  let lastEnv = 0.32;
   const applyDaylight = (hour: number) => {
     const L = sampleLight(hour, daylight); // also moves sunDir and the sky colours (shared objects)
     sun.color.copy(L.sun);
@@ -929,7 +997,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     fog.color.copy(L.fog);
     fog.near = L.fogNear;
     fog.far = L.fogFar;
-    scene.environmentIntensity = L.env;
+    scene.environmentIntensity = inside && cafeEnv ? CAFE_ENV : L.env;
+    lastEnv = L.env;
     renderer.toneMappingExposure = L.exposure;
     skyUniforms.uGlow.value = L.glow;
     skyUniforms.uStars.value = ramp(L.night, 0.35, 1);
@@ -963,6 +1032,12 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     daylight,
     follow(x, z) {
       listener.set(x, z);
+      const inHallNow = x > HALL.x0 && x < HALL.x1 && z > HALL.z0 && z < HALL.z1;
+      if (inHallNow !== inside || (inside && cafeEnv && scene.environment !== cafeEnv)) {
+        inside = inHallNow;
+        scene.environment = inside && cafeEnv ? cafeEnv : outdoorEnv;
+        scene.environmentIntensity = inside && cafeEnv ? CAFE_ENV : lastEnv;
+      }
       // the TVs are only seen from inside the hall or through the storefront
       tvVisible.v = x > HALL.x0 - 6 && x < HALL.x1 + 6 && z < TERRACE.z1 + 4;
       // the stream's sound comes from the big screen: loud nearby, quiet outside the hall

@@ -144,22 +144,30 @@ export const RACK_DIST = 0.47;
 export function okeyTable(b: Builder, x: number, z: number): void {
   const f = new Frame(x, 0, z, 0);
   const pat = b.pat;
-  b.pat = PAT.wood;
+  const bucket = b.bucket;
+  b.bucket = 'varnish';
+  b.pat = PAT.grainX;
   b.addMatrix(roundedSlab(TABLE_HALF * 2, TABLE_HALF * 2, 0.045, 0.06), 0x6a3d1f, f.m(0, TABLE_TOP - 0.045, 0));
   for (const s of [-1, 1]) {
+    b.pat = PAT.grainX;
     b.addMatrix(new THREE.BoxGeometry(0.96, 0.08, 0.03), WALNUT, f.m(0, TABLE_TOP - 0.085, s * 0.47));
+    b.pat = PAT.grainZ;
     b.addMatrix(new THREE.BoxGeometry(0.03, 0.08, 0.96), WALNUT, f.m(s * 0.47, TABLE_TOP - 0.085, 0));
   }
+  b.pat = PAT.grainX;
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.addMatrix(turnedLeg(), WALNUT, f.m(sx * 0.47, 0, sz * 0.47));
   b.addMatrix(new THREE.BoxGeometry(0.94, 0.03, 0.04), WALNUT, f.m(0, 0.16, 0));
+  b.pat = PAT.grainZ;
   b.addMatrix(new THREE.BoxGeometry(0.04, 0.03, 0.94), WALNUT, f.m(0, 0.16, 0));
-  // racks
+  // racks: grain along each ıstaka
   for (let s = 0; s < 4; s++) {
     const yaw = (s * Math.PI) / 2;
+    b.pat = s % 2 === 0 ? PAT.grainX : PAT.grainZ;
     const rf = new Frame(x + Math.sin(yaw) * RACK_DIST, TABLE_TOP + 0.002, z + Math.cos(yaw) * RACK_DIST, yaw);
     b.addMatrix(rackGeometry(), RACK_WOOD, rf.m(0, 0, 0));
-    for (const e of [-1, 1]) b.addMatrix(new THREE.BoxGeometry(0.012, 0.08, 0.126), 0x9a6436, rf.m((e * RACK_LEN) / 2, 0.04, 0));
+    for (const e of [-1, 1]) b.addMatrix(new THREE.BoxGeometry(0.012, 0.08, 0.126), 0x8a5428, rf.m((e * RACK_LEN) / 2, 0.04, 0));
   }
+  b.bucket = bucket;
   b.pat = pat;
 }
 

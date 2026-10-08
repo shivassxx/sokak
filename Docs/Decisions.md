@@ -251,3 +251,10 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 - "💡 İpucu" button on the okey board. In the draw phase it says whether the left neighbour's discard helps (it goes into a better arrangement for more than 5 extra points) or to draw from the deck. In the play phase it points to "Elini aç" when the hand can open, to "Uyanları işle" when tiles fit table melds, and otherwise highlights a safe discard. The safe discard (`suggestDiscard` in `packages/okey`) is never part of the best arrangement and never the okey. It is a suggestion only; the server rules are unchanged.
 - Double-tapping a rack tile in the play phase discards it.
 - "Uyanları işle (n)" lays every hand tile that fits a table meld, one server message at a time, always keeping at least one tile to discard.
+
+## 2026-10-08 — Realism over instant load; classic kıraathane
+- The user said instant loading no longer matters ("tarayıcıda rahat oynatsın yeter") and asked for a game that makes people say "oha". The 5 MB budget is replaced by: the lobby under 300 KB (it still shows at once), the whole client under 60 MB. `scripts/check-size.mjs` and CLAUDE.md follow.
+- Engine: we stay on Three.js (no rewrite). The visual gap came from procedural surfaces and primitive props, not from the engine.
+- Surfaces: the merged box-built world keeps its vertex colours, and nine CC0 photo texture sets add their detail and normals via world-space triplanar sampling in the existing pattern shader (`surfaces.ts`, `materials.ts`). Phones (low tier) keep the procedural patterns.
+- The hall is now a classic, warm kıraathane instead of the black-ceiling industrial one: varnished plank floor, cream ceiling with walnut beams, walnut wainscot, the old walnut okey table with turned legs and Thonet-style bentwood chairs indoors (the terrace keeps the modern set), Poly Haven brass lanterns over every okey table, chandeliers in the lounge, ceiling fans, sconces, mirrors and brass on the shelves. Inside the hall, reflections come from a real café HDRI.
+- The street and sahil lamp posts are a Victorian cast-iron model; the street is granite setts.

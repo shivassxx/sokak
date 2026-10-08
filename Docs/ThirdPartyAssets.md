@@ -39,9 +39,19 @@ kenney.nl, quaternius.com and polyhaven.com are blocked in the dev container (Ke
 | Microsoft Rocketbox Avatar Library — Male_Adult_01, 02, 03, 05, 08, 14; Female_Adult_01, 04, 09 | Microsoft (Mar Gonzalez-Franco et al.) | github.com/microsoft/Microsoft-Rocketbox | MIT (licence text shipped as `public/models/ROCKETBOX_LICENSE.txt`) | 2026-10-07 | `public/models/rb_*.glb`: realistic adult avatars for players and NPCs in the 101 Okey kahvehane | FBX → glTF (FBX2glTF); hi-poly LOD only, animations and facial blendshapes stripped (the procedural rig drives the Biped bones); colour 1024², normal 512², opacity (lashes/hair cards) 256²; meshopt geometry + WebP q72 (0.3–0.46 MB each) |
 | Microsoft Rocketbox animation library: m_idle_neutral_01, m_idle_look_around_01, m_walk_neutral_01, m_run_neutral_01, m_sit_table_breathe_01, m_sit_table_gestic_thoughtful, m_sit_chair_idle_neutral_01, m_wave_01, m_gestic_laugh_loud, m_cheer_01, m_claphands_01, m_drink_drinking, m_dancing_neutral | Microsoft (Mar Gonzalez-Franco et al.) | github.com/microsoft/Microsoft-Rocketbox (Assets/Animations) | MIT (same licence file) | 2026-10-08 | `public/models/rb_anims.glb`: motion-captured clips for the realistic avatars (same Bip01 skeleton) | FBX → glTF (FBX2glTF), merged into one skeleton-only GLB, horizontal root motion removed (in place), long clips trimmed to 4–12 s, resampled, meshopt (362 KB, 110 KB gzip) |
 
-Keep the total download under 5 MB (CLAUDE.md performance budget).
+Budget: the lobby stays under 300 KB; the whole client under 60 MB (CLAUDE.md, changed 2026-10-08).
 
 ## Libraries added for real match streams
 | Library | Creator | Source | License | Date | Used for | Changes |
 |---|---|---|---|---|---|---|
 | hls.js 1.7.3 (light build, `hls.js/light`) | video-dev / hls.js contributors | https://github.com/video-dev/hls.js | Apache-2.0 | 2026-10-07 | Plays owner-added HLS (.m3u8) streams on the kıraathane TV in browsers without native HLS; loaded lazily as its own chunk | none |
+
+## Realism pass (2026-10-08)
+All fetched from public GitHub mirrors of the original CC0 libraries (polyhaven.com and ambientcg.com are blocked in the dev container): HHSOLL/DeskteriorOnline, TheMarco/liminal, EliteGamer007/6dof-drone-sim, hwcgames/snald, olaals/datasets-rgb-pose-estimation. File names match the originals.
+
+| Asset | Creator | Original source | License | Date | Used for | Changes |
+|---|---|---|---|---|---|---|
+| painted_plaster_wall, floor_tiles_04, asphalt_02, wood_floor, brick_floor_003, oak_veneer_01, marble_01, large_sandstone_blocks_01 (textures) | Poly Haven | polyhaven.com/a/<name> | CC0 | 2026-10-08 | `public/textures/surf_albedo.jpg` + `surf_nrm.jpg`: triplanar photo detail for plaster, pavement, asphalt, floor planks, street setts, furniture oak, marble, sandstone | resized to 1024, AO baked into the colour, normal XY + roughness packed into one strip |
+| Bricks097 (texture) | ambientCG | ambientcg.com/a/Bricks097 | CC0 | 2026-10-08 | same strips: brick walls | as above |
+| comfy_cafe (HDRI) | Poly Haven | polyhaven.com/a/comfy_cafe | CC0 | 2026-10-08 | `public/textures/cafe_env.hdr`: reflections inside the kıraathane | box-filtered from 2k to 512×256 |
+| lantern_chandelier_01, Chandelier_02, ceiling_fan, industrial_wall_sconce, mantel_clock_01, brass_pot_01, brass_vase_01, brass_vase_03, ornate_mirror_01, book_encyclopedia_set_01, street_lamp_01 (models) | Poly Haven | polyhaven.com/a/<name> | CC0 | 2026-10-08 | `public/models/props/*.glb`: lanterns over the okey tables, lounge chandeliers, fans, wall sconces, mirrors, shelf decor, the street and sahil lamp posts | Draco removed, some simplified (meshoptimizer), textures WebP 256–512 px, meshopt-compressed |

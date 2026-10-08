@@ -22,10 +22,10 @@ export interface World {
 }
 
 /** detail = small static clutter (shop stock, window trim): drawn like main but casts no shadow */
-export type Bucket = 'main' | 'glow' | 'ground' | 'foliage' | 'cars' | 'varnish' | 'detail';
+export type Bucket = 'main' | 'glow' | 'ground' | 'foliage' | 'cars' | 'varnish' | 'detail' | 'floor';
 
 export class Builder {
-  private parts: Record<Bucket, THREE.BufferGeometry[]> = { main: [], glow: [], ground: [], foliage: [], cars: [], varnish: [], detail: [] };
+  private parts: Record<Bucket, THREE.BufferGeometry[]> = { main: [], glow: [], ground: [], foliage: [], cars: [], varnish: [], detail: [], floor: [] };
   private m = new THREE.Matrix4();
   private q = new THREE.Quaternion();
   private e = new THREE.Euler();

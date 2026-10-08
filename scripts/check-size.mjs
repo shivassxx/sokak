@@ -1,5 +1,6 @@
-// Verifies the instant-load budget: total gzip size of the client build < 5 MB,
-// and reports what is needed before the lobby can show (entry chunk + CSS).
+// Verifies the download budget (user decision 2026-10-08: realism over instant load):
+// the lobby (html + entry chunk + CSS) stays under 300 KB gzip so it shows at once;
+// the whole client with its textures and models stays under 60 MB.
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -29,9 +30,10 @@ for (const f of files) {
 }
 console.log(`\ntotal: ${(raw / 1024).toFixed(0)} KB raw, ${(gz / 1024).toFixed(0)} KB gzip`);
 console.log(`needed for the lobby (html + entry js + css): ${(initial / 1024).toFixed(0)} KB gzip`);
-const LIMIT = 5 * 1024 * 1024;
-if (gz > LIMIT) {
-  console.error('FAIL: over the 5 MB budget');
+const LIMIT = 60 * 1024 * 1024;
+const LOBBY = 300 * 1024;
+if (gz > LIMIT || initial > LOBBY) {
+  console.error(`FAIL: over budget (total ${LIMIT / 1024 / 1024} MB, lobby ${LOBBY / 1024} KB)`);
   process.exit(1);
 }
-console.log('OK: under the 5 MB budget');
+console.log('OK: lobby under 300 KB, total under 60 MB');

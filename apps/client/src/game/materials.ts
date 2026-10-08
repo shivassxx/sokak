@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { SURF_GLSL, surfUniforms } from './surfaces';
 
 /**
  * World-space procedural surface detail for the merged world meshes.
@@ -21,6 +22,12 @@ export const PAT = {
   /** solid (varnished) wood for furniture, grain running along world x / z */
   grainX: 11,
   grainZ: 12,
+  /** polished marble (counter tops) */
+  marble: 13,
+  /** big sandstone blocks (quay wall, the sitting ledge) */
+  sandstone: 14,
+  /** granite setts (the street) */
+  setts: 15,
 } as const;
 export type Pattern = (typeof PAT)[keyof typeof PAT];
 
@@ -44,6 +51,7 @@ varying vec3 vWNormal;
 uniform float uAO;
 uniform float uFade;
 float gHgt;
+${SURF_GLSL}
 float h21(vec2 p){ p = fract(p*vec2(123.34, 456.21)); p += dot(p, p+45.32); return fract(p.x*p.y); }
 float vnoise(vec2 p){ vec2 i = floor(p); vec2 f = fract(p); f = f*f*(3.0-2.0*f);
   return mix(mix(h21(i), h21(i+vec2(1,0)), f.x), mix(h21(i+vec2(0,1)), h21(i+vec2(1,1)), f.x), f.y); }
@@ -56,7 +64,9 @@ vec3 surfaceDetail(vec3 col){
   int p = int(vPat + 0.5);
   float f = 1.0;
   gHgt = 0.0;
-  if (p == 1) { // plaster: soft mottling + faint floor bands
+  col = surfPhoto(col, p);
+  if (gSurf) {
+  } else if (p == 1) { // plaster: soft mottling + faint floor bands
     float m = fbm(uv * 0.9);
     f = 0.93 + 0.12 * m;
     f *= 1.0 - 0.05 * smoothstep(0.9, 1.0, fract(vWPos.y / 3.0));
@@ -151,6 +161,7 @@ export function patternize<T extends THREE.Material>(m: T, ao = 0.32, fadeNear =
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uAO = { value: ao };
     shader.uniforms.uFade = { value: fadeNear };
+    Object.assign(shader.uniforms, surfUniforms);
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', `#include <common>\n${VERT_DECL}`)
       .replace('#include <worldpos_vertex>', `#include <worldpos_vertex>\n${VERT_MAIN}`);
@@ -167,8 +178,12 @@ export function patternize<T extends THREE.Material>(m: T, ao = 0.32, fadeNear =
            if (keep < 1.0 && h21(floor(gl_FragCoord.xy)) > keep) discard;
          }`,
       )
-      .replace('#include <normal_fragment_maps>', '#include <normal_fragment_maps>\n  if (gHgt != 0.0) normal = bumpNormal(normal, gHgt * 1.6);');
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  if (gSurf) roughnessFactor = clamp(roughnessFactor * (0.45 + 1.1 * gSurfR), 0.05, 1.0);')
+      .replace(
+        '#include <normal_fragment_maps>',
+        '#include <normal_fragment_maps>\n  if (gSurf) normal = normalize((viewMatrix * vec4(gSurfN, 0.0)).xyz);\n  else if (gHgt != 0.0) normal = bumpNormal(normal, gHgt * 1.6);',
+      );
   };
-  m.customProgramCacheKey = () => `pat2-${ao}-${fadeNear}`;
+  m.customProgramCacheKey = () => `pat3-${ao}-${fadeNear}`;
   return m;
 }
