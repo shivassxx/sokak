@@ -150,3 +150,4 @@
 - Assets: `public/textures/surf_*.jpg`, `cafe_env.hdr`, `public/models/props/*.glb` (≈4.5 MB + 2 MB). Tools (outside the repo): `/tmp/claude-0/assets-research/_tools/pack-props.mjs`, `bbox.mjs`.
 - Checked with screenshots (hall, okey table, street, sahil at dusk and night). Total client 9.7 MB gzip, lobby 135 KB.
 - Next: sahil props (benches, more greenery), characters, terrace.
+- Part 2: Poly Haven potted plants replace the procedural ficus planters, a grandfather clock, panelled varnished counter and shelves; textures at 512 px on the medium tier; photographed clouds in the sky shader (mask + shading coloured by the hour's palette, turned away from the sun).

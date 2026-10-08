@@ -91,7 +91,18 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     uGlow: { value: 1 },
     uStars: { value: 0 },
     moonDir: { value: new THREE.Vector3(...MOON_DIR).normalize() },
+    // photographed clouds (Poly Haven "wasteland_clouds_puresky"): R = cloud mask, G = shading
+    uClouds: { value: null as THREE.Texture | null },
+    uCloudOn: { value: 0 },
+    uCloudU: { value: 0 },
   };
+  if (!low)
+    new THREE.TextureLoader().loadAsync(`${import.meta.env.BASE_URL}textures/clouds.jpg`).then((t) => {
+      t.wrapS = THREE.RepeatWrapping;
+      t.colorSpace = THREE.NoColorSpace;
+      skyUniforms.uClouds.value = t;
+      skyUniforms.uCloudOn.value = 1;
+    });
   const sky = new THREE.Mesh(
     new THREE.SphereGeometry(1000, 32, 16),
     new THREE.ShaderMaterial({
@@ -102,12 +113,21 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
       vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
       fragmentShader: `uniform vec3 top; uniform vec3 mid; uniform vec3 horizon; uniform vec3 sunDir; uniform vec3 glowCol;
         uniform float uGlow; uniform float uStars; uniform vec3 moonDir; varying vec3 vD;
+        uniform sampler2D uClouds; uniform float uCloudOn; uniform float uCloudU;
         void main(){
           vec3 d = normalize(vD);
           float h = clamp(vD.y, -0.1, 1.0);
           vec3 c = mix(horizon, mid, smoothstep(0.0, 0.18, h));
           c = mix(c, top, smoothstep(0.15, 0.7, h));
           float s = max(dot(d, sunDir), 0.0);
+          if (uCloudOn > 0.5 && d.y > -0.02) {
+            vec2 uv = vec2(atan(d.z, d.x) * 0.15915494 + 0.5 - uCloudU, asin(clamp(d.y, -1.0, 1.0)) * 0.31830989 + 0.5);
+            vec2 cl = texture2D(uClouds, uv).rg;
+            // clouds take the hour's palette: lit from the sun side, grey-blue in the shade, dark at night
+            vec3 lit = mix(mid, vec3(1.0, 0.97, 0.93), 0.55) * (0.55 + 0.8 * cl.g) + glowCol * pow(s, 3.0) * 0.6;
+            lit *= 1.0 - 0.82 * uStars;
+            c = mix(c, lit, smoothstep(0.5, 0.95, cl.r) * 0.72 * smoothstep(0.03, 0.12, d.y));
+          }
           c += glowCol * (pow(s, 600.0) * 4.0 + pow(s, 12.0) * 0.35) * uGlow;
           if (uStars > 0.0) {
             // stars: one candidate per cell of a direction grid, fading out towards the haze
@@ -993,6 +1013,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     lastEnv = L.env;
     renderer.toneMappingExposure = L.exposure;
     skyUniforms.uGlow.value = L.glow;
+    // the photo's cloud bank sits beside its sun: turn it a third of the way round from ours
+    skyUniforms.uCloudU.value = (Math.atan2(L.dir.z, L.dir.x) - 0.6258) / (Math.PI * 2) + 0.33;
     skyUniforms.uStars.value = ramp(L.night, 0.35, 1);
     const wu = water.uniforms;
     (wu.uSun!.value as THREE.Vector3).copy(L.dir);
