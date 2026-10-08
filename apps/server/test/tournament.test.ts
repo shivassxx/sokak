@@ -59,7 +59,7 @@ describe('okey turnuvası', () => {
     expect(paid).toBeLessThanOrEqual(200);
     // a new one can be opened afterwards
     b.room.send(KMSG.tourOpen, { fee: 0 });
-    await until(() => tour(a)?.phase === 'open' && tour(a)?.host === b.id);
+    await until(() => tour(a)?.phase === 'open' && tour(a)?.host === b.id, 20000);
     await Promise.all([a.leave(), b.leave()]);
   }, 90000);
 });

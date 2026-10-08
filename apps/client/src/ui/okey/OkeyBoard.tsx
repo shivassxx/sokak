@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
-import { asPair, asSeries, playFace, sameFace, type OkeyCtx } from '@sokak/okey';
+import { asPair, asSeries, bestArrangement, playFace, sameFace, suggestDiscard, type OkeyCtx } from '@sokak/okey';
 import { TABLES, TEAM_COLORS, TEAM_NAMES, levelOf, levelTitle, seatPosition, turnLabel, type HandResultView, type KPlayerView, type KTableView, type MatchResultView, type Meld, type OkeyAction, type TableView } from '@sokak/shared';
 import type { Game } from '../../game/Game';
 import { Tile } from './Tile';
@@ -86,6 +86,11 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
     return c && Date.now() - c.t < 4500 ? c.text : null;
   };
   const [help, setHelp] = useState(false);
+  /** 💡 İpucu: the tile the hint suggests throwing (glows on the rack) */
+  const [hintTile, setHintTile] = useState<number | null>(null);
+  /** "Uyanları işle": keep laying fitting tiles onto the table's melds, one per update */
+  const [autoLay, setAutoLay] = useState(false);
+  const lastTap = useRef<{ tile: number; t: number } | null>(null);
   const [drag, setDrag] = useState<{ tile: number; x: number; y: number; over: number | null } | null>(null);
   const dragRef = useRef<{ tile: number; startX: number; startY: number; moved: boolean; pointer: number } | null>(null);
   const rackRef = useRef<HTMLDivElement>(null);
@@ -317,6 +322,15 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
   });
   const dropTile = (d: { tile: number; moved: boolean }, x: number, y: number) => {
     if (!d.moved) {
+      // double tap / double click a tile: throw it (the quickest way to play)
+      const now = performance.now();
+      const prev = lastTap.current;
+      lastTap.current = { tile: d.tile, t: now };
+      if (prev && prev.tile === d.tile && now - prev.t < 380 && playPhase) {
+        lastTap.current = null;
+        discard(d.tile);
+        return;
+      }
       setSel((s) => (s === d.tile ? null : d.tile));
       return;
     }
@@ -349,6 +363,42 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
     setRack((r) => moveTile(r, sel, i));
     setSel(null);
     play('click');
+  };
+
+  // tiles in hand that fit a meld on the table (after opening)
+  const layable = view && ctx && opened ? hand.filter((t) => view.melds.some((m) => canAdd(m, t, ctx))) : [];
+  useEffect(() => {
+    if (!autoLay) return;
+    if (!view || !ctx || !playPhase || !opened || hand.length <= 1) return setAutoLay(false);
+    const t = hand.find((x) => view.melds.some((m) => canAdd(m, x, ctx)));
+    const m = t !== undefined ? view.melds.find((mm) => canAdd(mm, t, ctx)) : undefined;
+    if (t === undefined || !m) return setAutoLay(false);
+    send({ t: 'add', tile: t, meld: m.id });
+    play('click');
+  }, [autoLay, view, hand]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => setHintTile(null), [hand.length, playPhase]); // eslint-disable-line react-hooks/exhaustive-deps
+  const hint101 = () => {
+    if (!view || !ctx) return;
+    if (drawPhase) {
+      // is the left neighbour's tile worth taking? (it must complete a meld right away)
+      const left = view.discards[leftSeat]?.at(-1);
+      if (left !== undefined && left !== null) {
+        const now = bestArrangement(hand, ctx, 6000);
+        const withIt = bestArrangement([...hand, left], ctx, 6000);
+        if (withIt.melds.some((m) => m.includes(left)) && withIt.points > now.points + 5)
+          return toast(`💡 Soldakinin attığı taşı al: perlerine uyuyor (${withIt.points} puan).`, 'info');
+      }
+      return toast('💡 Ortadaki desteden bir taş çek.', 'info');
+    }
+    if (!playPhase) return toast('💡 Sıranı beklerken taşlarını diz: "Seri diz" en iyi perleri yan yana getirir.', 'info');
+    if (!opened && plan && (plan.mode === 'series' ? plan.points >= 101 : plan.pairs >= 5)) return toast('💡 Elini açabilirsin! Yeşil "Elini aç" düğmesine bas, sonra bir taş at.', 'good');
+    if (layable.length && hand.length > 1) return toast(`💡 ${layable.length} taşın yerdeki perlere uyuyor: "Uyanları işle" ile hepsini koy.`, 'good');
+    const t = suggestDiscard(hand, ctx, (x) => !!opened && view.melds.some((m) => canAdd(m, x, ctx)));
+    if (t === null) return;
+    setHintTile(t);
+    setSel(t);
+    const f = playFace(t, ctx);
+    toast(`💡 Bunu atabilirsin: ${f ? `${COLOR_NAMES[f.color]} ${f.num}` : 'seçili taş'}. Çift dokun ya da "Seçili taşı at".`, 'info');
   };
 
   if (!view || !ctx) return null;
@@ -540,7 +590,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
               .map(([t, i]) => (
                 <div
                   key={t}
-                  className={`rack-tile ${drag?.tile === t ? 'lifted' : ''} ${goodGroup.has(t) ? 'good' : ''}`}
+                  className={`rack-tile ${drag?.tile === t ? 'lifted' : ''} ${goodGroup.has(t) ? 'good' : ''} ${hintTile === t ? 'hinted' : ''}`}
                   style={{ gridRow: Math.floor(i / ROW) + 1, gridColumn: (i % ROW) + 1 }}
                   onPointerDown={onTileDown(t)}
                 >
@@ -561,11 +611,19 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
               {opened ? 'Per indir' : plan.mode === 'series' ? `Elini aç (${plan.points})` : `Çiftle aç (${plan.pairs})`}
             </button>
           )}
+          {playPhase && layable.length > 0 && hand.length > 1 && (
+            <button className="btn small primary glow" onClick={() => setAutoLay(true)} title="Yerdeki perlere uyan taşlarını tek tek işler">
+              Uyanları işle ({layable.length})
+            </button>
+          )}
           {playPhase && sel !== null && (
             <button className="btn small primary" onClick={() => discard(sel)}>
               Seçili taşı at
             </button>
           )}
+          <button className="btn small" onClick={hint101} title="Ne yapacağını söyler">
+            💡 İpucu
+          </button>
           {canShow && (
             <button className="btn small primary glow" onClick={() => send({ t: 'show' })} title="İlk sıranda göstergenin eşini gösterirsen 101 puan düşer">
               Göstergeyi göster (−101)
@@ -633,7 +691,10 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
               <b>Okey</b> ({okeyLabel}, yıldızlı) her taşın yerine geçer. Yonca ♣ sahte okeydir, okeyin yerine sayılır.
             </li>
             <li>
-              <b>Taş at:</b> Her turun sonunda bir taşı <b>sağ köşedeki</b> yığınına sürükle. Elini açtıysan önce yerdeki perlere taş işleyebilirsin.
+              <b>Taş at:</b> Her turun sonunda bir taşı <b>sağ köşedeki</b> yığınına sürükle ya da taşa <b>çift dokun</b>. Elini açtıysan önce yerdeki perlere taş işleyebilirsin: <b>Uyanları işle</b> hepsini senin yerine koyar.
+            </li>
+            <li>
+              <b>Takıldın mı?</b> <b>💡 İpucu</b> sırada ne yapman gerektiğini söyler ve atabileceğin taşı parlatır.
             </li>
             <li>
               <b>Gösterge:</b> ilk sıranda elinde göstergenin eşi varsa <b>Göstergeyi göster</b> de, puanından 101 düşer.

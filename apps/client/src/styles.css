@@ -262,6 +262,7 @@ kbd { font: 800 11px/1 'Baloo 2', system-ui; padding: 3px 6px; border-radius: 6p
 .slot.over { background: rgba(255,224,138,.55); }
 .rack-tile { z-index: 1; touch-action: none; }
 .rack-tile.good .tile { box-shadow: 0 var(--edge) 0 #cbb68a, 0 calc(var(--edge) + 1px) 0 #a8925f, 0 0 0 2px rgba(47,168,102,.9), 0 calc(var(--edge) + 2px) 5px rgba(0,0,0,.35), inset 0 1px 1px #fff; }
+.rack-tile.hinted .tile { box-shadow: 0 var(--edge) 0 #cbb68a, 0 calc(var(--edge) + 1px) 0 #a8925f, 0 0 0 3px #f2b233, 0 0 14px 2px rgba(242,178,51,.8), inset 0 1px 1px #fff; transform: translateY(-4px); }
 .rack-tile.lifted { z-index: 2; }
 .tile.new { animation: newtile .8s ease-out 3 alternate; }
 @keyframes newtile { to { box-shadow: 0 0 0 3px #4fc3f7, 0 0 14px #4fc3f7; } }

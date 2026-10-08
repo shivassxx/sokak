@@ -246,3 +246,8 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 - The realistic avatars now play motion-captured clips from the Rocketbox animation library (MIT; same Bip01 skeleton as the avatars): idle, walk, run, sitting at a table or on a bench, thinking, waving, laughing, dancing and cheering. A `THREE.AnimationMixer` cross-fades between them (0.3 s). The procedural puppet now only covers what has no clip (fishing, crouching, reading, dozing) and layers on top joint by joint where needed: reaching for a tile, a glass or simit to the lips, carrying something, pointing. The painted fallback character is unchanged.
 - Benches and the sahil ledge get their own pose (`sitBench`, a relaxed chair clip) instead of the table pose.
 - Walking was 5 m/s and sprinting 7.4 m/s: a jog in a kahvehane, with feet that could never match a real walk. They are now 3.4 and 5.6 m/s (the run clip plays at 1.2–2×).
+
+## 2026-10-08 — Easier okey
+- "💡 İpucu" button on the okey board. In the draw phase it says whether the left neighbour's discard helps (it goes into a better arrangement for more than 5 extra points) or to draw from the deck. In the play phase it points to "Elini aç" when the hand can open, to "Uyanları işle" when tiles fit table melds, and otherwise highlights a safe discard. The safe discard (`suggestDiscard` in `packages/okey`) is never part of the best arrangement and never the okey. It is a suggestion only; the server rules are unchanged.
+- Double-tapping a rack tile in the play phase discards it.
+- "Uyanları işle (n)" lays every hand tile that fits a table meld, one server message at a time, always keeping at least one tile to discard.

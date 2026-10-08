@@ -146,6 +146,26 @@ function keepScore(t: number, hand: number[], ctx: OkeyCtx): number {
   return s - f.num * 0.08;
 }
 
+/**
+ * A beginner's hint: the tile to throw away. Keeps whatever the best arrangement uses, never
+ * suggests the okey, avoids tiles `avoid` marks (e.g. ones that fit a meld on the table), and
+ * among the rest picks the least useful one (the bots' measure).
+ */
+export function suggestDiscard(hand: number[], ctx: OkeyCtx, avoid: (t: number) => boolean = () => false): number | null {
+  if (!hand.length) return null;
+  const inMeld = new Set(bestArrangement(hand, ctx, 6000).melds.flat());
+  const pool = hand.filter((t) => playFace(t, ctx) && !avoid(t));
+  const free = pool.filter((t) => !inMeld.has(t));
+  const list = free.length ? free : pool.length ? pool : hand;
+  let pick = list[0]!;
+  let best = Infinity;
+  for (const t of list) {
+    const sc = keepScore(t, hand, ctx);
+    if (sc < best) [pick, best] = [t, sc];
+  }
+  return pick;
+}
+
 export type BotAction =
   | { type: 'drawDeck' }
   | { type: 'takeLeft' }
