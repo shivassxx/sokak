@@ -16,6 +16,8 @@ export interface Prefs {
   skin: number;
   /** index into AVATARS */
   avatar: number;
+  /** worn accessories (bitmask over ACCESSORIES); unset = what the wallet remembers */
+  acc?: number;
 }
 
 export function loadPrefs(): Prefs {

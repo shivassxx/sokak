@@ -422,12 +422,14 @@ export class Game {
   // ------------------------------------------------------------ remotes
   /** Local look changes (e.g. lobby customisation). */
   setLocalLook(look: Look): void {
+    // keep the object identity: a pending avatar swap (fetchAvatar) still recognises it
+    if (this.localLook) Object.assign(this.localLook, look);
     this.localChar?.setLook(look);
   }
 
   upsertRemote(id: string, look: Look, label: string, labelColor?: string): void {
     let r = this.remotes.get(id);
-    const key = `${look.avatar ?? -1}|${look.color}|${look.hat}|${look.hair}|${look.skin}|${label}|${labelColor ?? ''}`;
+    const key = `${look.avatar ?? -1}|${look.acc ?? 0}|${look.color}|${look.hat}|${look.hair}|${look.skin}|${label}|${labelColor ?? ''}`;
     if (r?.key === key) return;
     if (!r) {
       r = { char: new Character(look, { adult: true, real: realAvatarFor(look) }), key, look, label, labelColor, buf: [], lastSeen: 0, prevX: 0, prevZ: 0, prevLX: 0, prevLZ: 0, fixed: null };

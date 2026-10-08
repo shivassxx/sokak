@@ -1,9 +1,13 @@
-import { useEffect, useRef, useState } from 'react';
-import { AVATARS, NAME_MAX } from '@sokak/shared';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
+import { AVATARS, NAME_MAX, wearToggle } from '@sokak/shared';
 import { loadPrefs, savePrefs, type Prefs } from './prefs';
 import type { CharacterPreview } from '../game/preview';
 import { play } from '../game/audio';
 import { SettingsButton } from './Settings';
+import { getAccessories } from '../net/connection';
+
+// the wardrobe (and its 3D try-on) is only downloaded when opened
+const Wardrobe = lazy(() => import('./Wardrobe').then((m) => ({ default: m.Wardrobe })));
 
 interface Props {
   /** opened from a friend's salon link */
@@ -34,7 +38,7 @@ function Preview({ prefs }: { prefs: Prefs }) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     void preview.current?.setLook(prefs);
-  }, [prefs.avatar]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [prefs.avatar, prefs.acc]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="card preview-card">
       <canvas ref={ref} />
@@ -52,6 +56,17 @@ export function Home({ invite, busy, error, onStart }: Props) {
     play('click');
   };
   const go = () => onStart(prefs);
+  // 👒 dolap: owned items come from the device wallet; what to wear goes along in the join look
+  const [wardrobe, setWardrobe] = useState<{ owned: number; wear: number; money: number } | null>(null);
+  const openWardrobe = () => {
+    play('click');
+    getAccessories()
+      .then((w) => {
+        setWardrobe(w);
+        if (prefs.acc === undefined) update({ acc: w.wear });
+      })
+      .catch(() => setWardrobe({ owned: 0, wear: 0, money: 0 }));
+  };
   return (
     <div className="home">
       <div className="home-settings">
@@ -100,6 +115,9 @@ export function Home({ invite, busy, error, onStart }: Props) {
                 </button>
               ))}
             </div>
+            <button className="btn small" style={{ marginTop: 8 }} onClick={openWardrobe}>
+              👒 Dolap · aksesuarlar
+            </button>
           </div>
           <button className="btn big" disabled={busy} onClick={go}>
             {busy ? 'Bağlanıyor…' : invite ? 'Arkadaşlarının salonuna gir' : 'Lobiye gir'}
@@ -121,6 +139,18 @@ export function Home({ invite, busy, error, onStart }: Props) {
           <span>Taşlarını diz, 101'i geçince elini aç, okeyi yerinde kullan. Kazanınca çaylar senden!</span>
         </div>
       </div>
+      {wardrobe && (
+        <Suspense fallback={null}>
+          <Wardrobe
+            look={prefs}
+            owned={wardrobe.owned}
+            worn={(prefs.acc ?? wardrobe.wear) & wardrobe.owned}
+            money={wardrobe.money}
+            onWear={(id, on) => update({ acc: wearToggle((prefs.acc ?? wardrobe.wear) & wardrobe.owned, id, on) })}
+            onClose={() => setWardrobe(null)}
+          />
+        </Suspense>
+      )}
       <p className="fineprint">Hesap yok, kayıt yok. Sadece bir takma ad. Oyun parası gerçek değildir. Telefonda ve bilgisayarda oynanır.</p>
       <a className="staff-link" href="/admin">
         Yetkili girişi

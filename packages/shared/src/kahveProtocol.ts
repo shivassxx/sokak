@@ -38,6 +38,9 @@ export const KMSG = {
   tavlaEvent: 'tavlaEvent',
   /** server → everybody: staff announcement banner text ("📢 Duyuru: …") */
   announce: 'announce',
+  /** aksesuarlar: buy one (AccBuyMsg) / put one on or take it off (AccWearMsg) */
+  accBuy: 'accBuy',
+  accWear: 'accWear',
 } as const;
 
 /** Close codes when staff remove a player (client shows a Turkish notice instead of reconnecting). */
@@ -265,6 +268,9 @@ export interface KPlayerView {
   skin: number;
   /** index into AVATARS */
   avatar: number;
+  /** worn / owned accessories (bitmasks over ACCESSORIES) */
+  acc: number;
+  accOwned: number;
   isBot: boolean;
   connected: boolean;
   money: number;

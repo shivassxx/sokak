@@ -44,6 +44,8 @@ export interface Look {
   skin: number;
   /** index into AVATARS */
   avatar?: number;
+  /** worn accessories, bitmask over ACCESSORIES */
+  acc?: number;
 }
 
 export const NAME_MIN = 2;
@@ -65,6 +67,8 @@ export interface JoinOptions {
   skin?: number;
   /** index into AVATARS */
   avatar?: number;
+  /** accessories to wear (bitmask over ACCESSORIES); the server keeps only owned ones */
+  acc?: number;
   /** kahvehane: seat me at a table right away */
   quick?: boolean;
   /** kahvehane: when creating a salon, hide it from the lobby list */
