@@ -114,3 +114,9 @@
 - Client: `ui/Achievements.tsx` + `achievements.css` (panel, gold toast, HUD button), lobby button with count (lazy panel), `achievementChime` in audio, `invited` flag on invite-link joins.
 - Tests: `packages/shared/test/achievements.test.ts` (5), `apps/server/test/achievements.test.ts` (4: store unlock/pay once, bot match unlocks "İlk maç" once with exact money, two tabs → one market unlock, progress persists on rejoin). The wallet test now expects the market reward. 150 tests total; lobby 131 KB gzip.
 - Screenshots: /tmp/claude-0/agent-shots/achievements/.
+## Seyirci mode + el sonu tekrarı (2026-10-07, agent worktree)
+- Shared: `KMSG.watch/unwatch/replay`, `SPECTATOR_LIMIT`, `ReplayMove`, `HandReplayMsg`, `KPlayerView.watch/watchTavla`, three kibitz quick-chat lines.
+- Server: `KPlayer.watch/watchTavla`; `watchTable` (distance, open-table and 6-spectator checks, standing spot), `unwatch` (Kalk, walking away in the tick, sitting/boarding elsewhere, table reset); per-hand public move log and `sendReplay` to the table's players and spectators; the `handEnd` event no longer carries all racks.
+- Client: read-only `OkeyBoard` (`spectator` prop: plates for all four seats, no rack/actions, "💬 Laf at" + Kalk) and `TavlaBoard` (`spectator`); `Spectators.tsx` ("👀 Seyirciler (n)" chip with names and latest lines); `HandReplay.tsx` ("▶ Eli izle" on the hand result); spectator camera for tavla in `Game.ts`. The old client-only "İzle" panel is replaced by the server-backed mode.
+- Tests: `apps/server/test/seyirci.test.ts` (5: watching a bot match without ever getting a hand, chat and leaving; distance/open-table checks; the 6-spectator limit; tavla watching; the replay reaches players and spectators with public info only). 175 tests in all; lobby 134 KB gzip.
+- Screenshots: /tmp/claude-0/agent-shots/kibitzer/.

@@ -65,3 +65,7 @@ packages/tavla  tavla (Turkish backgammon) rules (pure, injectable rng) + match 
 - Definitions and the pure unlock step (`bumpAchievement`) are in `packages/shared/src/achievements.ts`; the client and server share them.
 - `KahvehaneRoom.ach(id, counter)` counts an event for a device player (never bots) → `WalletStore.bumpAch` updates `Wallet.ach` (counters + unlocked ids) and pays new unlocks into the stored balance in one step (idempotent across tabs/salons) → the room mirrors the reward into the session and sends `ach` `{ id, reward }`.
 - Read path: `GET /api/achievements?device=` → `{ c, got, total }` for the lobby and the in-game panel (`ui/Achievements.tsx`, lazy in the lobby).
+
+## Seyirci (spectators) and the end-of-hand replay
+- Spectators are ordinary room clients with `KPlayer.watch` (okey table) or `KPlayer.watchTavla` set. They read the same public schema view as everyone else and never receive `KMSG.hand`. The server enforces the limit (6), the distance and the clean-up. The client renders the existing boards with `spectator` set (read-only) and frames the table from the spectator's corner (`kahve.watchView`, or `tavlaWatchView` in `Game.ts` for tavla).
+- `TableRuntime.log` collects `ReplayMove`s from `applyEvents` (public moves only). At `handEnd`, `sendReplay` sends a `HandReplayMsg` (the last 12 moves and the finisher's melds) to the seated humans and the spectators of that table. The client keeps the latest replay and plays it on demand.

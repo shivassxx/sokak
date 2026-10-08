@@ -38,7 +38,39 @@ export const KMSG = {
   tavlaEvent: 'tavlaEvent',
   /** server → everybody: staff announcement banner text ("📢 Duyuru: …") */
   announce: 'announce',
+  /** seyirci: watch a running match { kind: 'okey' | 'tavla', table } / stop watching */
+  watch: 'watch',
+  unwatch: 'unwatch',
+  /** server → the table's players and spectators at hand end: HandReplayMsg */
+  replay: 'replay',
 } as const;
+
+/** Spectators (seyirci) allowed per table. */
+export const SPECTATOR_LIMIT = 6;
+
+/** One public move of an okey hand ("El sonu tekrarı"). Deck draws never carry the tile. */
+export type ReplayMove =
+  | { s: number; k: 'draw'; from: 'deck' | 'left'; tile?: number }
+  | { s: number; k: 'discard'; tile: number; islek?: boolean }
+  | { s: number; k: 'open'; mode: OpenMode; points: number }
+  | { s: number; k: 'lay'; tiles: number[] }
+  | { s: number; k: 'add'; tile: number; meld: number }
+  | { s: number; k: 'swap'; meld: number }
+  | { s: number; k: 'show'; tile: number };
+
+/** End-of-hand replay: the finisher's melds (public by then) and the last public moves. */
+export interface HandReplayMsg {
+  table: number;
+  handNo: number;
+  finisher: number | null;
+  okeyFinish: boolean;
+  okey: { color: number; num: number };
+  gosterge: number;
+  /** melds owned by the finisher, as laid down */
+  melds: Meld[];
+  /** the last few public moves, oldest first */
+  moves: ReplayMove[];
+}
 
 /** Close codes when staff remove a player (client shows a Turkish notice instead of reconnecting). */
 export const STAFF_KICK_CODE = 4101;
@@ -288,6 +320,9 @@ export interface KPlayerView {
   trophy: number;
   /** riding the vapur */
   aboard: boolean;
+  /** seyirci: okey / tavla table being watched, −1 otherwise */
+  watch: number;
+  watchTavla: number;
 }
 
 export interface KTableView {

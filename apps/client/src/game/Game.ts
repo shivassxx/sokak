@@ -166,8 +166,8 @@ export class Game {
   seat: { table: number; seat: number } | null = null;
   /** seated at a tavla table: camera behind the chair looking down at the board */
   tavla: { table: number; seat: number } | null = null;
-  /** watching a table from beside it (spectator camera) */
-  watch: { table: number; side: number } | null = null;
+  /** watching a table from beside it (spectator camera); tavla side 0 = east end, 1 = west end */
+  watch: { table: number; side: number; kind?: 'okey' | 'tavla' } | null = null;
   /** NDC y of the top of the on-screen rack (the table is framed above it) */
   seatBottom = -0.42;
   private seatLook = new THREE.Vector3();
@@ -855,7 +855,9 @@ export class Game {
         ? this.kahve.seatView(this.seat.table, this.seat.seat, this.camera.aspect, this.seatBottom)
         : this.tavla
           ? this.kahve.tavlaView(this.tavla.table, this.tavla.seat)
-          : this.kahve.watchView(this.watch!.table, this.watch!.side);
+          : this.watch!.kind === 'tavla'
+            ? tavlaWatchView(this.kahve.tavlaView(this.watch!.table, 0), this.watch!.side)
+            : this.kahve.watchView(this.watch!.table, this.watch!.side);
       if (!this.seatCam) {
         // start the look-at from where the camera already looks, not from the origin
         this.seatCam = true;
@@ -937,4 +939,13 @@ function lerpAngle(a: number, b: number, t: number): number {
   while (d > Math.PI) d -= Math.PI * 2;
   while (d < -Math.PI) d += Math.PI * 2;
   return a + d * t;
+}
+
+/** Seyirci at a tavla table: the seat camera turned a quarter round to a free end of the board, a bit higher and further back. */
+function tavlaWatchView(seat: { pos: THREE.Vector3; target: THREE.Vector3; fov: number }, side: number): { pos: THREE.Vector3; target: THREE.Vector3; fov: number } {
+  const dx = seat.pos.x - seat.target.x;
+  const dz = seat.pos.z - seat.target.z;
+  const k = side === 0 ? 1 : -1;
+  const pos = new THREE.Vector3(seat.target.x + dz * k * 1.25, seat.pos.y + 0.3, seat.target.z - dx * k * 1.25);
+  return { pos, target: seat.target, fov: seat.fov + 4 };
 }

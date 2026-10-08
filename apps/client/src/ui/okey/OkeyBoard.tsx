@@ -27,6 +27,10 @@ interface Props {
   phrases?: readonly string[];
   chats?: Record<string, { text: string; t: number }>;
   onChat?: (q: number) => void;
+  /** seyirci: read-only view from side `mySeat` (no rack, no actions; only public information) */
+  spectator?: boolean;
+  /** "▶ Eli izle" on the hand result (the end-of-hand replay arrived) */
+  onReplay?: () => void;
 }
 
 /** Can `tile` be added to meld `m` (same rule as the server)? */
@@ -69,7 +73,7 @@ const _v = new THREE.Vector3();
  * projected onto them, name plates over the opponents, the player's own
  * wooden ıstaka with free drag-and-drop arranging, and one clear hint line.
  */
-export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile, serverNow, send, toast, drinks = {}, suspicion, onStand, phrases = [], chats = {}, onChat }: Props) {
+export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile, serverNow, send, toast, drinks = {}, suspicion, onStand, phrases = [], chats = {}, onChat, spectator = false, onReplay }: Props) {
   installWoodCss();
   const ctx: OkeyCtx | null = view ? { okey: view.okey as OkeyCtx['okey'] } : null;
   const [rack, setRack] = useState<Rack>(emptyRack);
@@ -126,7 +130,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
   }, [rack, handKey]);
 
   const leftSeat = (mySeat + 3) % 4;
-  const myTurn = !!view && view.turn === mySeat && view.phase !== 'ended';
+  const myTurn = !spectator && !!view && view.turn === mySeat && view.phase !== 'ended';
   const drawPhase = myTurn && view.phase === 'draw';
   const playPhase = myTurn && view.phase === 'play';
   const opened = view?.opened[mySeat] ?? null;
@@ -145,7 +149,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
   const partners = !!table.partners;
   const partnerSeat = (mySeat + 2) % 4;
   const teamTotal = (k: number) => table.totals[k]! + table.totals[k + 2]!;
-  const teamLabel = (k: number) => (k === mySeat % 2 ? `${TEAM_NAMES[k]} (siz)` : TEAM_NAMES[k]!);
+  const teamLabel = (k: number) => (k === mySeat % 2 && !spectator ? `${TEAM_NAMES[k]} (siz)` : TEAM_NAMES[k]!);
   const remaining = Math.max(0, Math.ceil((table.turnEndsAt - serverNow()) / 1000));
   const suspicious = !!suspicion && suspicion.until > Date.now();
   const wasMyTurn = useRef(false);
@@ -186,7 +190,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
       for (let s = 0; s < 4; s++) place(`pile-${s}`, a?.piles[s] ?? null);
       const c = TABLES[table.id]!;
       for (let s = 0; s < 4; s++) {
-        if (s === mySeat) continue;
+        if (s === mySeat && !spectator) continue;
         // just above each opponent's ıstaka
         const sp = seatPosition(table.id, s);
         const k = (s - mySeat + 4) % 4 === 2 ? 0.42 : 0.5;
@@ -216,7 +220,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [game, table.id, mySeat]);
+  }, [game, table.id, mySeat, spectator]);
 
   const spot = (key: string) => (node: HTMLElement | null) => {
     if (node) spots.current.set(key, node);
@@ -364,6 +368,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
   // one clear instruction at a time
   let hint: string;
   if (view.phase === 'ended') hint = 'El bitti.';
+  else if (spectator) hint = `👀 Seyrediyorsun · Sıra: ${name(view.turn)}`;
   else if (drawPhase) hint = `Sıra sende! Ortadaki desteden ya da soldaki oyuncunun (${name(leftSeat)}) attığı taştan birini al.`;
   else if (playPhase) {
     if (stealMode) hint = partners ? '🤫 Vereceğin taşı seç, sonra sağdaki rakibin yığınına dokun.' : '🤫 Vereceğin taşı seç, sonra karşıdaki ya da sağdaki yığına dokun.';
@@ -391,7 +396,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
       {[0, 1, 2, 3].map((s) => {
         const label = pileLabel(s);
         return (
-          <div key={s} ref={spot(`pile-${s}`)} data-pile={s} className={`hs hs-pile ${label ? 'live' : ''} ${s === mySeat ? 'mine' : ''}`} onClick={() => onPile(s)}>
+          <div key={s} ref={spot(`pile-${s}`)} data-pile={s} className={`hs hs-pile ${label ? 'live' : ''} ${s === mySeat && !spectator ? 'mine' : ''}`} onClick={() => onPile(s)}>
             {label && <span className="hs-label">{label}</span>}
           </div>
         );
@@ -402,7 +407,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
 
       {/* name plates over the opponents */}
       {[0, 1, 2, 3]
-        .filter((s) => s !== mySeat)
+        .filter((s) => spectator || s !== mySeat)
         .map((s) => {
           const p = seatPlayer(s);
           return (
@@ -412,7 +417,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
                 <b>{p?.name ?? '—'}</b>
                 {partners && (
                   <span className="tag team" style={{ background: TEAM_COLORS[s % 2] }} title={TEAM_NAMES[s % 2]}>
-                    {s === partnerSeat ? '🤝 Eş' : 'Rakip'}
+                    {spectator ? TEAM_NAMES[s % 2] : s === partnerSeat ? '🤝 Eş' : 'Rakip'}
                   </span>
                 )}
                 {!!p?.trophy && <span className="tag cup" title={`Haftanın en iyileri: ${p.trophy}.`}>🏆</span>}
@@ -420,7 +425,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
                 {view.opened[s] && <span className="tag open">{view.opened[s] === 'pairs' ? 'çift' : 'açtı'}</span>}
                 {table.handNo > 1 && <span className="score-pill">{table.totals[s]} p</span>}
                 {view.turn === s && <span className="timer">{remaining}</span>}
-                {s === leftSeat && <span className="tag left">solun</span>}
+                {s === leftSeat && !spectator && <span className="tag left">solun</span>}
                 {(drinks[table.seats[s] ?? ''] ?? []).map((d) => (
                   <span key={d.t} className="drink">
                     {d.emoji}
@@ -469,7 +474,28 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
         </button>
       )}
 
-      {/* bottom: my ıstaka and actions */}
+      {/* bottom: my ıstaka and actions (a spectator only gets the talk menu and Kalk) */}
+      {spectator ? (
+        <div className="okey-actions watch-actions">
+          {onChat && phrases.length > 0 && (
+            <button className={`btn small ${talk ? 'on' : ''}`} onClick={() => setTalk((t) => !t)} title="Hazır cümleler">
+              💬 Laf at
+            </button>
+          )}
+          <button className="btn small" onClick={onStand}>
+            Kalk
+          </button>
+          {talk && onChat && (
+            <div className="more-menu talk-menu" onClick={() => setTalk(false)}>
+              {phrases.map((p, i) => (
+                <button key={p} onClick={() => onChat(i)}>
+                  {p}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
       <div className="me-area">
         <div className="me-bar">
           {said(table.seats[mySeat]) && <span className="me-say">{said(table.seats[mySeat])}</span>}
@@ -576,6 +602,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
           )}
         </div>
       </div>
+      )}
 
       {drag && (
         <div className="drag-ghost" style={{ left: drag.x, top: drag.y }}>
@@ -649,7 +676,7 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
                   </tr>
                 ),
                 ...(k >= 0 ? [k, k + 2] : [0, 1, 2, 3]).map((s) => (
-                <tr key={s} className={`${s === mySeat ? 'me' : ''} ${k >= 0 ? 'team-member' : ''}`}>
+                <tr key={s} className={`${s === mySeat && !spectator ? 'me' : ''} ${k >= 0 ? 'team-member' : ''}`}>
                   <td>{name(s)}</td>
                   <td className="muted">
                     bu el {lastHand.scores[s]! > 0 ? '+' : ''}
@@ -672,10 +699,15 @@ export function OkeyBoard({ game, table, view, players, mySeat, hand, takenTile,
               Kasa ({lastMatch.pot} ₺) →{' '}
               {lastMatch.winnerTeams?.length === 1 ? `${TEAM_NAMES[lastMatch.winnerTeams[0]!]}: ` : ''}
               {lastMatch.winners.map(name).join(', ')}
-              {partners && lastMatch.winnerTeams?.length === 1 && (lastMatch.winnerTeams[0] === mySeat % 2 ? ' 🎉 Eşinle kazandınız!' : '')}
+              {partners && !spectator && lastMatch.winnerTeams?.length === 1 && (lastMatch.winnerTeams[0] === mySeat % 2 ? ' 🎉 Eşinle kazandınız!' : '')}
             </p>
           ) : (
             <p className="hint">Yeni el birazdan dağıtılıyor…</p>
+          )}
+          {onReplay && (
+            <button className="btn small primary replay-btn" onClick={onReplay}>
+              ▶ Eli izle
+            </button>
           )}
         </div>
       )}

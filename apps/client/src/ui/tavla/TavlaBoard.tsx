@@ -14,6 +14,8 @@ interface Props {
   onStand: () => void;
   phrases?: readonly string[];
   onChat?: (q: number) => void;
+  /** seyirci: read-only, shown from white's side (the whole board is public) */
+  spectator?: boolean;
 }
 
 // ------------------------------------------------------------------ board geometry (SVG units)
@@ -68,7 +70,7 @@ const SIDE_NAME = ['Beyaz', 'Siyah'];
  * the player's side — their home is always bottom right (a black player sees it mirrored).
  * Tap a checker (or its point), the legal destinations light up, tap one to move.
  */
-export function TavlaBoard({ table, view, players, mySeat, serverNow, send, onStand, phrases = [], onChat }: Props) {
+export function TavlaBoard({ table, view, players, mySeat, serverNow, send, onStand, phrases = [], onChat, spectator = false }: Props) {
   const [sel, setSel] = useState<number | null>(null);
   const [talk, setTalk] = useState(false);
   const [help, setHelp] = useState(false);
@@ -82,7 +84,7 @@ export function TavlaBoard({ table, view, players, mySeat, serverNow, send, onSt
   /** engine point → display point (mirrored for black) */
   const disp = (i: number) => (me === 1 ? 23 - i : i);
   const playing = table.status === 'playing' && !!view && view.phase !== 'ended';
-  const myTurn = playing && view!.turn === me;
+  const myTurn = !spectator && playing && view!.turn === me;
   const legal: Move[] = useMemo(
     () => (myTurn && view!.phase === 'move' ? legalMovesFor({ board: view!.board, bar: view!.bar, off: view!.off }, me, view!.dice) : []),
     [myTurn, view, me],
@@ -162,7 +164,8 @@ export function TavlaBoard({ table, view, players, mySeat, serverNow, send, onSt
 
   let hint = '';
   if (playing) {
-    if (!myTurn) hint = `${name(opp)} oynuyor…`;
+    if (spectator) hint = `👀 Seyrediyorsun · ${name(view!.turn)} oynuyor…`;
+    else if (!myTurn) hint = `${name(opp)} oynuyor…`;
     else if (view!.phase === 'roll') hint = 'Sıra sende — zar at!';
     else if (legal.length && pos!.bar[me] > 0) hint = 'Kırık taşın var, önce onu gir.';
     else if (legal.length) hint = selected === null ? 'Sıra sende: oynayacağın taşa dokun.' : 'Yeşil yerlerden birine dokun.';
@@ -301,7 +304,7 @@ export function TavlaBoard({ table, view, players, mySeat, serverNow, send, onSt
 
       {(table.status === 'between' || table.status === 'result') && lastGame && (
         <div className="panel hand-result tv-result">
-          <h2>{lastMatch ? (lastMatch.winner === me ? '🏆 Maçı kazandın!' : `Maçı ${name(lastMatch.winner)} kazandı`) : lastGame.winner === me ? 'Oyunu kazandın!' : `Oyunu ${name(lastGame.winner)} kazandı`}</h2>
+          <h2>{spectator ? `${lastMatch ? 'Maçı' : 'Oyunu'} ${name((lastMatch ?? lastGame).winner)} kazandı` : lastMatch ? (lastMatch.winner === me ? '🏆 Maçı kazandın!' : `Maçı ${name(lastMatch.winner)} kazandı`) : lastGame.winner === me ? 'Oyunu kazandın!' : `Oyunu ${name(lastGame.winner)} kazandı`}</h2>
           {lastGame.mars && <p className="tv-mars">Mars! (+2)</p>}
           <p className="hint">
             Skor: {name(me)} {lastGame.score[me]} – {lastGame.score[opp]} {name(opp)}
@@ -309,7 +312,7 @@ export function TavlaBoard({ table, view, players, mySeat, serverNow, send, onSt
           {lastMatch ? (
             <p className={`hint ${lastMatch.payout[me]! > 0 ? 'ok' : ''}`}>
               {lastMatch.pot > 0 ? `Kasa (${lastMatch.pot} ₺) → ${name(lastMatch.winner)}` : 'Bahissiz maçtı.'}
-              {lastMatch.pot > 0 && ` · Sen: ${lastMatch.payout[me]! > 0 ? '+' : ''}${lastMatch.payout[me]} ₺`}
+              {lastMatch.pot > 0 && !spectator && ` · Sen: ${lastMatch.payout[me]! > 0 ? '+' : ''}${lastMatch.payout[me]} ₺`}
             </p>
           ) : (
             <p className="hint">Yeni oyun birazdan başlıyor…</p>
