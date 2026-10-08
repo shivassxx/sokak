@@ -120,3 +120,9 @@
 - 161 tests (12 new); typecheck and build OK. The lobby is 134 KB gzip (entry +0.2 KB). The total stays under budget.
 - Frame time (Playwright + SwiftShader, Orta, 1200×640, same sahil camera; median rAF): before 1033 / 1033 ms, after 1050 ms at 19:00 and 1067 ms at 23:00. That is within noise, ≤ +3 % at night.
 - Screenshots: /tmp/claude-0/agent-shots/daynight/ (sahil 06/07/13/19/20/23, salon and kıraathane at 23:00, `?saat=21.5`).
+## Seyirci mode + el sonu tekrarı (2026-10-07, agent worktree)
+- Shared: `KMSG.watch/unwatch/replay`, `SPECTATOR_LIMIT`, `ReplayMove`, `HandReplayMsg`, `KPlayerView.watch/watchTavla`, three kibitz quick-chat lines.
+- Server: `KPlayer.watch/watchTavla`; `watchTable` (distance, open-table and 6-spectator checks, standing spot), `unwatch` (Kalk, walking away in the tick, sitting/boarding elsewhere, table reset); per-hand public move log and `sendReplay` to the table's players and spectators; the `handEnd` event no longer carries all racks.
+- Client: read-only `OkeyBoard` (`spectator` prop: plates for all four seats, no rack/actions, "💬 Laf at" + Kalk) and `TavlaBoard` (`spectator`); `Spectators.tsx` ("👀 Seyirciler (n)" chip with names and latest lines); `HandReplay.tsx` ("▶ Eli izle" on the hand result); spectator camera for tavla in `Game.ts`. The old client-only "İzle" panel is replaced by the server-backed mode.
+- Tests: `apps/server/test/seyirci.test.ts` (5: watching a bot match without ever getting a hand, chat and leaving; distance/open-table checks; the 6-spectator limit; tavla watching; the replay reaches players and spectators with public info only). 175 tests in all; lobby 134 KB gzip.
+- Screenshots: /tmp/claude-0/agent-shots/kibitzer/.

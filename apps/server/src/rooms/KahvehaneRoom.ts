@@ -36,6 +36,7 @@ import {
   SIT_REACH,
   SIT_SPOTS,
   SKINS,
+  SPECTATOR_LIMIT,
   SPOT_REACH,
   START_MONEY,
   STEAL_FINE,
@@ -64,6 +65,7 @@ import {
   type Body,
   type ChatMsg,
   type EmoteMsg,
+  type HandReplayMsg,
   type InputMsg,
   type JoinOptions,
   type MoveInput,
@@ -71,6 +73,7 @@ import {
   type OkeyEventMsg,
   type OrderMsg,
   type PlayerSnap,
+  type ReplayMove,
   type ServedMsg,
   type SnapshotMsg,
   type SalonMeta,
@@ -139,6 +142,8 @@ interface TableRuntime {
   botAccuse: Map<number, number>;
   /** the turn (its deadline) a bot already hurried the slow human on */
   nagged: number;
+  /** public moves of the current hand (for the end-of-hand replay), capped */
+  log: ReplayMove[];
 }
 
 interface TavlaRuntime {
@@ -152,6 +157,11 @@ interface TavlaRuntime {
 }
 
 const MAX_QUEUED = 8;
+/** public moves kept per hand / sent with the end-of-hand replay */
+const REPLAY_KEEP = 40;
+const REPLAY_SEND = 12;
+/** a spectator who ends up this much further than the sit reach stops watching */
+const WATCH_SLACK = 1.4;
 
 function finite(n: unknown, lo: number, hi: number): number {
   return typeof n === 'number' && Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : 0;
@@ -209,7 +219,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       const t = new KTable();
       t.id = i;
       this.state.tables.push(t);
-      this.runtime.push({ game: null, botAt: 0, dealer: 0, until: 0, botAccuse: new Map(), nagged: 0 });
+      this.runtime.push({ game: null, botAt: 0, dealer: 0, until: 0, botAccuse: new Map(), nagged: 0, log: [] });
     }
     for (let i = 0; i < TAVLA_COUNT; i++) {
       const t = new TTable();
@@ -243,6 +253,8 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.onMessage(KMSG.fillBots, (c) => this.fillBotsAndStart(c.sessionId));
     this.onMessage(KMSG.board, (c) => this.board(c.sessionId));
     this.onMessage(KMSG.alight, (c) => this.alight(c.sessionId));
+    this.onMessage(KMSG.watch, (c, m: { kind?: unknown; table?: unknown }) => this.watchTable(c.sessionId, m?.kind, m?.table));
+    this.onMessage(KMSG.unwatch, (c) => this.unwatch(c.sessionId));
     // local screenshot / browser testing only (opt-in env var, never set in production)
     if (process.env.SOKAK_DEV_TELEPORT === '1')
       this.onMessage('devTeleport', (c, m: { x?: unknown; z?: unknown }) => {
@@ -537,6 +549,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (p.aboard) return this.error(id, 'Vapurdasın! Önce iskelede in.');
     const t = this.state.tables[ti]!;
     if (t.status !== 'open') return this.error(id, 'Bu masada oyun sürüyor.');
+    this.unwatch(id);
     const tc = TABLES[ti]!;
     if (Math.hypot(a.body.x - tc.x, a.body.z - tc.z) > SIT_REACH + 0.6) return this.error(id, 'Masaya biraz daha yaklaş.');
     let seat = Number(seatRaw);
@@ -574,6 +587,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     const p = this.state.players.get(id);
     if (p && p.spot >= 0) return this.leaveSpot(id);
     if (p && p.tavla >= 0) return this.tavlaStand(id, leaving);
+    if (p && p.table < 0 && (p.watch >= 0 || p.watchTavla >= 0)) return this.unwatch(id);
     if (!p || p.table < 0) return;
     const ti = p.table;
     const t = this.state.tables[ti]!;
@@ -688,6 +702,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     t.handNo++;
     t.status = 'playing';
     t.lastHand = '';
+    rt.log = [];
     this.syncTable(ti, true);
     this.tableEvent(ti, { type: 'deal', handNo: t.handNo, dealer: rt.game.dealer });
     for (let s = 0; s < 4; s++) this.sendHand(ti, s);
@@ -749,6 +764,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     t.handNo = 0;
     t.view = '';
     t.turnEndsAt = 0;
+    this.dropSpectators('okey', ti);
     if (kickBots) {
       for (let s = 0; s < 4; s++) {
         const sid = t.seats[s]!;
@@ -822,6 +838,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     let turnChanged = false;
     for (const e of events) {
       if (e.type === 'turn') turnChanged = true;
+      this.logMove(ti, e);
       if (e.type === 'caught') {
         this.transfer(t.seats[e.thief]!, t.seats[e.by]!, STEAL_FINE);
         this.ach(t.seats[e.by]!, 'caught');
@@ -855,7 +872,9 @@ export class KahvehaneRoom extends Room<KahveState> {
           if (g.opened[f] === 'pairs') this.ach(fid, 'cifteFinish');
           if (g.openedThisTurn) this.ach(fid, 'eldenFinish');
         }
-        this.tableEvent(ti, { type: 'handEnd', result: e.result, hands: g.hands });
+        // only the result goes to the room: the losers' racks stay hidden (the result screen shows scores only)
+        this.tableEvent(ti, { type: 'handEnd', result: e.result });
+        this.sendReplay(ti, e.result.finisher, e.result.okeyFinish);
         this.onHandEnd(ti, e.result);
         continue;
       }
@@ -989,6 +1008,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (!p || !a || p.table >= 0 || p.tavla >= 0) return;
     if (p.aboard) return this.error(id, 'Vapurdasın! Önce iskelede in.');
     if (p.spot >= 0) this.leaveSpot(id);
+    this.unwatch(id);
     let ti = Number(raw);
     if (!Number.isInteger(ti) || ti < 0 || ti >= TABLE_COUNT) {
       const free = (i: number) => this.state.tables[i]!.status === 'open' && [...this.state.tables[i]!.seats].some((s) => !s);
@@ -1117,6 +1137,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (!p || !a || !s || p.table >= 0 || p.tavla >= 0 || p.spot >= 0 || p.aboard) return;
     if (Math.hypot(a.body.x - s.x, a.body.z - s.z) > SPOT_REACH + 0.6) return this.error(id, 'Biraz daha yaklaş.');
     if ([...this.state.players.values()].some((o) => o.spot === i)) return this.error(id, 'Orası dolu.');
+    this.unwatch(id);
     p.spot = i;
     a.body = createBody(s.x, s.z);
     a.yaw = s.yaw;
@@ -1153,6 +1174,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (Math.hypot(a.body.x - BOARD_SPOT.x, a.body.z - BOARD_SPOT.z) > BOARD_REACH + 0.6) return this.error(id, 'Vapura binmek için iskeleye yaklaş.');
     if (!v.boardable) return this.error(id, 'Vapur seferde. İskeleye yanaşınca binebilirsin.');
     if (p.spot >= 0) this.leaveSpot(id);
+    this.unwatch(id);
     // a free spot along the stern rail / the walkways
     const riders = [...this.avatars.values()].filter((o) => o.deck);
     let k = 0;
@@ -1228,6 +1250,12 @@ export class KahvehaneRoom extends Room<KahveState> {
         else if (p && p.table < 0 && p.tavla < 0 && p.spot < 0) stepBody(a.body, input, SIM_DT, KAHVE_WORLD);
       }
       if (a.deck) this.placeOnDeck(a, vapur);
+      // walking away from the table you watch ends the watching
+      if (p && (p.watch >= 0 || p.watchTavla >= 0)) {
+        const okey = p.watch >= 0;
+        const c = okey ? TABLES[p.watch]! : TAVLA_TABLES[p.watchTavla]!;
+        if (a.deck || Math.hypot(a.body.x - c.x, a.body.z - c.z) > (okey ? SIT_REACH : TAVLA_REACH) + WATCH_SLACK) this.unwatch(a.id);
+      }
       // walking off reels the line in
       if (p && p.fish > 0 && Math.hypot(a.body.x - a.castX, a.body.z - a.castZ) > 1.2) {
         p.fish = 0;
@@ -1335,6 +1363,122 @@ export class KahvehaneRoom extends Room<KahveState> {
     }
   }
 
+  // ------------------------------------------------------------ seyirci (kibitzers) & the end-of-hand replay
+  /** ids watching a table */
+  private spectators(kind: 'okey' | 'tavla', ti: number): string[] {
+    const out: string[] = [];
+    this.state.players.forEach((p) => {
+      if ((kind === 'okey' ? p.watch : p.watchTavla) === ti) out.push(p.id);
+    });
+    return out;
+  }
+
+  /** "👀 Seyret": stand behind a free side of a running table and get its public view (never a hand). */
+  private watchTable(id: string, kindRaw: unknown, tableRaw: unknown): void {
+    const p = this.state.players.get(id);
+    const a = this.avatars.get(id);
+    const kind = kindRaw === 'tavla' ? 'tavla' : 'okey';
+    const ti = Number(tableRaw);
+    const count = kind === 'okey' ? TABLE_COUNT : TAVLA_COUNT;
+    if (!p || !a || p.isBot || !Number.isInteger(ti) || ti < 0 || ti >= count || p.table >= 0 || p.tavla >= 0) return;
+    if (p.aboard) return this.error(id, 'Vapurdasın! Önce iskelede in.');
+    if ((kind === 'okey' ? p.watch : p.watchTavla) === ti) return;
+    const t = kind === 'okey' ? this.state.tables[ti]! : this.state.tavla[ti]!;
+    if (t.status === 'open') return this.error(id, 'Bu masada şu an oyun yok.');
+    const c = kind === 'okey' ? TABLES[ti]! : TAVLA_TABLES[ti]!;
+    if (Math.hypot(a.body.x - c.x, a.body.z - c.z) > (kind === 'okey' ? SIT_REACH : TAVLA_REACH) + 0.6) return this.error(id, 'Seyretmek için masaya biraz daha yaklaş.');
+    const n = this.spectators(kind, ti).length;
+    if (n >= SPECTATOR_LIMIT) return this.error(id, `Bu masanın etrafı dolu (${SPECTATOR_LIMIT} seyirci).`);
+    if (p.spot >= 0) this.leaveSpot(id);
+    p.watch = kind === 'okey' ? ti : -1;
+    p.watchTavla = kind === 'tavla' ? ti : -1;
+    this.seatAvatar(id, this.watchSpot(kind, ti, n));
+  }
+
+  /** Where the n-th spectator stands: okey at the four corners (then a step further out), tavla at the free ends. */
+  private watchSpot(kind: 'okey' | 'tavla', ti: number, n: number): { x: number; z: number; yaw: number } {
+    if (kind === 'okey') {
+      const c = TABLES[ti]!;
+      const th = ((n % 4) * Math.PI) / 2 + Math.PI / 4;
+      const r = 1.6 + 0.45 * Math.floor(n / 4);
+      return { x: c.x + Math.sin(th) * r, z: c.z + Math.cos(th) * r, yaw: th };
+    }
+    const c = TAVLA_TABLES[ti]!;
+    const sx = n % 2 === 0 ? 1 : -1;
+    const dz = [0, 0.55, -0.55][Math.floor(n / 2)] ?? 0;
+    const x = c.x + sx * 1.2;
+    const z = c.z + dz;
+    return { x, z, yaw: Math.atan2(x - c.x, z - c.z) };
+  }
+
+  private unwatch(id: string): void {
+    const p = this.state.players.get(id);
+    if (!p || (p.watch < 0 && p.watchTavla < 0)) return;
+    p.watch = -1;
+    p.watchTavla = -1;
+  }
+
+  /** the match is over (table open again): everybody watching it steps back */
+  private dropSpectators(kind: 'okey' | 'tavla', ti: number): void {
+    for (const id of this.spectators(kind, ti)) this.unwatch(id);
+  }
+
+  /** Record the public part of an okey event for the end-of-hand replay (thefts and deck tiles stay secret). */
+  private logMove(ti: number, e: OkeyEvent): void {
+    const rt = this.runtime[ti]!;
+    const g = rt.game;
+    let m: ReplayMove | null = null;
+    switch (e.type) {
+      case 'drew':
+        // a tile taken from the left was face up on the pile; a deck tile is never logged
+        m = e.from === 'left' && g?.takenFromLeft != null ? { s: e.seat, k: 'draw', from: 'left', tile: g.takenFromLeft } : { s: e.seat, k: 'draw', from: e.from };
+        break;
+      case 'discarded':
+        m = e.islek ? { s: e.seat, k: 'discard', tile: e.tile, islek: true } : { s: e.seat, k: 'discard', tile: e.tile };
+        break;
+      case 'opened':
+        m = { s: e.seat, k: 'open', mode: e.mode, points: e.points };
+        break;
+      case 'laid': {
+        const meld = g?.melds.find((x) => x.id === e.meldId);
+        if (meld) m = { s: e.seat, k: 'lay', tiles: [...meld.tiles] };
+        break;
+      }
+      case 'added':
+        m = { s: e.seat, k: 'add', tile: e.tile, meld: e.meldId };
+        break;
+      case 'jokerSwapped':
+        m = { s: e.seat, k: 'swap', meld: e.meldId };
+        break;
+      case 'shownGosterge':
+        m = { s: e.seat, k: 'show', tile: e.tile };
+        break;
+    }
+    if (!m) return;
+    rt.log.push(m);
+    if (rt.log.length > REPLAY_KEEP) rt.log.shift();
+  }
+
+  /** Hand over: the finisher's melds (public) and the last public moves, to the table's players and spectators. */
+  private sendReplay(ti: number, finisher: number | null, okeyFinish: boolean): void {
+    const t = this.state.tables[ti]!;
+    const rt = this.runtime[ti]!;
+    const g = rt.game;
+    if (!g) return;
+    const msg: HandReplayMsg = {
+      table: ti,
+      handNo: t.handNo,
+      finisher,
+      okeyFinish,
+      okey: { ...g.ctx.okey },
+      gosterge: g.gosterge,
+      melds: finisher === null ? [] : g.melds.filter((m) => m.owner === finisher).map((m) => ({ ...m, tiles: [...m.tiles] })),
+      moves: rt.log.slice(-REPLAY_SEND),
+    };
+    const to = new Set([...[...t.seats].filter((id) => id && this.isHuman(id)), ...this.spectators('okey', ti)]);
+    for (const id of to) this.avatars.get(id)?.client?.send(KMSG.replay, msg);
+  }
+
   // ------------------------------------------------------------ tavla
   private seatAvatar(id: string, sp: { x: number; z: number; yaw: number }): void {
     const a = this.avatars.get(id);
@@ -1354,6 +1498,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     if (p.aboard) return this.error(id, 'Vapurdasın! Önce iskelede in.');
     const t = this.state.tavla[ti]!;
     if (t.status !== 'open') return this.error(id, 'Bu masada oyun sürüyor.');
+    this.unwatch(id);
     const tc = TAVLA_TABLES[ti]!;
     if (Math.hypot(a.body.x - tc.x, a.body.z - tc.z) > TAVLA_REACH + 0.6) return this.error(id, 'Masaya biraz daha yaklaş.');
     let seat = Number(seatRaw);
@@ -1565,6 +1710,7 @@ export class KahvehaneRoom extends Room<KahveState> {
     t.game = 0;
     t.view = '';
     t.turnEndsAt = 0;
+    this.dropSpectators('tavla', ti);
     if (!kickBots) return;
     for (let s = 0; s < 2; s++) {
       const sid = t.seats[s]!;

@@ -35,6 +35,10 @@ export class KPlayer extends Schema {
   @type('uint8') trophy = 0;
   /** riding the vapur (position is on its deck) */
   @type('boolean') aboard = false;
+  /** seyirci: okey table index being watched, −1 otherwise */
+  @type('int8') watch = -1;
+  /** seyirci: tavla table index being watched, −1 otherwise */
+  @type('int8') watchTavla = -1;
 }
 
 export class KTable extends Schema {

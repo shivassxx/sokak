@@ -419,4 +419,4 @@ export const FALSE_ACCUSE_FINE = 20;
 export const TURN_SECONDS = 30;
 export const MAX_KAHVE_PLAYERS = 60;
 
-export const QUICK_CHAT_OKEY = ['Çaylar benden!', 'Hadi oyna!', 'Okey bende!', 'Bu el benim!', 'Hile var!', 'Bir el daha!', 'Eyvallah!', 'Sahile inelim mi?', 'Manzaraya bak!', 'Rastgele! 🎣', 'Simit alan var mı?', 'Hadi bir çay daha!', 'Gooool! ⚽', 'Hakem nerede?!'] as const;
+export const QUICK_CHAT_OKEY = ['Çaylar benden!', 'Hadi oyna!', 'Okey bende!', 'Bu el benim!', 'Hile var!', 'Bir el daha!', 'Eyvallah!', 'Sahile inelim mi?', 'Manzaraya bak!', 'Rastgele! 🎣', 'Simit alan var mı?', 'Hadi bir çay daha!', 'Gooool! ⚽', 'Hakem nerede?!', 'Ben olsam onu atmazdım…', 'Okey sende mi?', 'Bu el bitti sayılır!'] as const;

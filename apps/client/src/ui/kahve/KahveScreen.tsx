@@ -42,6 +42,7 @@ import {
   type UsedMsg,
   type ChatMsg,
   type EmoteMsg,
+  type HandReplayMsg,
   type InputMsg,
   type KTableView,
   type KahveView,
@@ -53,6 +54,7 @@ import {
   type TeleportMsg,
   type TvBroadcast,
   HALL,
+  SPECTATOR_LIMIT,
   tvMatchAt,
   tvTeam,
 } from '@sokak/shared';
@@ -68,6 +70,8 @@ import { SettingsButton } from '../Settings';
 import { TouchControls, isTouch } from '../TouchControls';
 import { OkeyBoard } from '../okey/OkeyBoard';
 import { TavlaBoard } from '../tavla/TavlaBoard';
+import { HandReplay } from '../okey/HandReplay';
+import { Spectators } from './Spectators';
 import type { TavlaView } from '@sokak/tavla';
 import { shareRoom } from '../share';
 import { VoiceChat } from '../../net/voice';
@@ -125,10 +129,11 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const [nearPier, setNearPier] = useState(false);
   /** the vapur's phase and whole seconds to its next departure / arrival (only near the pier or aboard) */
   const [vapur, setVapur] = useState<{ phase: VapurPhase; eta: number } | null>(null);
-  /** spectating a table: which one and from which side */
-  const [watching, setWatching] = useState<{ table: number; side: number } | null>(null);
-  const watchRef = useRef(watching);
-  watchRef.current = watching;
+  /** the camera side while spectating (from where the server put us), see the effect below */
+  const [watchSide, setWatchSide] = useState(0);
+  /** the latest end-of-hand replay of my table (players and spectators get it) and whether it is playing */
+  const [replay, setReplay] = useState<HandReplayMsg | null>(null);
+  const [replayOpen, setReplayOpen] = useState(false);
   const myFish = useRef(0);
   const myLevel = useRef(0);
   const [missionsOpen, setMissionsOpen] = useState(false);
@@ -154,6 +159,16 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const tavlaView: TavlaView | null = useMemo(() => (myTavla?.view ? (JSON.parse(myTavla.view) as TavlaView) : null), [myTavla?.view]);
   /** seated at any table (okey or tavla) */
   const atTable = !!myTable || !!myTavla;
+  /** seyirci: the server says which table we watch (okey or tavla) */
+  const watching: { kind: 'okey' | 'tavla'; table: number; side: number } | null =
+    myP && myP.watch >= 0 ? { kind: 'okey', table: myP.watch, side: watchSide } : myP && myP.watchTavla >= 0 ? { kind: 'tavla', table: myP.watchTavla, side: watchSide } : null;
+  const watchRef = useRef(watching);
+  watchRef.current = watching;
+  const watchKey = watching ? `${watching.kind}:${watching.table}` : '';
+  const watchedTable: KTableView | null = watching?.kind === 'okey' ? (view?.tables[watching.table] ?? null) : null;
+  const watchedView: TableView | null = useMemo(() => (watchedTable?.view ? (JSON.parse(watchedTable.view) as TableView) : null), [watchedTable?.view]);
+  const watchedTavla: KTavlaView | null = watching?.kind === 'tavla' ? (view?.tavla?.[watching.table] ?? null) : null;
+  const watchedTavlaView: TavlaView | null = useMemo(() => (watchedTavla?.view ? (JSON.parse(watchedTavla.view) as TavlaView) : null), [watchedTavla?.view]);
   const name = (id: string) => viewRef.current?.players[id]?.name ?? view?.players[id]?.name ?? 'biri';
 
   // ------------------------------------------------------------ 3D scene
@@ -204,6 +219,10 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       }),
       room.onMessage(MSG.teleport, (t: TeleportMsg) => game.teleportLocal(t.x, t.y, t.z, t.yaw)),
       room.onMessage(KMSG.hand, (h: { tiles: number[]; taken: number | null }) => setHand({ tiles: h.tiles, taken: h.taken })),
+      room.onMessage(KMSG.replay, (r: HandReplayMsg) => {
+        setReplay(r);
+        setReplayOpen(false);
+      }),
       room.onMessage(KMSG.okeyError, (text: string) => {
         toastRef.current({ text, kind: 'bad' });
         play('click');
@@ -268,7 +287,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const onOkeyEvent = (m: OkeyEventMsg) => {
     const v = viewRef.current;
     const mine = v?.players[me];
-    if (!v || !mine || mine.table !== m.table) return;
+    if (!v || !mine || (mine.table !== m.table && mine.watch !== m.table)) return;
     const t = v.tables[m.table]!;
     const seatName = (s: unknown) => name(t.seats[Number(s)] ?? '');
     const e = m.e;
@@ -326,7 +345,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const onTavlaEvent = (m: TavlaEventMsg) => {
     const v = viewRef.current;
     const mine = v?.players[me];
-    if (!v || !mine || mine.tavla !== m.table) return;
+    if (!v || !mine || (mine.tavla !== m.table && mine.watchTavla !== m.table)) return;
     const t = v.tavla[m.table]!;
     const seatName = (s: unknown) => name(t.seats[Number(s)] ?? '');
     const e = m.e;
@@ -421,7 +440,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
     const atTavla = !!mine && mine.tavla >= 0;
     const mySpot = mine && mine.spot >= 0 ? SIT_SPOTS[mine.spot] : undefined;
     game.frozen = seated || atTavla || !!mySpot || !!watching;
-    game.watch = watching && !seated && !atTavla ? watching : null;
+    game.watch = watching && !seated && !atTavla ? { table: watching.table, side: watching.side, kind: watching.kind } : null;
     game.tavla = atTavla ? { table: mine.tavla, seat: mine.seat } : null;
     game.localSeatY = mySpot ? mySpot.h - 0.48 : 0;
     game.setLabelsVisible(!seated && !atTavla && !watching);
@@ -455,29 +474,35 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         });
       if (tv) handCounts.current.set(t.id, tv.handCounts);
       else handCounts.current.delete(t.id);
-      game.kahve?.setTable(t.id, tv && t.status !== 'open' ? tv : null, seated && mine.table === t.id ? mine.seat : null, watching?.table === t.id ? watching.side : 0);
+      game.kahve?.setTable(t.id, tv && t.status !== 'open' ? tv : null, seated && mine.table === t.id ? mine.seat : null, watching?.kind === 'okey' && watching.table === t.id ? watching.side : 0);
     });
     // real checkers and dice on every tavla board
     (view.tavla ?? []).forEach((t) => game.kahve?.setTavla(t.id, t.view && t.status !== 'open' ? (JSON.parse(t.view) as TavlaView) : null));
-  }, [game, view, me, watching]);
-  // stop watching when the match is over or you sit down somewhere
+  }, [game, view, me, watchKey, watchSide]); // eslint-disable-line react-hooks/exhaustive-deps
+  // the server put us behind a free side of the table: frame it from there
   useEffect(() => {
-    if (!watching || !view) return;
-    if ((view.players[me]?.table ?? -1) >= 0 || (view.players[me]?.tavla ?? -1) >= 0 || view.tables[watching.table]?.status === 'open') setWatching(null);
-  }, [view, watching, me]);
-  const startWatching = (table: number) => {
-    const pos = game?.localPosition();
-    if (!pos) return;
-    // watch from the side you are standing on
-    let side = 0;
-    let best = Infinity;
-    for (let s = 0; s < 4; s++) {
-      const sp = seatPosition(table, s);
-      const d = Math.hypot(sp.x - pos.x, sp.z - pos.z);
-      if (d < best) (best = d), (side = s);
-    }
-    setWatching({ table, side });
+    if (!watchKey || !game) return;
+    const [kind, ti] = [watchKey.split(':')[0], Number(watchKey.split(':')[1])];
+    const id = setTimeout(() => {
+      const pos = game.localPosition();
+      const c = kind === 'okey' ? TABLES[ti] : TAVLA_TABLES[ti];
+      if (!pos || !c) return;
+      if (kind === 'tavla') return setWatchSide(pos.x >= c.x ? 0 : 1);
+      // okey: the corner we stand at (corner k lies at yaw k·90° + 45°)
+      const a = Math.atan2(pos.x - c.x, pos.z - c.z);
+      setWatchSide((((Math.round((a - Math.PI / 4) / (Math.PI / 2)) % 4) + 4) % 4));
+    }, 160);
+    return () => clearTimeout(id);
+  }, [watchKey, game]);
+  /** "👀 Seyret": the server checks the distance and the 6-spectator limit */
+  const startWatching = (table: number, kind: 'okey' | 'tavla' = 'okey') => room.send(KMSG.watch, { kind, table });
+  const lastUnwatch = useRef(0);
+  const stopWatching = () => {
+    if (Date.now() - lastUnwatch.current < 500) return;
+    lastUnwatch.current = Date.now();
+    room.send(KMSG.unwatch);
   };
+  const spectatorsAt = (kind: 'okey' | 'tavla', ti: number) => (view ? Object.values(view.players).filter((p) => (kind === 'okey' ? p.watch : p.watchTavla) === ti).length : 0);
 
   // voice chat: who to hear (same table, or close by when not playing) and how loud
   useEffect(() => {
@@ -673,7 +698,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       if (a === 'throw' && mine?.holding) room.send(KMSG.use);
       if (a !== 'spot') return;
       if (mine && mine.spot >= 0) return room.send(KMSG.stand);
-      if (watchRef.current) return setWatching(null);
+      if (watchRef.current) return stopWatchRef.current();
       const n = nearThingRef.current;
       // the vapur: E gets you off at the pier (the çaycı's menu at sea), or on board at the pier
       if (mine?.aboard) {
@@ -688,14 +713,19 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         else room.send(KMSG.sit, { table: n.i });
       }
       else if (n.kind === 'spot') room.send(KMSG.sitSpot, { spot: n.i });
-      else if (n.kind === 'tavla') room.send(KMSG.tavlaSit, { table: n.i });
+      else if (n.kind === 'tavla') {
+        const t = viewRef.current?.tavla?.[n.i];
+        if (t && t.status !== 'open') startWatchRef.current(n.i, 'tavla');
+        else room.send(KMSG.tavlaSit, { table: n.i });
+      }
       else setShopOpen((o) => (o === n.i ? -1 : n.i));
     });
     const iv = setInterval(() => {
       const mine = viewRef.current?.players[me];
       const mv = game.input.moveVector();
       if (mine && mine.spot >= 0 && Math.hypot(mv.x, mv.y) > 0.3) room.send(KMSG.stand);
-      if (watchRef.current && Math.hypot(mv.x, mv.y) > 0.3) setWatching(null);
+      // walking away ends the watching
+      if (watchRef.current && Math.hypot(mv.x, mv.y) > 0.3) stopWatchRef.current();
     }, 150);
     return () => {
       offPress();
@@ -710,6 +740,8 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   vapurRef.current = vapur;
   const startWatchRef = useRef(startWatching);
   startWatchRef.current = startWatching;
+  const stopWatchRef = useRef(stopWatching);
+  stopWatchRef.current = stopWatching;
   const nearTableRef = useRef(nearTable);
   nearTableRef.current = nearTable;
 
@@ -738,7 +770,9 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
   const near = nearTable >= 0 && view ? view.tables[nearTable]! : null;
 
   return (
-    <div className={`game-root kahve ${(myTable && myTable.status !== 'open') || (myTavla && myTavla.status !== 'open') ? 'seated' : ''} ${myTavla && myTavla.status !== 'open' ? 'at-tavla' : ''}`}>
+    <div
+      className={`game-root kahve ${(myTable && myTable.status !== 'open') || (myTavla && myTavla.status !== 'open') || watching ? 'seated' : ''} ${(myTavla && myTavla.status !== 'open') || watching?.kind === 'tavla' ? 'at-tavla' : ''} ${watching ? 'watching' : ''}`}
+    >
       <canvas ref={canvasRef} className="game-canvas" />
       {!game && <div className="loading">Kahvehane açılıyor…</div>}
       <div className="hud-top">
@@ -847,24 +881,6 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             )}
           </div>
         )}
-        {watching && view && !myTable && (
-          <div className="sit-prompt watch-panel">
-            <span>
-              👀 <b>{watching.table + 1}. masayı izliyorsun</b> · El {view.tables[watching.table]!.handNo}/{view.tables[watching.table]!.hands}
-              {view.tables[watching.table]!.pot > 0 && <> · Kasa {money(view.tables[watching.table]!.pot)}</>}
-              <small className="watch-seats">
-                {[...view.tables[watching.table]!.seats].map((id, s) => (
-                  <span key={s}>
-                    {view.players[id]?.name ?? '—'} <b>{view.tables[watching.table]!.totals[s]}</b>
-                  </span>
-                ))}
-              </small>
-            </span>
-            <button className="btn small" onClick={() => setWatching(null)}>
-              Bırak {!isTouch && <kbd>E</kbd>}
-            </button>
-          </div>
-        )}
         {near && !myTable && !watching && (
           <div className="sit-prompt">
             <b>{near.id + 1}. masa</b> · {[...near.seats].filter(Boolean).length}/4 · {near.partners ? 'eşli · ' : ''}
@@ -875,8 +891,8 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
               </button>
             )}
             {near.status !== 'open' && (
-              <button className="btn primary" onClick={() => startWatching(near.id)}>
-                👀 İzle {!isTouch && <kbd>E</kbd>}
+              <button className="btn primary" disabled={spectatorsAt('okey', near.id) >= SPECTATOR_LIMIT} onClick={() => startWatching(near.id)}>
+                👀 Seyret ({spectatorsAt('okey', near.id)}/{SPECTATOR_LIMIT}) {!isTouch && <kbd>E</kbd>}
               </button>
             )}
           </div>
@@ -888,6 +904,11 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             {nearTavla.status === 'open' && [...nearTavla.seats].some((s) => !s) && (
               <button className="btn primary" onClick={() => room.send(KMSG.tavlaSit, { table: nearTavla.id })}>
                 Otur {!isTouch && <kbd>E</kbd>}
+              </button>
+            )}
+            {nearTavla.status !== 'open' && (
+              <button className="btn primary" disabled={spectatorsAt('tavla', nearTavla.id) >= SPECTATOR_LIMIT} onClick={() => startWatching(nearTavla.id, 'tavla')}>
+                👀 Seyret ({spectatorsAt('tavla', nearTavla.id)}/{SPECTATOR_LIMIT}) {!isTouch && <kbd>E</kbd>}
               </button>
             )}
           </div>
@@ -1129,7 +1150,9 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
             phrases={QUICK_CHAT_OKEY}
             chats={chats}
             onChat={(q) => room.send(MSG.chat, q)}
+            onReplay={replay && replay.table === myTable.id && replay.handNo === myTable.handNo ? () => setReplayOpen(true) : undefined}
           />
+          <Spectators players={view!.players} kind="okey" table={myTable.id} me={me} chats={chats} />
           <button className="btn small stand-btn" onClick={standUp}>
             Kalk
           </button>
@@ -1217,6 +1240,53 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
           phrases={QUICK_CHAT_OKEY}
           onChat={(q) => room.send(MSG.chat, q)}
         />
+      )}
+      {myTavla && myTavla.status !== 'open' && view && <Spectators players={view.players} kind="tavla" table={myTavla.id} me={me} chats={chats} />}
+
+      {/* seyirci: the same boards, read-only, public information only */}
+      {watchedTable && watchedTable.status !== 'open' && game && view && (
+        <>
+          <OkeyBoard
+            game={game}
+            spectator
+            onStand={stopWatching}
+            table={watchedTable}
+            view={watchedView}
+            players={view.players}
+            mySeat={watching!.side}
+            hand={[]}
+            takenTile={null}
+            serverNow={serverNow}
+            send={() => {}}
+            toast={(text, kind) => pushToast({ text, kind })}
+            drinks={drinks}
+            phrases={QUICK_CHAT_OKEY}
+            chats={chats}
+            onChat={(q) => room.send(MSG.chat, q)}
+            onReplay={replay && replay.table === watchedTable.id && replay.handNo === watchedTable.handNo ? () => setReplayOpen(true) : undefined}
+          />
+          <Spectators players={view.players} kind="okey" table={watchedTable.id} me={me} chats={chats} />
+        </>
+      )}
+      {watchedTavla && watchedTavla.status !== 'open' && view && (
+        <>
+          <TavlaBoard
+            spectator
+            table={watchedTavla}
+            view={watchedTavlaView}
+            players={view.players}
+            mySeat={0}
+            serverNow={serverNow}
+            send={() => {}}
+            onStand={stopWatching}
+            phrases={QUICK_CHAT_OKEY}
+            onChat={(q) => room.send(MSG.chat, q)}
+          />
+          <Spectators players={view.players} kind="tavla" table={watchedTavla.id} me={me} chats={chats} />
+        </>
+      )}
+      {replayOpen && replay && view && (
+        <HandReplay replay={replay} name={(s) => name(view.tables[replay.table]?.seats[s] ?? '')} onClose={() => setReplayOpen(false)} />
       )}
 
       {menuOpen && view && myP && (
