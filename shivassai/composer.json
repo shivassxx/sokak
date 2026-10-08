@@ -1,0 +1,23 @@
+{
+    "name": "shivassai/site",
+    "description": "shivassai.com — personal portfolio and CMS (PHP 8.3, SQLite, no framework)",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.3",
+        "ext-pdo_sqlite": "*",
+        "ext-mbstring": "*",
+        "ext-fileinfo": "*"
+    },
+    "suggest": {
+        "ext-gd": "Responsive image variants for uploads"
+    },
+    "autoload": {
+        "psr-4": { "App\\": "app/" },
+        "files": ["app/Helpers/functions.php"]
+    },
+    "scripts": {
+        "install-db": "php scripts/install.php",
+        "test": "php scripts/test.php"
+    }
+}

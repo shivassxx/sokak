@@ -1,0 +1,57 @@
+# /etc/caddy/Caddyfile — shivassai.com
+# Caddy obtains and renews HTTPS certificates automatically.
+
+www.shivassai.com {
+	redir https://shivassai.com{uri} permanent
+}
+
+shivassai.com {
+	# Only public/ is web-accessible. app/, config/, storage/ (database) stay outside.
+	root * /var/www/shivassai/public
+
+	encode zstd gzip
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# Never execute or serve scripts from uploads, and no other PHP file than index.php.
+	@uploadScripts path_regexp ^/uploads/.*\.(php\d?|phtml|phar|pht|phps|cgi|pl|py|sh)$
+	respond @uploadScripts 403
+
+	@phpFiles {
+		path *.php
+		not path /index.php
+	}
+	respond @phpFiles 404
+
+	# Dotfiles (.htaccess, .gitkeep ...)
+	@dotfiles path */.*
+	respond @dotfiles 404
+
+	# Long cache for versioned static assets and uploads (random filenames never change).
+	@static path /assets/* /uploads/*
+	header @static Cache-Control "public, max-age=31536000, immutable"
+
+	@icons path /favicon.svg /favicon.ico /apple-touch-icon.png
+	header @icons Cache-Control "public, max-age=604800"
+
+	# Front controller: existing files are served directly, everything else -> index.php
+	php_fastcgi unix//run/php/php8.3-fpm-shivassai.sock {
+		try_files {path} /index.php
+	}
+
+	file_server
+
+	log {
+		output file /var/log/caddy/shivassai.log {
+			roll_size 10mb
+			roll_keep 5
+		}
+	}
+}

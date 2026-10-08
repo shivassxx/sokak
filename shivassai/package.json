@@ -1,0 +1,12 @@
+{
+  "name": "shivassai",
+  "private": true,
+  "description": "Tailwind build for shivassai.com (only needed to rebuild CSS).",
+  "scripts": {
+    "build": "tailwindcss -c tailwind.config.js -i resources/css/app.css -o public/assets/css/app.css --minify",
+    "watch": "tailwindcss -c tailwind.config.js -i resources/css/app.css -o public/assets/css/app.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

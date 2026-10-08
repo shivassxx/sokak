@@ -1,0 +1,11 @@
+/node_modules/
+/vendor/
+/config/config.local.php
+/storage/*.sqlite*
+/storage/cache/*
+/storage/logs/*
+/storage/backups/*
+!/storage/**/.gitkeep
+/public/uploads/*
+!/public/uploads/.htaccess
+!/public/uploads/.gitkeep

@@ -1,0 +1,4 @@
+# Apache fallback (production uses Caddy — see deploy/Caddyfile)
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [L]

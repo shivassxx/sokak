@@ -1,0 +1,13 @@
+<section class="relative flex min-h-[86svh] items-end overflow-hidden">
+  <div class="wrap relative pb-20 pt-40">
+    <p class="micro normal-case">~/shivassai <span class="text-faint">$</span> exit 1</p>
+    <p class="display-xxl mt-6 select-none" aria-hidden="true">500</p>
+    <div class="mt-10 grid gap-8 border-t border-line pt-8 md:grid-cols-12">
+      <h1 class="h-lg md:col-span-6"><?= e(t('error.500.title')) ?></h1>
+      <div class="md:col-span-5 md:col-start-8">
+        <p class="body"><?= e(t('error.500.text')) ?></p>
+        <div class="mt-8"><a href="/" class="btn btn-primary"><?= e(t('error.home')) ?> <span class="arrow" aria-hidden="true">→</span></a></div>
+      </div>
+    </div>
+  </div>
+</section>
