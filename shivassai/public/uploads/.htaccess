@@ -1,6 +1,11 @@
-# Uploads must never execute code (Apache fallback; Caddy config enforces the same).
+# Uploads must never execute code (Apache/XAMPP; Caddy config enforces the same).
+Options -ExecCGI -Indexes
 <FilesMatch "\.(php\d?|phtml|phar|pht|phps|cgi|pl|py|sh)$">
   Require all denied
 </FilesMatch>
-php_flag engine off
-Options -ExecCGI -Indexes
+<IfModule mod_php.c>
+  php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+  php_flag engine off
+</IfModule>

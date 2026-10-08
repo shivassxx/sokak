@@ -1,4 +1,15 @@
-# Apache fallback (production uses Caddy — see deploy/Caddyfile)
-RewriteEngine On
-RewriteCond %{REQUEST_FILENAME} !-f
-RewriteRule ^ index.php [L]
+# Apache / XAMPP front controller (production uses Caddy — see deploy/Caddyfile)
+Require all granted
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteRule ^ index.php [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(css|js|woff2|png|jpg|jpeg|webp|gif|mp4|webm|svg|ico)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+</IfModule>

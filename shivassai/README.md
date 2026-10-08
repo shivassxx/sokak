@@ -14,6 +14,14 @@ php -S 127.0.0.1:8000 -t public public/index.php
 
 Open http://127.0.0.1:8000 — admin at http://127.0.0.1:8000/admin.
 
+### Windows + XAMPP
+
+1. Install XAMPP (PHP ≥ 8.2) to `C:\xampp`.
+2. Put this `shivassai` folder at `C:\xampp\shivassai` (outside `htdocs`).
+3. Double-click `xampp-kurulum.bat` — it enables PHP extensions, creates the DB and admin,
+   and registers an Apache virtual host on port 8080 (`deploy/xampp/shivassai-vhost.conf` is the reference).
+4. Restart Apache in the XAMPP Control Panel → http://localhost:8080
+
 Rebuild CSS after template/style changes (Node needed only for this):
 
 ```bash

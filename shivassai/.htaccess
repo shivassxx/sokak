@@ -1,0 +1,3 @@
+# Defense in depth: if this folder is ever placed inside a web root (e.g. XAMPP htdocs),
+# nothing outside public/ (database, config, storage) may be served.
+Require all denied
