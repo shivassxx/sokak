@@ -15,3 +15,4 @@ export * from './achievements';
 export * from './dayclock';
 export * from './accessories';
 export * from './friends';
+export * from './tournament';

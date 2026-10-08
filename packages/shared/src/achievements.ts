@@ -15,6 +15,7 @@ export type AchCounter =
   | 'caught'
   | 'esliWon'
   | 'longMatch'
+  | 'tourWon'
   | 'tavlaPlayed'
   | 'tavlaMars'
   | 'tavlaWon'
@@ -60,6 +61,7 @@ export const ACHIEVEMENTS: readonly AchievementDef[] = [
   { id: 'caught', group: 'okey', emoji: '🕵️', title: 'Hile yakala', desc: 'Taş çalanı suçüstü yakala.', counter: 'caught', goal: 1, reward: 150 },
   { id: 'esli', group: 'okey', emoji: '🤝', title: 'Eşli zafer', desc: 'Eşli 101 maçını ortağınla kazan.', counter: 'esliWon', goal: 1, reward: 200 },
   { id: 'longMatch', group: 'okey', emoji: '⏳', title: 'Uzun soluklu', desc: 'En az 7 elli bir maçı bitir.', counter: 'longMatch', goal: 1, reward: 200 },
+  { id: 'tourChamp', group: 'okey', emoji: '🏆', title: 'Turnuva şampiyonu', desc: 'Bir okey turnuvasını kazan.', counter: 'tourWon', goal: 1, reward: 300 },
   { id: 'tavlaFirst', group: 'tavla', emoji: '🎲', title: 'İlk tavla', desc: 'Bir tavla maçını bitir.', counter: 'tavlaPlayed', goal: 1, reward: 100 },
   { id: 'tavlaMars', group: 'tavla', emoji: '💥', title: 'Mars!', desc: 'Rakibini mars ederek bir oyun kazan.', counter: 'tavlaMars', goal: 1, reward: 200 },
   { id: 'tavlaWin10', group: 'tavla', emoji: '🥇', title: 'Zar ustası', desc: '10 tavla maçı kazan.', counter: 'tavlaWon', goal: 10, reward: 300 },

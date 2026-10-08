@@ -90,6 +90,7 @@ import {
 } from '@sokak/shared';
 import { ACC_ALL, accMask, accIndex, accessoryById, accessoryForAch, sanitizeWear, wearToggle, type AccBuyMsg, type AccWearMsg } from '@sokak/shared';
 import { festivalById, festivalKey, type FestivalId, type FriendReqMsg } from '@sokak/shared';
+import { TOUR_BREAK_MS, TOUR_FEES, TOUR_HANDS, TOUR_SIZE, tourPrizes, tourRanking, type TourEntrant, type TourPhase, type TourView } from '@sokak/shared';
 import { ACH_MSG, inHall, isTvStream, tvMatchAt, type AchCounter, type AchUnlockMsg } from '@sokak/shared';
 import { OkeyGame, botAction, partnerOf, teamOf, teamTotals, type OkeyEvent, type Result } from '@sokak/okey';
 import { MATCH_LENGTHS, TavlaMatch, autoTurn, botStep, type Result as TavlaResult, type Side, type TavlaEvent } from '@sokak/tavla';
@@ -144,6 +145,8 @@ interface Avatar {
 
 interface TableRuntime {
   game: OkeyGame | null;
+  /** a turnuva match: no host needed, it goes on with bots only, and its end feeds the bracket */
+  tour?: boolean;
   /** next time a bot may act */
   botAt: number;
   /** dealer of the next hand */
@@ -222,6 +225,20 @@ export class KahvehaneRoom extends Room<KahveState> {
   private tvCheckAt = 0;
   /** çay zinciri: the last round for the whole salon */
   private teaChain: { n: number; by: string; at: number } | null = null;
+  /** the salon's turnuva (mirrored into state.tour as a TourView) */
+  private tour: {
+    phase: TourPhase;
+    fee: number;
+    host: string;
+    /** humans who paid (before the start) */
+    entrants: string[];
+    pool: number;
+    semis: { table: number; ids: string[]; names: string[]; totals: number[] | null }[];
+    final: { table: number; ids: string[]; names: string[]; totals: number[] | null } | null;
+    podium: { name: string; bot: boolean; prize: number }[];
+    /** when the final starts (after the semis) */
+    nextAt: number;
+  } = { phase: 'idle', fee: 0, host: '', entrants: [], pool: 0, semis: [], final: null, podium: [], nextAt: 0 };
   private festivalCheckAt = 0;
 
   override onCreate(options: JoinOptions = {}): void {
@@ -256,6 +273,10 @@ export class KahvehaneRoom extends Room<KahveState> {
     this.onMessage(KMSG.tableBot, (c, m: { seat?: unknown; remove?: boolean }) => this.tableBot(c.sessionId, m));
     this.onMessage(KMSG.okey, (c, a: OkeyAction) => this.okeyAction(c.sessionId, a));
     this.onMessage(KMSG.order, (c, m: OrderMsg) => this.order(c.sessionId, m));
+    this.onMessage(KMSG.tourOpen, (c, m: { fee?: unknown }) => this.tourOpen(c.sessionId, m?.fee));
+    this.onMessage(KMSG.tourJoin, (c) => this.tourJoin(c.sessionId));
+    this.onMessage(KMSG.tourLeave, (c) => this.tourLeave(c.sessionId));
+    this.onMessage(KMSG.tourStart, (c) => this.tourStartCmd(c.sessionId));
     this.onMessage(KMSG.friendAdd, (c, m: { id?: unknown }) => this.friendAdd(c.sessionId, m?.id));
     this.onMessage(KMSG.credit, (c) => this.credit(c.sessionId));
     this.onMessage(KMSG.buy, (c, m: { shop?: unknown; item?: unknown }) => this.buy(c.sessionId, m));
@@ -522,6 +543,248 @@ export class KahvehaneRoom extends Room<KahveState> {
     a.saved = { money: p.money, played: p.played, won: p.won };
   }
 
+  // ------------------------------------------------------------ turnuva
+  private syncTour(): void {
+    const T = this.tour;
+    const who = (id: string): TourEntrant => {
+      const p = this.state.players.get(id);
+      return { id, name: p?.name ?? '?', bot: !!p?.isBot };
+    };
+    const table = (x: { table: number; ids: string[]; names: string[]; totals: number[] | null }) => ({
+      table: x.table,
+      players: x.ids.map((id, i) => ({ id, name: this.state.players.get(id)?.name ?? x.names[i] ?? '?', bot: this.state.players.get(id)?.isBot ?? true })),
+      totals: x.totals,
+    });
+    const view: TourView = {
+      phase: T.phase,
+      fee: T.fee,
+      host: T.host,
+      entrants: T.entrants.map(who),
+      pool: T.pool,
+      semis: T.semis.map(table),
+      final: T.final ? table(T.final) : null,
+      podium: T.podium,
+    };
+    this.state.tour = JSON.stringify(view);
+  }
+
+  /** a player can enter only when not in a running match (or out on the vapur) */
+  private tourBusy(p: KPlayer): boolean {
+    if (p.aboard) return true;
+    if (p.table >= 0 && this.state.tables[p.table]!.status !== 'open') return true;
+    if (p.tavla >= 0 && this.state.tavla[p.tavla]!.status !== 'open') return true;
+    return false;
+  }
+
+  private tourOpen(id: string, feeRaw: unknown): void {
+    const p = this.state.players.get(id);
+    const fee = Number(feeRaw);
+    if (!p || p.isBot || !(TOUR_FEES as readonly number[]).includes(fee)) return;
+    if (this.tour.phase !== 'idle' && this.tour.phase !== 'done') return this.error(id, 'Salonda zaten bir turnuva var.');
+    if (this.tourBusy(p)) return this.error(id, 'Önce maçını bitir.');
+    if (p.money < fee) return this.error(id, 'Giriş ücretine paran yetmiyor.');
+    p.money -= fee;
+    this.tour = { phase: 'open', fee, host: id, entrants: [id], pool: fee, semis: [], final: null, podium: [], nextAt: 0 };
+    this.syncTour();
+    this.broadcast(KMSG.notice, `🎯 ${p.name} bir okey turnuvası açtı (giriş ${fee} ₺). Katılmak için 🎯 Turnuva'ya dokun!`);
+  }
+
+  private tourJoin(id: string): void {
+    const p = this.state.players.get(id);
+    const T = this.tour;
+    if (!p || p.isBot || T.phase !== 'open' || T.entrants.includes(id)) return;
+    if (T.entrants.length >= TOUR_SIZE) return this.error(id, 'Turnuva dolu.');
+    if (this.tourBusy(p)) return this.error(id, 'Önce maçını bitir.');
+    if (p.money < T.fee) return this.error(id, 'Giriş ücretine paran yetmiyor.');
+    p.money -= T.fee;
+    T.entrants.push(id);
+    T.pool += T.fee;
+    this.syncTour();
+  }
+
+  private tourLeave(id: string): void {
+    const T = this.tour;
+    if (T.phase !== 'open' || !T.entrants.includes(id)) return;
+    const p = this.state.players.get(id);
+    if (p) p.money += T.fee;
+    T.pool -= T.fee;
+    T.entrants = T.entrants.filter((x) => x !== id);
+    if (T.host === id) T.host = T.entrants[0] ?? '';
+    if (!T.entrants.length) T.phase = 'idle';
+    this.syncTour();
+  }
+
+  /** put a player (human or bot) on a seat without the walking / reach checks */
+  private tourSeat(id: string, ti: number, s: number): void {
+    const p = this.state.players.get(id);
+    const t = this.state.tables[ti]!;
+    if (!p) return;
+    t.seats[s] = id;
+    p.table = ti;
+    p.seat = s;
+    const a = this.avatars.get(id);
+    if (a) {
+      this.unwatch(id);
+      const sp = seatPosition(ti, s);
+      a.body = createBody(sp.x, sp.z);
+      a.yaw = sp.yaw;
+      a.queue = [];
+      a.queueSeq = [];
+      a.client?.send(MSG.teleport, { x: sp.x, y: 0, z: sp.z, yaw: sp.yaw } satisfies TeleportMsg);
+    }
+  }
+
+  /** start a turnuva match at a table (no bets: the fees are the pool) */
+  private tourBegin(ti: number, hands: number): void {
+    const t = this.state.tables[ti]!;
+    const rt = this.runtime[ti]!;
+    t.bet = 0;
+    t.hands = hands;
+    t.partners = false;
+    t.hostId = [...t.seats].find((x) => x && this.isHuman(x)) ?? '';
+    rt.tour = true;
+    t.pot = 0;
+    for (let s = 0; s < 4; s++) t.totals[s] = 0;
+    t.handNo = 0;
+    t.lastMatch = '';
+    rt.dealer = Math.floor(this.cls.rng() * 4);
+    this.dealHand(ti);
+  }
+
+  /** a table for the turnuva: open and nobody on it */
+  private tourFreeTables(n: number): number[] {
+    const free: number[] = [];
+    for (let ti = 0; ti < TABLE_COUNT && free.length < n; ti++) {
+      const t = this.state.tables[ti]!;
+      if (t.status === 'open' && [...t.seats].every((x) => !x)) free.push(ti);
+    }
+    return free;
+  }
+
+  private tourStartCmd(id: string): void {
+    const T = this.tour;
+    if (T.phase !== 'open' || T.host !== id) return;
+    const tables = this.tourFreeTables(2);
+    if (tables.length < 2) return this.error(id, 'Turnuva için iki boş masa lazım.');
+    // entrants busy elsewhere by now (a match, the vapur) drop out with their fee back
+    for (const e of [...T.entrants]) {
+      const p = this.state.players.get(e);
+      if (!p || this.tourBusy(p)) {
+        if (p) {
+          p.money += T.fee;
+          this.avatars.get(e)?.client?.send(KMSG.notice, '🎯 Turnuva başladı ama sen meşguldün: giriş ücretin iade edildi.');
+        }
+        T.pool -= T.fee;
+        T.entrants = T.entrants.filter((x) => x !== e);
+        continue;
+      }
+      if (p.table >= 0 || p.tavla >= 0 || p.spot >= 0) this.stand(e);
+    }
+    if (!T.entrants.length) {
+      T.phase = 'idle';
+      return this.syncTour();
+    }
+    const order = [...T.entrants].sort(() => this.cls.rng() - 0.5);
+    T.semis = tables.map((ti, k) => {
+      const ids: string[] = [];
+      for (let s = 0; s < 4; s++) {
+        const human = order[k * 4 + s];
+        const id = human ?? this.createBot(ti, s).id;
+        this.tourSeat(id, ti, s);
+        ids.push(id);
+      }
+      return { table: ti, ids, names: ids.map((x) => this.state.players.get(x)?.name ?? '?'), totals: null };
+    });
+    T.phase = 'semis';
+    for (const ti of tables) this.tourBegin(ti, TOUR_HANDS.semi);
+    this.syncTour();
+    this.broadcast(KMSG.notice, `🎯 Turnuva başladı! Yarı finaller ${tables.map((x) => x + 1).join(' ve ')}. masalarda.`);
+  }
+
+  /** a turnuva table finished its match */
+  private tourMatchDone(ti: number, totals: number[]): void {
+    const T = this.tour;
+    const t = this.state.tables[ti]!;
+    const ids = [...t.seats];
+    if (T.phase === 'semis') {
+      const semi = T.semis.find((x) => x.table === ti);
+      if (!semi || semi.totals) return;
+      semi.totals = totals;
+      semi.ids = ids;
+      semi.names = ids.map((x) => this.state.players.get(x)?.name ?? '?');
+      this.runtime[ti]!.tour = false;
+      if (T.semis.every((x) => x.totals)) {
+        T.nextAt = Date.now() + TOUR_BREAK_MS;
+        this.broadcast(KMSG.notice, '🎯 Yarı finaller bitti! Final birazdan başlıyor.');
+      }
+    } else if (T.phase === 'final' && T.final?.table === ti) {
+      T.final.totals = totals;
+      T.final.ids = ids;
+      T.final.names = ids.map((x) => this.state.players.get(x)?.name ?? '?');
+      this.runtime[ti]!.tour = false;
+      this.tourFinish();
+    }
+    this.syncTour();
+  }
+
+  /** best two of each semi meet at the first semi's table */
+  private tourFinal(): void {
+    const T = this.tour;
+    if (T.phase !== 'semis') return;
+    const finalists: { id: string; name: string }[] = [];
+    for (const semi of T.semis) for (const s of tourRanking(semi.totals ?? [0, 0, 0, 0]).slice(0, 2)) finalists.push({ id: semi.ids[s]!, name: semi.names[s]! });
+    // clear both semi tables: people stand up, bots that did not make it go home
+    for (const semi of T.semis) {
+      const t = this.state.tables[semi.table]!;
+      for (let s = 0; s < 4; s++) {
+        const id = t.seats[s]!;
+        const p = id ? this.state.players.get(id) : undefined;
+        t.seats[s] = '';
+        if (!p) continue;
+        p.table = -1;
+        p.seat = -1;
+        if (p.isBot && !finalists.some((f) => f.id === id)) this.state.players.delete(id);
+      }
+      this.resetTable(semi.table, false);
+      t.hostId = '';
+    }
+    const ft = T.semis[0]!.table;
+    const ids = finalists.map((f, s) => {
+      const p = this.state.players.get(f.id);
+      if (p) return f.id;
+      // a finalist who left the salon: a bot plays on in their place
+      const b = this.createBot(ft, s);
+      return b.id;
+    });
+    ids.forEach((id, s) => this.tourSeat(id, ft, s));
+    T.final = { table: ft, ids, names: ids.map((x) => this.state.players.get(x)?.name ?? '?'), totals: null };
+    T.phase = 'final';
+    this.tourBegin(ft, TOUR_HANDS.final);
+    this.syncTour();
+    this.broadcast(KMSG.notice, `🎯 Final ${ft + 1}. masada başladı: ${T.final.names.join(', ')}`);
+  }
+
+  private tourFinish(): void {
+    const T = this.tour;
+    const f = T.final!;
+    const prizes = tourPrizes(T.pool);
+    T.podium = tourRanking(f.totals ?? [0, 0, 0, 0]).map((s, place) => {
+      const id = f.ids[s]!;
+      const p = this.state.players.get(id);
+      const bot = !p || p.isBot;
+      const prize = place < prizes.length && !bot ? prizes[place]! : 0;
+      if (p && prize > 0) {
+        p.money += prize;
+        this.saveWallet(id);
+        this.avatars.get(id)?.client?.send(KMSG.notice, `🏆 Turnuvada ${place + 1}. oldun! +${prize} ₺`);
+      }
+      if (p && !p.isBot && place === 0) this.ach(id, 'tourWon');
+      return { name: f.names[s] ?? p?.name ?? '?', bot, prize };
+    });
+    T.phase = 'done';
+    this.broadcast(KMSG.notice, `🏆 Turnuva şampiyonu: ${T.podium[0]?.name ?? '?'}!`);
+  }
+
   /** Arkadaşlar: ask a player in this salon to be friends, or accept their request. */
   private friendAdd(id: string, targetRaw: unknown): void {
     const a = this.avatars.get(id);
@@ -696,6 +959,8 @@ export class KahvehaneRoom extends Room<KahveState> {
   private removePlayer(id: string): void {
     const p = this.state.players.get(id);
     if (!p) return;
+    // a turnuva entrant who leaves before the start gets the fee back
+    if (this.tour.phase === 'open' && this.tour.entrants.includes(id)) this.tourLeave(id);
     this.saveWallet(id);
     const dev = this.avatars.get(id)?.device;
     if (dev && this.cls.wallets) this.cls.presence?.clear(this.cls.wallets.friendCode(dev), this.roomId);
@@ -801,8 +1066,8 @@ export class KahvehaneRoom extends Room<KahveState> {
         a.client?.send(MSG.teleport, { x: tc.x + ox, y: 0, z: tc.z + oz, yaw: sp.yaw } satisfies TeleportMsg);
       }
     }
-    // only bots left: close the table
-    if (![...t.seats].some((s) => s && this.isHuman(s))) this.resetTable(ti, true);
+    // only bots left: close the table (a turnuva match plays on: the bracket needs its result)
+    if (!this.runtime[ti]!.tour && ![...t.seats].some((s) => s && this.isHuman(s))) this.resetTable(ti, true);
   }
 
   private createBot(ti: number, seat: number, tavla = false): KPlayer {
@@ -932,6 +1197,7 @@ export class KahvehaneRoom extends Room<KahveState> {
       this.achTable([...t.seats]);
       const winnerTeams = teams ? [0, 1].filter((k) => teams[k] === min) : undefined;
       t.lastMatch = JSON.stringify({ totals, winners, pot: t.pot, payout, teams: teams ?? undefined, winnerTeams });
+      if (rt.tour) this.clock.setTimeout(() => this.tourMatchDone(ti, totals), 0);
       if (this.cls.rng() < 0.6) this.clock.setTimeout(() => this.botSay(ti, 'Bir el daha!'), 1800);
       t.pot = 0;
       t.status = 'result';
@@ -1464,6 +1730,10 @@ export class KahvehaneRoom extends Room<KahveState> {
     for (let ti = 0; ti < TAVLA_COUNT; ti++) this.tickTavla(ti, now);
     if (now >= this.tvCheckAt) {
       this.tvCheckAt = now + 1000;
+      if (this.tour.nextAt && now >= this.tour.nextAt) {
+        this.tour.nextAt = 0;
+        this.tourFinal();
+      }
       if (now >= this.festivalCheckAt) {
         this.festivalCheckAt = now + 5_000;
         this.state.festival = this.cls.festival?.current() ?? '';

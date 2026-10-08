@@ -43,6 +43,11 @@ export const KMSG = {
   unwatch: 'unwatch',
   /** server → the table's players and spectators at hand end: HandReplayMsg */
   replay: 'replay',
+  /** turnuva: open one { fee } / join / leave / start (the host; empty places get bots) */
+  tourOpen: 'tourOpen',
+  tourJoin: 'tourJoin',
+  tourLeave: 'tourLeave',
+  tourStart: 'tourStart',
   /** arkadaşlar: ask a player in the salon to be friends / accept their request { id } */
   friendAdd: 'friendAdd',
   /** server → the asked player: FriendReqMsg */
@@ -371,4 +376,6 @@ export interface KahveView {
   tv?: string;
   /** mevsimlik olay (FestivalId), '' = none */
   festival?: string;
+  /** JSON TourView of the salon's turnuva, '' = none yet */
+  tour?: string;
 }

@@ -236,3 +236,8 @@ Decisions taken autonomously on the user's behalf (see CLAUDE.md autonomy rule).
 - Presence (which salon a code is in) is kept in memory and shared by all salons.
 - In-game: a 👥 HUD button with the number of requests, a request toast, and a panel listing friends (online first), requests and "Bu salondakiler" with ➕ Ekle. The lobby has the same panel without the salon list.
 - With 👥, 🏅, 👒 and the clock the HUD bar got wide, so its text labels now hide below 1440 px width (icons stay).
+
+## 2026-10-08 — Okey turnuvası
+- There is one turnuva per salon. Any player can open one (entry fee 0, 100, 250 or 500 ₺) and pays the fee on entry; others join until there are 8. The opener starts it, and the empty places get bots. The server seats everyone on two free tables for one-hand semis. The best two of each table (lowest totals, ties by seat) meet at the first semi's table for a two-hand final. Turnuva tables carry no bets.
+- The prize pool is the humans' fees only, split 50 / 30 / 20 %. A bot's place wins nothing, so filling the field with bots never creates money. Leaving before the start refunds the fee, and so does being busy (in a match, or on the vapur) when it starts. Leaving during a match forfeits: a bot plays on, and a turnuva table keeps playing with bots only.
+- New achievement: "Turnuva şampiyonu" (22 achievements in all).

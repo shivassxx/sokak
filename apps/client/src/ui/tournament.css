@@ -1,0 +1,16 @@
+/* 🎯 Turnuva (inside the achievements overlay / panel frame) */
+.tour-panel section { display: grid; gap: 8px; }
+.tour-fees, .tour-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.tour-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 10px; }
+.tour-table { background: #fff; border-radius: 12px; padding: 10px 12px; box-shadow: 0 1px 0 rgba(0, 0, 0, .06); min-width: 0; }
+.tour-table h4 { margin: 0 0 6px; font-size: 14px; color: var(--ink-soft); }
+.tour-table ol { margin: 0; padding-left: 20px; display: grid; gap: 3px; }
+.tour-table li { display: flex; gap: 8px; justify-content: space-between; }
+.tour-table li b { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.tour-table li.up b { font-weight: 800; color: #217a47; }
+.tour-pts { font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.tour-podium { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.tour-podium li { display: flex; align-items: center; gap: 10px; background: #fff; border-radius: 12px; padding: 8px 12px; }
+.tour-podium li b { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tour-podium li.p1 { background: linear-gradient(90deg, #fff4c9, #fff); }
+.tour-podium .medal { font-size: 20px; width: 28px; text-align: center; }

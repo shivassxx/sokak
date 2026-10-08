@@ -98,4 +98,6 @@ export class KahveState extends Schema {
   @type('string') tv = '';
   /** mevsimlik olay id (FestivalId) dressing up the kahvehane, '' = none */
   @type('string') festival = '';
+  /** JSON TourView of the salon's turnuva, '' = none yet */
+  @type('string') tour = '';
 }
