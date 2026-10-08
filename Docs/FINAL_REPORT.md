@@ -145,3 +145,20 @@ Ayrıntılı adımlar: **`Docs/Deploy.md`**. Kısaca:
 - **Vapur turu:** iskeledeki vapura bin (yanaşıkken 30 sn). Vapur Kız Kulesi'nin çevresinden dolaşıp geri döner. Güvertede yürünür, martılara simit atılır, vapur çaycısından çay alınır. Zamanlama sunucu saatine bağlı, herkes aynı vapuru görür.
 - **Haftalık liderlik tablosu:** cihaz cüzdanıyla oynanan okey ve tavla maçlarının haftalık net kazancı. Hafta İstanbul saatiyle pazartesi başlar. İlk 3'ün isminin yanında 🏆 çıkar; liste lobide görünür.
 - Testler: 12 dosya, 112 test geçiyor; derleme 3,2 MB gzip (5 MB sınırının altında).
+
+## 10. Ek: 7–8 Ekim 2026 oturumu (devam)
+
+- **Büyük TV ve maç yayını:** salonda 4,8 m'lik ekran. Yetkililer simülasyon derbi ya da sahibin eklediği kanallardan gerçek yayın açar. Video bağlantıları ekranda oynar, gömülü oynatıcılar "Maçı izle" penceresinde açılır.
+- **Yetkili paneli (`/admin`):** sahip `shivass`; adminler yalnızca maç açar. Sahip ayrıca kanalları, yetkilileri, salonları, duyuruları, oyun parasını, etkinlikleri, istatistikleri ve kayıtları yönetir.
+- **Eşli 101 ve masa ayarları:** tekli ya da eşli; 1–9 el; hızlı, normal ya da yavaş hamle süresi.
+- **Seyirci modu ve el sonu tekrarı.**
+- **Gece-gündüz döngüsü:** 40 dakikalık oyun günü. Gece Kız Kulesi ışıklanır, ay ve yıldızlar çıkar.
+- **Grafik kalite menüsü:** Düşük, Orta, Yüksek ve Otomatik; FPS göstergesi ve ses düzeyi.
+- **Başarımlar (22)** ve **aksesuarlar:** kasket, fötr, gözlük, tespih, köstekli saat, atkı, bıyık.
+- **Mevsimlik etkinlikler:** 29 Ekim, 23 Nisan, 19 Mayıs, 30 Ağustos, yılbaşı, Ramazan (mahya) ve bayramlar. Bayramlarda bir kez harçlık verilir.
+- **Çay zinciri:** "Herkese çay benden". 10 dakika içinde başkası da ısmarlarsa zincir uzar.
+- **Arkadaşlar:** hesap olmadan, karşılıklı ekleme. Arkadaşının hangi salonda olduğunu görüp "Yanına git" diyebilirsin.
+- **Okey turnuvası:** 8 kişi, iki yarı final ve final. Ödül havuzu yalnızca oyuncuların giriş ücretlerinden oluşur.
+- **Sunucu yeniden başlarken** süren maçların bahisleri iade edilir.
+- **Testler:** 32 dosyada 205 test geçiyor. Toplam boyut 5 MB bütçesinin altında, lobi 135 KB.
+- **Kalan büyük iş:** Karaköy (vapurla karşıya geçilen ikinci harita).
