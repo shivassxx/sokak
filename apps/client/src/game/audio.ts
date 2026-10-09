@@ -296,7 +296,7 @@ export function achievementChime(): void {
   });
 }
 
-export function vapurHorn(volume = 0.6): void {
+export function vapurHorn(volume = 0.6, at?: SoundAt): void {
   const c = ctx;
   if (!c || !sfxBus || muted) return;
   const t = c.currentTime;
@@ -308,7 +308,8 @@ export function vapurHorn(volume = 0.6): void {
   g.gain.linearRampToValueAtTime(volume * 0.18, t + 0.18);
   g.gain.setValueAtTime(volume * 0.18, t + 1.7);
   g.gain.exponentialRampToValueAtTime(0.001, t + 2.5);
-  lp.connect(g).connect(sfxBus);
+  if (at) lp.connect(g).connect(emitter(c, at, 25, 900)).connect(sfxBus);
+  else lp.connect(g).connect(sfxBus);
   for (const f of [98, 147.5, 196.8]) {
     const o = c.createOscillator();
     o.type = 'sawtooth';
@@ -399,15 +400,90 @@ export function goalRoar(volume = 0.7): void {
   noise(0.12, 0.06, 0.12 * volume, 2500);
 }
 
+/** A world-space position (metres) a sound comes from. */
+export interface SoundAt {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/**
+ * 3D audio: the Web Audio listener follows the camera (`setListenerPose`, called every frame), and
+ * sounds with a position go through an HRTF PannerNode (the same thing three.js' PositionalAudio
+ * wraps, but on this module's own context and buses, so volume / mute keep working).
+ */
+export function setListenerPose(x: number, y: number, z: number, fx: number, fz: number): void {
+  const l = ctx?.listener;
+  if (!ctx || !l) return;
+  const t = ctx.currentTime;
+  if (l.positionX) {
+    l.positionX.setTargetAtTime(x, t, 0.03);
+    l.positionY.setTargetAtTime(y, t, 0.03);
+    l.positionZ.setTargetAtTime(z, t, 0.03);
+    l.forwardX.setTargetAtTime(fx, t, 0.03);
+    l.forwardY.setTargetAtTime(0, t, 0.03);
+    l.forwardZ.setTargetAtTime(fz, t, 0.03);
+    l.upX.setTargetAtTime(0, t, 0.03);
+    l.upY.setTargetAtTime(1, t, 0.03);
+    l.upZ.setTargetAtTime(0, t, 0.03);
+  }
+}
+
+function emitter(c: AudioContext, at: SoundAt, refDistance: number, maxDistance: number): PannerNode {
+  const p = c.createPanner();
+  p.panningModel = 'HRTF';
+  p.distanceModel = 'inverse';
+  p.refDistance = refDistance;
+  p.maxDistance = maxDistance;
+  p.rolloffFactor = 1.2;
+  p.positionX.value = at.x;
+  p.positionY.value = at.y;
+  p.positionZ.value = at.z;
+  return p;
+}
+
+/** A wooden okey tile set down: a dry click and a short, hollow knock of the table. */
+export function tileClack(at: SoundAt, volume = 1): void {
+  const c = ctx;
+  if (!c || !sfxBus || muted) return;
+  const t = c.currentTime;
+  const out = emitter(c, at, 1.5, 40);
+  out.connect(sfxBus);
+  const len = Math.floor(c.sampleRate * 0.03);
+  const buf = c.createBuffer(1, len, c.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.exp(-i / (len * 0.18));
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  const hp = c.createBiquadFilter();
+  hp.type = 'bandpass';
+  hp.frequency.value = 2600 + Math.random() * 700;
+  hp.Q.value = 1.1;
+  const g = c.createGain();
+  g.gain.value = 0.9 * volume;
+  src.connect(hp).connect(g).connect(out);
+  src.start(t);
+  const o = c.createOscillator();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(190 + Math.random() * 30, t);
+  o.frequency.exponentialRampToValueAtTime(110, t + 0.09);
+  const og = c.createGain();
+  og.gain.setValueAtTime(0.34 * volume, t);
+  og.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+  o.connect(og).connect(out);
+  o.start(t);
+  o.stop(t + 0.12);
+}
+
 /** A seagull's cry: a few squeaky falling "kyow" calls. */
-export function gullCry(volume = 0.5, pan = 0): void {
+export function gullCry(volume = 0.5, pan = 0, at?: SoundAt): void {
   const c = ctx;
   if (!c || !sfxBus || muted) return;
   const t0 = c.currentTime;
   const n = 2 + Math.floor(Math.random() * 3);
   const base = 1300 + Math.random() * 400;
-  const p = c.createStereoPanner();
-  p.pan.value = Math.max(-1, Math.min(1, pan));
+  const p: AudioNode = at ? emitter(c, at, 6, 400) : c.createStereoPanner();
+  if (!at) (p as StereoPannerNode).pan.value = Math.max(-1, Math.min(1, pan));
   p.connect(sfxBus);
   for (let k = 0; k < n; k++) {
     const t = t0 + k * (0.26 + Math.random() * 0.08);

@@ -60,7 +60,7 @@ import {
 } from '@sokak/shared';
 import { festivalById } from '@sokak/shared';
 import type { Game } from '../../game/Game';
-import { footsteps, goalRoar, gullCry, nightAmbience, play, seaside } from '../../game/audio';
+import { footsteps, goalRoar, gullCry, nightAmbience, play, seaside, tileClack } from '../../game/audio';
 import { DayClock } from './DayClock';
 import { useToasts } from '../toasts';
 import { AnnounceBanner } from './AnnounceBanner';
@@ -301,10 +301,13 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
         toastRef.current({ text: `${seatName(e.seat)} elini açtı (${e.mode === 'pairs' ? 'çift' : `${e.points} puan`})!`, kind: 'info' });
         play('pop');
         break;
-      case 'discarded':
-        play('click');
+      case 'discarded': {
+        const tc = TABLES[m.table];
+        if (tc) tileClack({ x: tc.x, y: 0.8, z: tc.z });
+        else play('click');
         if (e.islek) toastRef.current({ text: `${seatName(e.seat)} işlek taş attı: +101 ceza!`, kind: 'bad' });
         break;
+      }
       case 'drew':
         if (e.from === 'left') toastRef.current({ text: `${seatName(e.seat)} soldan aldı.`, kind: 'info' });
         break;
@@ -705,7 +708,7 @@ export function KahveScreen({ room, onLeave, reconnecting }: Props) {
       nightAmbience(Math.max(0, night - 0.3) * (pos.z < 0 ? 0.25 : 1.4));
       const now = performance.now();
       if (pos.z > 12 && now > nextGull) {
-        if (Math.random() > night * 0.75) gullCry(0.25 + lv * 0.5, Math.random() * 2 - 1);
+        if (Math.random() > night * 0.75) gullCry(0.5 + lv * 0.7, 0, { x: pos.x + (Math.random() - 0.5) * 50, y: 6 + Math.random() * 8, z: pos.z + 12 + Math.random() * 25 });
         nextGull = now + 7000 + Math.random() * 14000;
       }
     }, 400);

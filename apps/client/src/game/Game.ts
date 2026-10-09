@@ -1,3 +1,4 @@
+import { setListenerPose } from './audio';
 import * as THREE from 'three';
 import {
   HALL,
@@ -138,6 +139,7 @@ export class Game {
   /** frozen = cannot move (seated, watching a table) */
   frozen = false;
   camYaw = 0;
+  private fwdTmp = new THREE.Vector3();
   camPitch = 0.45;
   private camDist = 5.2;
 
@@ -859,6 +861,9 @@ export class Game {
     if (bloom !== this.bloomNow) this.post.setBloom((this.bloomNow = bloom));
     this.onFrame?.(dt);
     if (!NO_RENDER) this.post.render(dt);
+    const cp = this.camera.position;
+    const fw = this.camera.getWorldDirection(this.fwdTmp);
+    setListenerPose(cp.x, cp.y, cp.z, fw.x, fw.z);
     qualityFrame(rawDt);
   }
 

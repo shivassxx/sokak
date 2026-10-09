@@ -923,7 +923,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
   let clock = () => Date.now();
   let callerPhase: VapurPhase | null = null;
   const listener = new THREE.Vector2();
-  const horn = () => vapurHorn(Math.max(0.12, 1 - Math.hypot(listener.x - caller.position.x, listener.y - caller.position.z) / 220));
+  const horn = () => vapurHorn(1.4, { x: caller.position.x, y: caller.position.y + 6, z: caller.position.z });
   const placeCaller = () => {
     const v = vapurState(clock());
     caller.position.set(v.x, v.y, v.z);
