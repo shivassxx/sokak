@@ -26,6 +26,7 @@ import {
 import { Builder, canvasTex, decal, hash, type Mover } from './world';
 import { PAT, patternize } from './materials';
 import { loadSurfaces } from './surfaces';
+import { createWater2 } from './water2';
 import { placeProps } from './propModels';
 import { STEEL, LIGHT_OAK, TABLE_TOP, WALNUT, feltTexture, modernChair, modernOkeyTable, okeyTable, parasol, patioHeater, samovar, caydanlik, bentwoodChair } from './kahveProps';
 import { getVolume, isMuted, vapurHorn } from './audio';
@@ -125,7 +126,7 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
             vec2 cl = texture2D(uClouds, uv).rg;
             // clouds take the hour's palette: lit from the sun side, grey-blue in the shade, dark at night
             vec3 lit = mix(mid, vec3(1.0, 0.97, 0.93), 0.55) * (0.55 + 0.8 * cl.g) + glowCol * pow(s, 3.0) * 0.6;
-            lit *= 1.0 - 0.82 * uStars;
+            lit *= 1.0 - 0.93 * uStars;
             c = mix(c, lit, smoothstep(0.5, 0.95, cl.r) * 0.72 * smoothstep(0.03, 0.12, d.y));
           }
           c += glowCol * (pow(s, 600.0) * 4.0 + pow(s, 12.0) * 0.35) * uGlow;
@@ -901,7 +902,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
 
   // -------------------------------------------------------------- the sea, Kız Kulesi, vapur, skyline, gulls
   const water = waterMaterial(sunDir);
-  const sea = new THREE.Mesh(new THREE.PlaneGeometry(3000, 2000, 120, 60), water);
+  const water2 = quality === 'high' ? createWater2() : null;
+  const sea = water2 ?? new THREE.Mesh(new THREE.PlaneGeometry(3000, 2000, 120, 60), water);
   sea.rotation.x = -Math.PI / 2;
   sea.position.set(0, -1.15, SEA_Z + 0.6 + 1000);
   sea.userData.noAO = true;
@@ -1022,6 +1024,8 @@ export function buildKahveWorld(scene: THREE.Scene, renderer: THREE.WebGLRendere
     (wu.uShallow!.value as THREE.Color).copy(L.seaShallow);
     (wu.uSky!.value as THREE.Color).copy(L.seaSky);
     (wu.uSunCol!.value as THREE.Color).copy(L.seaGlint);
+    // Water2 takes the hour's sea colour as its tint (it brings its own reflections)
+    if (water2) (water2.material as THREE.ShaderMaterial).uniforms.color!.value.copy(L.seaShallow).lerp(L.seaSky, 0.45).multiplyScalar(1.5).addScalar(0.05 + 0.1 * L.night);
     (skyline.material as THREE.MeshBasicMaterial).color.copy(L.skyline);
     cityLightsMat.opacity = ramp(L.night, 0.25, 0.9);
     cityLights.visible = cityLightsMat.opacity > 0.01;

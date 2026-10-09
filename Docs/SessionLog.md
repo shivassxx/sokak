@@ -153,3 +153,4 @@
 - Part 2: Poly Haven potted plants replace the procedural ficus planters, a grandfather clock, panelled varnished counter and shelves; textures at 512 px on the medium tier; photographed clouds in the sky shader (mask + shading coloured by the hour's palette, turned away from the sun).
 ## 3D audio (2026-10-09)
 - `audio.ts`: `setListenerPose`, `emitter` (HRTF panner), `tileClack`, positional `gullCry` / `vapurHorn`; `Game.ts` updates the listener after each render; `KahveScreen` plays `tileClack` at the table of a discard and spawns gulls over the sea; `kahveWorld` passes the vapur's position to the horn. Typecheck, build and size pass; no page errors in the smoke run.
+- Water2 on the high tier (`game/water2.ts`), DRACOLoader in `propModels.ts` + `public/draco/`; night clouds dimmer, night sea lifted. 208 tests pass.

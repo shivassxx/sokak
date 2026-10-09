@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 
 /**
@@ -18,7 +19,9 @@ export interface Placement {
   s?: number;
 }
 
-const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+// Draco (the decoder ships in public/draco) and meshopt: a prop can use either compression
+const draco = new DRACOLoader().setDecoderPath(`${import.meta.env.BASE_URL}draco/`);
+const loader = new GLTFLoader().setDRACOLoader(draco).setMeshoptDecoder(MeshoptDecoder);
 const cache = new Map<string, Promise<THREE.Group>>();
 
 function load(name: string): Promise<THREE.Group> {
